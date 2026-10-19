@@ -33,6 +33,24 @@ def evaluate_permission(request: PermissionRequest) -> PermissionDecision:
 
 
 TENANT_MISMATCH_REASON = "tenant_mismatch"
+#: Fixed denial reason when the requester of an approval tries to decide it.
+SELF_DECISION_DENIED_REASON = "separation_of_duties_self_decision"
+
+
+def separation_of_duties_denial(
+    *,
+    decision_actor_id: str,
+    requested_by: str | None,
+) -> PermissionDecision | None:
+    """Deny a decision made by the actor who raised the request.
+
+    Approvals are a two-person control: the requester can never decide their
+    own request. Returns the denial decision, or ``None`` when the actors
+    differ.
+    """
+    if requested_by and decision_actor_id == requested_by:
+        return PermissionDecision(allowed=False, reason=SELF_DECISION_DENIED_REASON)
+    return None
 
 
 class ScopePrincipal(Protocol):

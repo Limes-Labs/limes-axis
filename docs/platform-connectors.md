@@ -277,7 +277,9 @@ credential values.
 
 `POST /demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests/{export_request_id}/decision`
 records the human approval decision for a governed export request. The endpoint
-requires `approvals:connectors:export:decide`, records the approval decision on
+requires `approvals:connectors:export:decide` and a decision actor other than
+the request's `requested_by` (403 `separation_of_duties_self_decision`
+otherwise, with no decision, signal or audit written), records the approval decision on
 the approval row, signals the Axis workflow runtime with
 `connector_evidence_snapshot_export_decided`, writes
 `connector.evidence_snapshot_export.decision_recorded` audit evidence and

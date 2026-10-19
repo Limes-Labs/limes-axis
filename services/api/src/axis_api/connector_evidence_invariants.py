@@ -37,7 +37,12 @@ from axis_api.manufacturing_metadata import (
 )
 from axis_api.models import AuditEvent
 from axis_api.object_storage import ObjectStore
-from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
+from axis_api.permissions import (
+    PermissionDecision,
+    PermissionRequest,
+    evaluate_permission,
+    separation_of_duties_denial,
+)
 from axis_api.persistence import (
     ApprovalDecisionRecord,
     ApprovalRecordCreate,
@@ -1159,6 +1164,15 @@ def _evaluate_snapshot_export_request_decision_permission(
         raise ConnectorEvidenceInvariantSnapshotExportDecisionPermissionDenied(
             SNAPSHOT_EXPORT_REQUEST_DECISION_REQUIRED_SCOPE,
             decision,
+        )
+    self_decision = separation_of_duties_denial(
+        decision_actor_id=request.actor_id,
+        requested_by=export_request.requested_by,
+    )
+    if self_decision is not None:
+        raise ConnectorEvidenceInvariantSnapshotExportDecisionPermissionDenied(
+            SNAPSHOT_EXPORT_REQUEST_DECISION_REQUIRED_SCOPE,
+            self_decision,
         )
     return decision
 

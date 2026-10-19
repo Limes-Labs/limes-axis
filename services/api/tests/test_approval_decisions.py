@@ -952,6 +952,36 @@ def test_approval_decision_endpoint_handles_missing_approval(
     assert response.json()["detail"] == "Approval not found"
 
 
+@pytest.mark.parametrize("decision", ["approve", "reject"])
+def test_approval_decision_endpoint_denies_requester_self_decision(
+    session_factory: sessionmaker[Session],
+    decision: str,
+) -> None:
+    # Regression: the actor that raised an approval could decide it, defeating
+    # the two-person control. The requester holds the decision scope here.
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = session_factory
+    app.state.workflow_runtime = RecordingWorkflowRuntime()
+    client = TestClient(app)
+
+    response = client.post(
+        "/demo/manufacturing/approvals/appr_shift_maintenance_window/decision",
+        json={
+            "decision": decision,
+            "actor_id": "maintenance-planner-agent",
+            "actor_scopes": ["approvals:maintenance:decide"],
+            "note": "Self-approval attempt.",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "separation_of_duties_self_decision"
+    with session_factory() as session:
+        assert list(session.scalars(select(ApprovalRecord))) == []
+        assert list(session.scalars(select(AuditEvent))) == []
+    assert app.state.workflow_runtime.requests == []
+
+
 def test_approval_decision_endpoint_denies_actor_without_required_scope(
     session_factory: sessionmaker[Session],
 ) -> None:

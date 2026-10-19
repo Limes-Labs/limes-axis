@@ -51,6 +51,10 @@ release-bound behavior, not the complete commit history.
   `AXIS_OIDC_SESSION_COOKIE_SIGNING_SECRET`, and `AXIS_CORS_ORIGINS` containing
   `*` or plain-http loopback origins. Development and test profiles are
   unchanged.
+- Approval decisions and connector evidence snapshot export-request decisions
+  enforce separation of duties: the requester can no longer approve or reject
+  their own request (403 `separation_of_duties_self_decision`, nothing
+  written).
 
 ### Added
 

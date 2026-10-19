@@ -1092,6 +1092,53 @@ def test_connector_evidence_invariant_snapshot_export_request_decision_requires_
     assert decision_events == []
 
 
+def test_connector_evidence_invariant_snapshot_export_request_decision_denies_requester() -> None:
+    # Regression: the export requester could approve their own export request.
+    factory = session_factory()
+    app = create_app(Settings(postgres_dsn="sqlite+pysqlite://"))
+    app.state.session_factory = factory
+    app.state.workflow_runtime = RecordingSnapshotExportWorkflowRuntime()
+    with session_scope(factory) as session:
+        seed_mismatched_connector_evidence(AxisPersistenceRepository(session))
+    client = TestClient(app)
+
+    client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots",
+        json=snapshot_payload(
+            snapshot_id="snap_connector_evidence_export_request_match",
+            idempotency_key="idem_connector_evidence_snapshot_export_request_match",
+        ),
+    )
+    created = client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/export-requests",
+        json=snapshot_export_request_payload(),
+    )
+    assert created.status_code == 201, created.text
+    response = client.post(
+        "/demo/manufacturing/connectors/evidence-invariants/snapshots/"
+        "export-requests/export_req_connector_evidence_20260627_1000/decision",
+        json=snapshot_export_request_decision_payload(
+            actor_id="connector-compliance-reviewer-role",
+        ),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "separation_of_duties_self_decision"
+    with session_scope(factory) as session:
+        repository = AxisPersistenceRepository(session)
+        decision_events = repository.list_audit_events(
+            tenant_id="tenant_demo_manufacturing",
+            event_type="connector.evidence_snapshot_export.decision_recorded",
+            limit=10,
+        )
+        export_request = repository.get_connector_evidence_snapshot_export_request(
+            "tenant_demo_manufacturing", "export_req_connector_evidence_20260627_1000"
+        )
+    assert decision_events == []
+    assert export_request is not None
+    assert export_request.status == "approval_required"
+
+
 def test_connector_evidence_invariant_snapshot_export_materialization_writes_local_artifact(
     tmp_path: Path,
 ) -> None:
