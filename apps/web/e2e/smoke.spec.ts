@@ -304,13 +304,13 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("button", { name: "Open operator account" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Connect OIDC bearer token" })).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Search console" }).click();
-    await expect(page.getByRole("dialog", { name: "Console command menu" })).toBeVisible();
-    await page.getByRole("combobox", { name: "Search console commands" }).fill("audit");
+    await page.getByRole("button", { name: "Go to…" }).click();
+    await expect(page.getByRole("dialog", { name: "Go to…" })).toBeVisible();
+    await page.getByRole("combobox", { name: "Go to a page, entity or action" }).fill("audit");
     // cmdk renders commands as options, not links.
     await expect(page.getByRole("option", { name: "Audit", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: "Console command menu" })).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: "Go to…" })).toHaveCount(0);
 
     const topbarHeight = await page.locator(".ops-topbar").evaluate((element) =>
       Math.round(element.getBoundingClientRect().height),

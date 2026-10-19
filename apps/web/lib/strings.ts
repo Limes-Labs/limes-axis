@@ -221,8 +221,16 @@ const globalError = {
   action: "Reload the console",
 } as const;
 
+/*
+ * The command menu jumps to pages, indexed entities and console actions; it
+ * does not search records yet, so its copy says "Go to" rather than "Search"
+ * (#945). Record search will reuse the migration 0068 index.
+ */
 const commandMenu = {
-  placeholder: "Search pages, entities, actions",
+  trigger: "Go to…",
+  dialogTitle: "Go to…",
+  inputLabel: "Go to a page, entity or action",
+  placeholder: "Go to a page, entity or action…",
   empty: "No matching command.",
   apiStatus: "API status",
   actionsHeading: "Actions",

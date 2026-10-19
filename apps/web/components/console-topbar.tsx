@@ -19,6 +19,7 @@ import { useAxisQuery } from "@/lib/use-axis-query";
 import {
   parseManufacturingNotificationCenter,
 } from "@/lib/runtime-contracts/overview";
+import { strings } from "@/lib/strings";
 import {
   buildTenantScopedPath,
   DEMO_TENANT_ID,
@@ -158,8 +159,8 @@ export function ConsoleTopbar({
         <button
           className="icon-button"
           type="button"
-          aria-label="Search console"
-          title="Search console"
+          aria-label={strings.commandMenu.trigger}
+          title={strings.commandMenu.trigger}
           onClick={() => {
             setActivePanel(null);
             setCommandMenuOpen(true);
