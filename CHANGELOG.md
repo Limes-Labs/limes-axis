@@ -24,6 +24,15 @@ release-bound behavior, not the complete commit history.
   only; no grid UI, source access, formula evaluation or writeback
   ([#848](https://github.com/Limes-Labs/limes-axis/issues/848)).
 
+- Versioned clean-room agreement contract modeling multi-party collaboration
+  as a time-bounded agreement: typed purpose/input/output classes as
+  enforcement inputs, bounded isolation profiles, provably independent
+  per-party approvals, material amendments that invalidate prior approvals,
+  authoritative suspension/expiry execution gates, and party removal that
+  preserves historical digests while pruning its inputs. Contract slice
+  only; no dataset binding, query engine or compute
+  ([#855](https://github.com/Limes-Labs/limes-axis/issues/855)).
+
 - An optional authenticated public institutional context reader (GovCore),
   absent unless `create_app(public_context=...)` opts in, with current
   tenant/scope and separate fixed-origin policy checks before and after the
