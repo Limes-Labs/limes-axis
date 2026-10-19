@@ -177,6 +177,19 @@ export const snapshotFixture: ManufacturingOperationsSnapshot = {
       payload_refs: { connector_id: "conn_assets_csv" },
     },
     {
+      // A console page view: read evidence the connector-activity card ignores.
+      event_type: "connector.workspace_read",
+      actor_id: "plant-operations-owner-role",
+      created_at: "2026-07-10T10:21:00+02:00",
+      payload_refs: { connector_id: "conn_assets_csv" },
+    },
+    {
+      event_type: "connector.evidence_invariants.snapshot_persisted",
+      actor_id: "connector-runtime",
+      created_at: "2026-07-10T10:22:00+02:00",
+      payload_refs: { connector_id: "conn_assets_csv" },
+    },
+    {
       event_type: "approval.decision.recorded",
       actor_id: "plant-operations-owner-role",
       created_at: "2026-07-10T10:25:00+02:00",

@@ -290,7 +290,7 @@ describe("PlatformOverview hero", () => {
     );
     expect(paths).toContain(`${OPERATIONS_API_PREFIX}/model-routing?tenant_id=tenant_acme`);
     expect(paths).toContain(
-      `${OPERATIONS_API_PREFIX}/audit/events?tenant_id=tenant_acme&limit=25`,
+      `${OPERATIONS_API_PREFIX}/audit/events?tenant_id=tenant_acme&limit=100`,
     );
     expect(paths.filter((path) => path.includes("tenant_demo_manufacturing"))).toHaveLength(0);
   });
@@ -508,6 +508,58 @@ describe("PlatformOverview demo bootstrap CTA", () => {
     expect(screen.queryByText("Demo data loaded")).not.toBeInTheDocument();
     // The checklist stays actionable for a retry.
     expect(screen.getByRole("button", { name: "Explore with demo data" })).toBeEnabled();
+  });
+});
+
+describe("PlatformOverview read events", () => {
+  function mockAuditWindowWithReads() {
+    mockQueriesByPath();
+    const routed = mocks.useAxisQuery.getMockImplementation()!;
+    const [first] = auditEventsFixture.events;
+    const read = (index: number, eventType: string) => ({
+      ...first,
+      audit_event_id: `99999999-0000-4000-8000-00000000000${index}`,
+      event_type: eventType,
+      category: "connector",
+    });
+    mocks.useAxisQuery.mockImplementation((path: string) =>
+      path.startsWith(`${OPERATIONS_API_PREFIX}/audit/events`)
+        ? queryResult({
+            ...auditEventsFixture,
+            events: [
+              ...auditEventsFixture.events,
+              read(1, "connector.workspace_read"),
+              read(2, "connector.egress_policies_read"),
+              read(3, "connector.credential_leases_read"),
+            ],
+          }, "api")
+        : routed(path),
+    );
+  }
+
+  it("defaults the feed, chart and hero count to state-changing events", async () => {
+    mockAuditWindowWithReads();
+    const user = userEvent.setup();
+    renderOverview();
+
+    // Four state-changing fixture events; the three reads are hidden.
+    expect(screen.getByTestId("hero-audit-count")).toHaveTextContent(/^4$/);
+    expect(screen.getByText("Showing 4 of 4 recent events")).toBeInTheDocument();
+    expect(screen.queryByText("Connector Workspace Read")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Share of 4 events in the latest window (up to 100)."),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("3 read events hidden").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("checkbox", { name: "Show reads" }));
+
+    expect(screen.getByTestId("hero-audit-count")).toHaveTextContent(/^7$/);
+    expect(screen.getByText("Showing 7 of 7 recent events")).toBeInTheDocument();
+    expect(screen.getByText("Connector Workspace Read")).toBeInTheDocument();
+    expect(
+      screen.getByText("Share of 7 events in the latest window (up to 100)."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("3 read events hidden")).not.toBeInTheDocument();
   });
 });
 

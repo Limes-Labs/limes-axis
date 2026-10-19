@@ -420,4 +420,61 @@ describe("AuditExplorer integrity and export", () => {
       screen.queryByRole("heading", { name: "No matching audit evidence" }),
     ).not.toBeInTheDocument();
   });
+
+  it("hides the console's own read events by default and shows them on request", async () => {
+    const user = userEvent.setup();
+    const read = (id: string, eventType: string) => ({
+      ...explorerFixture.events[0],
+      audit_event_id: id,
+      event_type: eventType,
+      category: "connector",
+      summary: "Console read the connector workspace.",
+    });
+    mocks.useAxisQuery.mockReturnValue(queryResult({
+      ...explorerFixture,
+      events: [
+        ...explorerFixture.events,
+        // One /connectors visit writes three read events.
+        read("read_workspace", "connector.workspace_read"),
+        read("read_egress", "connector.egress_policies_read"),
+        read("read_leases", "connector.credential_leases_read"),
+      ],
+    }, "api"));
+    render(<AuditExplorer />);
+
+    const visible = screen.getByRole("region", { name: "Visible audit events" });
+    expect(within(visible).getByRole("heading", { name: "1 visible" })).toBeInTheDocument();
+    expect(within(visible).queryByText("Connector Workspace Read")).not.toBeInTheDocument();
+    expect(screen.getByTestId("hidden-read-count")).toHaveTextContent("3 read events hidden");
+    // Display filter only: the window the API returned is unchanged.
+    expect(within(visible).getByText("4 returned")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "Show reads" }));
+
+    expect(window.location.search).toContain("reads=shown");
+    expect(within(visible).getByRole("heading", { name: "4 visible" })).toBeInTheDocument();
+    expect(within(visible).getByText("Connector Workspace Read")).toBeInTheDocument();
+    expect(screen.queryByTestId("hidden-read-count")).not.toBeInTheDocument();
+  });
+
+  it("offers Show reads when the window holds only read events", async () => {
+    const user = userEvent.setup();
+    mocks.useAxisQuery.mockReturnValue(queryResult({
+      ...explorerFixture,
+      events: [{
+        ...explorerFixture.events[0],
+        audit_event_id: "read_only",
+        event_type: "connector.workspace_read",
+      }],
+    }, "api"));
+    render(<AuditExplorer />);
+
+    expect(
+      screen.getByRole("heading", { name: "No state-changing events in this window" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Show reads" }));
+    expect(screen.getByRole("region", { name: "Visible audit events" })).toHaveTextContent(
+      "Connector Workspace Read",
+    );
+  });
 });

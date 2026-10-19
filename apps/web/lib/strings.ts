@@ -1313,7 +1313,7 @@ const overview = {
     connectors: {
       label: "Connector activity",
       link: "Manage connectors",
-      detail: "Connector events in the latest audit window",
+      detail: "Connector changes in the latest audit window (reads excluded)",
     },
     policies: { label: "Policies", link: "Review policies" },
     models: { label: "Models", link: "View routing" },
@@ -1399,6 +1399,16 @@ const audit = {
   noRecords: {
     title: "Audit API returned no records",
     detail: "The audit API responded without ledger records for this tenant.",
+  },
+  /* Activity feeds and charts default to state-changing events; console page
+     views write read evidence that would otherwise dominate them. */
+  reads: {
+    show: "Show reads",
+    hidden: (count: number) =>
+      `${count.toLocaleString("en")} read ${count === 1 ? "event" : "events"} hidden`,
+    onlyReadsTitle: "No state-changing events in this window",
+    onlyReadsDetail:
+      "Only read events were recorded in this window. Turn on Show reads to see them.",
   },
 } as const;
 
@@ -1861,7 +1871,10 @@ export const strings = {
     createOrganization: "Create organization",
     activity: {
       title: "Activity by category",
-      window: (count: number) => `Share of ${count} events in the latest window (up to 25).`,
+      window: (count: number, limit: number) =>
+        `Share of ${count} events in the latest window (up to ${limit}).`,
+      dateWindow: (count: number, limit: number) =>
+        `${count} returned events · latest window, up to ${limit}.`,
       errorTitle: "Activity breakdown unavailable",
       errorDetail: "Refresh to load the recent audit window.",
       emptyTitle: "No activity to compare",

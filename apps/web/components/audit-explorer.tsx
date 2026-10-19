@@ -18,11 +18,13 @@ import {
   buildAuditExportSummary,
   filterAuditEvents,
   formatAuditLabel,
+  isReadAuditEvent,
+  partitionReadAuditEvents,
   type AuditFilters,
   type AuditExportBundle,
   type ManufacturingAuditExplorer,
 } from "@/lib/audit-demo";
-import { stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
+import { enumUrlField, stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
 import { strings } from "@/lib/strings";
 import {
   buildTenantScopedPath,
@@ -47,6 +49,7 @@ import { useConsole } from "@/providers/console-provider";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InspectDrawer } from "@/components/ui/inspect-drawer";
+import { ShowReadsToggle } from "@/components/ui/show-reads-toggle";
 import { Select } from "@/components/ui/select";
 import { SourcePill } from "@/components/ui/source-pill";
 import {
@@ -73,6 +76,8 @@ const auditUrlSchema = {
   eventType: stringUrlField("event_type", allAuditFilter),
   scope: stringUrlField("scope", allAuditFilter),
   eventId: stringUrlField("event_id"),
+  // Read evidence is hidden by default; `?reads=shown` opts back in.
+  reads: enumUrlField("reads", ["hidden", "shown"] as const, "hidden"),
 };
 
 /** Serialize the already-fetched export bundle and trigger a client download. */
@@ -263,7 +268,22 @@ export function AuditExplorer() {
     return () => controller.abort();
   }, [auditExportPath, refreshNonce, session, tenantId, tenantQueriesEnabled]);
 
-  const filteredEvents = auditData ? filterAuditEvents(auditData, filters) : [];
+  const matchingEvents = auditData ? filterAuditEvents(auditData, filters) : [];
+  // The list and the heatmap default to state-changing events. Choosing a read
+  // event type, or deep-linking to a read event, is an explicit request for
+  // reads, so neither is hidden behind the default.
+  const requestsRead =
+    (filters.eventType !== allAuditFilter && isReadAuditEvent({ event_type: filters.eventType }))
+    || Boolean(
+      urlState.eventId
+      && auditData?.events.some(
+        (event) => event.audit_event_id === urlState.eventId && isReadAuditEvent(event),
+      ),
+    );
+  const readsShown = urlState.reads === "shown" || requestsRead;
+  const matchingPartition = partitionReadAuditEvents(matchingEvents);
+  const filteredEvents = readsShown ? matchingEvents : matchingPartition.stateChanging;
+  const hiddenReadCount = readsShown ? 0 : matchingPartition.reads.length;
   const visibleEvents = filterAuditTimeInterval(filteredEvents, timeInterval);
   const selectedEvent = urlState.eventId
     ? visibleEvents.find((event) => event.audit_event_id === urlState.eventId)
@@ -349,6 +369,20 @@ export function AuditExplorer() {
         detail={strings.states.requestedRecord.detail}
         icon={Filter}
         title={strings.states.requestedRecord.title}
+      />
+    );
+  }
+
+  if (!selectedEvent && !timeInterval && hiddenReadCount > 0) {
+    return (
+      <EmptyPanel
+        action={{
+          label: strings.audit.reads.show,
+          onClick: () => setUrlState({ reads: "shown", eventId: "" }),
+        }}
+        detail={strings.audit.reads.onlyReadsDetail}
+        icon={Filter}
+        title={strings.audit.reads.onlyReadsTitle}
       />
     );
   }
@@ -453,6 +487,12 @@ export function AuditExplorer() {
               ))}
             </Select>
           </Field>
+          <ShowReadsToggle
+            checked={readsShown}
+            hiddenCount={hiddenReadCount}
+            onCheckedChange={(checked) =>
+              setUrlState({ reads: checked ? "shown" : "hidden", eventId: "" })}
+          />
           <button className="icon-button" onClick={resetFilters} title="Reset filters" type="button">
             <RotateCcw size={17} />
           </button>

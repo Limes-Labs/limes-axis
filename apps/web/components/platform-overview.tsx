@@ -1,10 +1,13 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 
 import { OnboardingChecklist } from "@/components/onboarding-checklist";
 import { ArtifactPanel } from "@/components/overview/artifact-panel";
-import { EvidenceFeed } from "@/components/overview/evidence-feed";
+import {
+  EvidenceFeed,
+  OVERVIEW_AUDIT_WINDOW,
+} from "@/components/overview/evidence-feed";
 import { APPROVALS_ENDPOINT, NeedsAttention } from "@/components/overview/needs-attention";
 import { type OverviewQuery } from "@/components/overview/overview-shared";
 import { PostureCards } from "@/components/overview/posture-cards";
@@ -15,7 +18,10 @@ import {
   countAwaitingDecision,
   type ManufacturingApprovalInbox,
 } from "@/lib/approval-demo";
-import type { ManufacturingAuditExplorer } from "@/lib/audit-demo";
+import {
+  partitionReadAuditEvents,
+  type ManufacturingAuditExplorer,
+} from "@/lib/audit-demo";
 import type { ManufacturingModelRouting } from "@/lib/model-routing-demo";
 import {
   formatNumber,
@@ -187,7 +193,7 @@ export function PlatformOverview() {
   const auditEventsPath = buildTenantScopedPath(
     AUDIT_EVENTS_ENDPOINT,
     tenantId ?? DEMO_TENANT_ID,
-    { limit: 25 },
+    { limit: OVERVIEW_AUDIT_WINDOW },
   );
   const overviewQuery = useAxisQuery<ManufacturingOverview>(overviewPath, {
     enabled: tenantQueriesEnabled,
@@ -216,6 +222,21 @@ export function PlatformOverview() {
     expectedTenantId: tenantId ?? undefined,
     parse: parseManufacturingAuditExplorer,
   });
+  // The hero count, the evidence feed and the activity chart all show the same
+  // display window: state-changing events by default, reads on request. This
+  // is a view filter only; the ledger and the request are unchanged.
+  const [showReads, setShowReads] = useState(false);
+  const auditPartition = auditEventsQuery.data
+    ? partitionReadAuditEvents(auditEventsQuery.data.events)
+    : null;
+  const hiddenReadCount = !showReads && auditPartition ? auditPartition.reads.length : 0;
+  const activityQuery: typeof auditEventsQuery =
+    auditEventsQuery.data && auditPartition && !showReads
+      ? {
+          ...auditEventsQuery,
+          data: { ...auditEventsQuery.data, events: auditPartition.stateChanging },
+        }
+      : auditEventsQuery;
 
   if (identityQuery.source === "loading") {
     return <LoadingPanel layout="detail" />;
@@ -272,7 +293,7 @@ export function PlatformOverview() {
     <div className="grid gap-4">
       <OverviewHero
         approvals={approvalsQuery}
-        auditEvents={auditEventsQuery}
+        auditEvents={activityQuery}
         overview={overviewQuery}
         snapshot={snapshotQuery}
       />
@@ -289,7 +310,7 @@ export function PlatformOverview() {
         overview={overviewQuery}
         tenantId={tenantId}
       />
-        <SideRail auditEvents={auditEventsQuery} />
+        <SideRail auditEvents={activityQuery} hiddenReadCount={hiddenReadCount} />
       </div>
 
       <OnboardingChecklist tenantId={tenantId} variant="compact" />
@@ -303,7 +324,14 @@ export function PlatformOverview() {
 
       <div className="ops-dashboard-grid grid grid-cols-1 gap-4">
         <section aria-label="Operations evidence" className="ops-dashboard-main grid min-w-0 content-start gap-4">
-          <EvidenceFeed auditEvents={auditEventsQuery} />
+          <EvidenceFeed
+            auditEvents={activityQuery}
+            reads={{
+              showReads,
+              hiddenCount: hiddenReadCount,
+              onShowReadsChange: setShowReads,
+            }}
+          />
           {/* Suspense boundary for useSearchParams inside the artifact panel. */}
           <Suspense fallback={<LoadingPanel layout="detail" />}>
             <ArtifactPanel onArtifactCommitted={triggerRefresh} snapshot={snapshotQuery} />

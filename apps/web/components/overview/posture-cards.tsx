@@ -3,6 +3,7 @@
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SourcePill } from "@/components/ui/source-pill";
+import { isReadAuditEvent } from "@/lib/audit-demo";
 import { formatNumber, pluralize } from "@/lib/format";
 import { countBlockedModelRoutes, type ManufacturingModelRouting } from "@/lib/model-routing-demo";
 import {
@@ -55,8 +56,11 @@ function metricByLabel(
 }
 
 function connectorEventCount(snapshot: ManufacturingOperationsSnapshot): number {
-  return snapshot.recent_audit_events.filter((event) => event.event_type.startsWith("connector."))
-    .length;
+  // Reads are excluded: every /connectors visit writes workspace/policy read
+  // evidence, which made merely looking at connectors read as "activity".
+  return snapshot.recent_audit_events.filter(
+    (event) => event.event_type.startsWith("connector.") && !isReadAuditEvent(event),
+  ).length;
 }
 
 function cardState<T>(
