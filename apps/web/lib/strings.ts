@@ -221,6 +221,27 @@ const globalError = {
   action: "Reload the console",
 } as const;
 
+/**
+ * Console chrome. Accessible names start with the control's visible text so
+ * speech-input users can say what they see (WCAG 2.5.3 Label in Name).
+ */
+const shell = {
+  brand: "Limes Axis",
+  controlPlane: "Control plane",
+  homeLink: "Limes Axis Control plane, home",
+  menu: "Menu",
+  menuLabel: (section: string) => `Menu, current section: ${section}`,
+  notifications: "Open notifications",
+  notificationsLabel: (badge: string) => `Open notifications, ${badge} unread`,
+  account: "Open operator account",
+  accountLabel: (visible: string) => `${visible}, open operator account`,
+  theme: {
+    trigger: "Color theme",
+    triggerLabel: (current: string) => `Color theme: ${current}`,
+    options: { system: "System", light: "Light", dark: "Dark" },
+  },
+} as const;
+
 /*
  * The command menu jumps to pages, indexed entities and console actions; it
  * does not search records yet, so its copy says "Go to" rather than "Search"
@@ -1978,6 +1999,7 @@ export const strings = {
   },
   scopeDenial,
   nav,
+  shell,
   identityGate,
   commandMenu,
   routeError,
@@ -2018,6 +2040,7 @@ export const strings = {
       manifestRevision: "Manifest revision",
       registryOrigin: "Registry origin",
       schemaTitle: "Declared schema mapping",
+      schemaRegion: "Scrollable declared schema mapping",
       schemaEmpty: "This source has no declared field mapping yet.",
       ontologyTargets: "Ontology targets",
       notes: "Catalog notes",

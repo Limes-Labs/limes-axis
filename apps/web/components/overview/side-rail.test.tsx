@@ -32,6 +32,16 @@ describe("Activity breakdown", () => {
     expect(within(chart).getAllByRole("term").map((term) => term.textContent)).toEqual(["Connector", "Approval"]);
   });
 
+  it("keeps the breakdown a valid description list (dl > div > dt/dd only)", () => {
+    const { container } = render(<SideRail auditEvents={{ source: "api", data: auditEventsFixture }} />);
+    const list = container.querySelector("dl");
+    expect(list).not.toBeNull();
+    for (const group of Array.from(list!.children)) {
+      expect(group.tagName).toBe("DIV");
+      expect(Array.from(group.children).map((child) => child.tagName).every((tag) => tag === "DT" || tag === "DD")).toBe(true);
+    }
+  });
+
   it("preserves reference provenance instead of calling example records live", () => {
     render(<SideRail auditEvents={{ source: "api", data: { ...auditEventsFixture, provenance: "reference_scenario" } }} />);
     expect(screen.getByText("audit window: reference scenario")).toBeInTheDocument();

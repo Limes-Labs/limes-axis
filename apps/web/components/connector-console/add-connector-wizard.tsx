@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useMemo, useRef, useState, type ChangeEvent, type RefObject } from "react";
 import { Database, FileText, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -128,6 +128,7 @@ export function AddConnectorWizard({
   open,
   onOpenChange,
   onCreated,
+  returnFocusRef,
   tenantId,
 }: {
   connectors: ConnectorRegistryItem[];
@@ -137,6 +138,8 @@ export function AddConnectorWizard({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
+  /** Focus target on close when the button that opened the wizard is gone. */
+  returnFocusRef?: RefObject<HTMLElement | null>;
   tenantId: string;
 }) {
   const copy = strings.connectors.wizard;
@@ -489,7 +492,7 @@ export function AddConnectorWizard({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent aria-describedby={undefined} className="max-w-2xl">
+      <DialogContent aria-describedby={undefined} className="max-w-2xl" returnFocusRef={returnFocusRef}>
         <DialogHeader>
           <DialogTitle>{copy.title}</DialogTitle>
           <DialogDescription>{copy.description}</DialogDescription>

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentProps } from "react";
+import { useRef, type ComponentProps, type RefObject } from "react";
 
 import { X } from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
@@ -29,15 +29,49 @@ export function DialogOverlay({
   );
 }
 
+export interface DialogContentProps extends ComponentProps<typeof DialogPrimitive.Content> {
+  /**
+   * Where focus lands on close when the element that opened the dialog is no
+   * longer in the document (e.g. the option button a decision replaced).
+   */
+  returnFocusRef?: RefObject<HTMLElement | null>;
+}
+
 export function DialogContent({
   className,
   children,
+  onOpenAutoFocus,
+  onCloseAutoFocus,
+  returnFocusRef,
   ...props
-}: ComponentProps<typeof DialogPrimitive.Content>) {
+}: DialogContentProps) {
+  // Radix returns focus only to a <DialogTrigger>. Most console dialogs are
+  // controlled and opened from a plain button, so without this focus fell to
+  // <body> on close (WCAG 2.4.3). Capture the opener as the dialog mounts —
+  // before Radix moves focus inside — and restore it on close.
+  const openerRef = useRef<HTMLElement | null>(null);
+
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
+        onOpenAutoFocus={(event) => {
+          const active = document.activeElement;
+          openerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
+          onOpenAutoFocus?.(event);
+        }}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event);
+          if (event.defaultPrevented) {
+            return;
+          }
+          const opener = openerRef.current;
+          const target = opener?.isConnected ? opener : returnFocusRef?.current;
+          if (target?.isConnected) {
+            event.preventDefault();
+            target.focus();
+          }
+        }}
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2",
           // Without a height cap, tall content (the connector wizard's CSV step

@@ -148,14 +148,14 @@ export function SidebarAccount({
         </button>
         <button
           aria-expanded={activePanel === "account"}
-          aria-label="Open operator account"
+          aria-label={strings.shell.accountLabel(operatorInitials(actorId ?? undefined))}
           className={cn(
             "grid size-[34px] shrink-0 cursor-pointer place-items-center rounded-full border border-line bg-surface font-mono text-[11px] font-bold text-ink/80 transition-colors hover:border-signal/40 hover:bg-signal/10 dark:border-white/20 dark:bg-white/5",
             activePanel === "account" && "border-signal/40 bg-signal/10",
           )}
           data-operator-initials
           onClick={() => toggle("account")}
-          title="Open operator account"
+          title={strings.shell.account}
           type="button"
         >
           {operatorInitials(actorId ?? undefined)}
@@ -203,13 +203,15 @@ export function SidebarAccount({
 
       <button
         aria-expanded={activePanel === "account"}
-        aria-label="Open operator account"
+        aria-label={strings.shell.accountLabel(
+          `${actorId ?? strings.nav.signedOut}, ${identitySession?.tenant_id ?? strings.nav.noTenant}`,
+        )}
         className={cn(
           "mt-0.5 flex min-h-[46px] w-full cursor-pointer items-center gap-2.5 rounded-xl border border-line px-2 text-left transition-colors hover:border-signal/40 hover:bg-signal/8 dark:border-white/15",
           activePanel === "account" && "border-signal/40 bg-signal/10",
         )}
         onClick={() => toggle("account")}
-        title="Open operator account"
+        title={strings.shell.account}
         type="button"
       >
         <span

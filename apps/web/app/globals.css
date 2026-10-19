@@ -17,7 +17,9 @@
   --navy: 4 18 46; /* Midnight Navy #04122E */
   --cloud: 247 248 251; /* Cloud White   #F7F8FB */
   --mist: 217 222 232; /* Mist Gray     #D9DEE8 */
-  --slate: 110 122 148; /* Slate Gray    #6E7A94 */
+  /* Slate Gray #5B6782 — deepened from #6E7A94 (4.05–4.3:1) so muted text
+     clears WCAG AA 4.5:1 on cloud, surface, tints and status pills. */
+  --slate: 91 103 130;
 
   /* Signal tints */
   --tint-50: #f3f6ff;
@@ -31,10 +33,22 @@
   --line: var(--mist);
   --muted: var(--slate);
 
-  /* Status channels — emerald / amber / red. Signal is the only accent. */
-  --positive: 5 150 105;
-  --warning: 180 83 9;
-  --danger: 220 38 38;
+  /*
+   * Accent channel behind every `*-signal` utility. In the light theme it is
+   * Signal Blue deepened to #2457EB so Signal text keeps 4.5:1 on the Signal
+   * tints (#2F64FF was 4.3:1 on tint-100); the logo, focus rings and chart
+   * strokes keep the brand channel `--signal` itself.
+   */
+  --accent: 36 87 235;
+
+  /*
+   * Status channels — emerald / amber / red. Signal is the only accent. These
+   * tones double as pill text on their own 12% tint, so each is deep enough to
+   * hold 4.5:1 there (worst case: positive 4.83, warning 5.56, danger 4.98).
+   */
+  --positive: 4 112 82; /* #047052 */
+  --warning: 146 64 14; /* #92400E */
+  --danger: 185 28 28; /* #B91C1C */
 
   /*
    * Console geometry. The console is a dense operator tool, not a landing
@@ -65,6 +79,9 @@
   --line: 34 52 88;
   --muted: 158 172 200;
 
+  /* The navy world keeps the brand Signal Blue as its accent. */
+  --accent: var(--signal);
+
   --tint-50: rgb(var(--signal) / 8%);
   --tint-100: rgb(var(--signal) / 15%);
   --tint-200: rgb(var(--signal) / 24%);
@@ -75,7 +92,7 @@
 }
 
 @theme inline {
-  --color-signal: rgb(var(--signal));
+  --color-signal: rgb(var(--accent));
   --color-navy: rgb(var(--navy));
   --color-cloud: rgb(var(--cloud));
   --color-mist: rgb(var(--mist));
@@ -206,7 +223,7 @@ summary:focus-visible,
 }
 
 .eyebrow-accent {
-  color: rgb(var(--signal));
+  color: rgb(var(--accent));
 }
 
 /* Quiet semantic separator that stays subordinate in both color schemes. */

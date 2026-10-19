@@ -127,14 +127,14 @@ describe("ConsoleTopbar notification badge", () => {
     mockNotifications(25);
     render(<ConsoleTopbar />);
 
-    expect(screen.getByLabelText("Open notifications")).toHaveTextContent("9+");
+    expect(screen.getByLabelText("Open notifications, 9+ unread")).toHaveTextContent("9+");
   });
 
   it("shows the exact count under 10", () => {
     mockNotifications(4);
     render(<ConsoleTopbar />);
 
-    expect(screen.getByLabelText("Open notifications")).toHaveTextContent("4");
+    expect(screen.getByLabelText("Open notifications, 4 unread")).toHaveTextContent("4");
   });
 
   it.each([

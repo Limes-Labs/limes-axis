@@ -36,7 +36,7 @@ export function CommandInput({
       <Search aria-hidden="true" className="shrink-0 text-muted" size={15} />
       <CommandPrimitive.Input
         className={cn(
-          "h-11 w-full min-w-0 bg-transparent text-sm text-ink outline-none placeholder:text-muted/70",
+          "h-11 w-full min-w-0 bg-transparent text-sm text-ink outline-none placeholder:text-muted",
           "disabled:cursor-not-allowed disabled:opacity-55",
           className,
         )}

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/cn";
 import { isNavActive, navGroups, resolveNavItem } from "@/lib/nav";
+import { strings } from "@/lib/strings";
 
 const drawerLinkClass =
   "flex min-h-[44px] items-center gap-2.5 rounded-xl px-3 text-[13px] font-medium text-muted transition-colors hover:bg-signal/8 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal";
@@ -60,7 +61,7 @@ export function MobileNavigation({
         </Link>
 
         <div className="grid min-w-0 flex-1 leading-tight">
-          <span className="truncate font-mono text-[9px] font-semibold tracking-[0.16em] text-muted uppercase">
+          <span className="truncate font-mono text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">
             {currentGroup?.label ?? "Limes Axis"}
           </span>
           <span
@@ -74,13 +75,13 @@ export function MobileNavigation({
         <Sheet onOpenChange={setOpen} open={open}>
           <SheetTrigger asChild>
             <button
-              aria-label={`Open navigation. Current section: ${currentLabel}`}
+              aria-label={strings.shell.menuLabel(currentLabel)}
               className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-line bg-surface px-3 text-sm font-semibold text-ink transition-colors hover:border-signal/40 hover:bg-signal/8 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal dark:border-white/15"
               data-mobile-navigation-trigger
               type="button"
             >
               <MenuIcon aria-hidden="true" size={18} />
-              <span>Menu</span>
+              <span>{strings.shell.menu}</span>
             </button>
           </SheetTrigger>
           <SheetContent className="w-[88vw]! max-w-[22rem]! gap-5 p-4!" side="left">

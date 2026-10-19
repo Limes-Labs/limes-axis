@@ -40,7 +40,7 @@ describe("MobileNavigation", () => {
       screen.getByText("Settings", { selector: "[data-mobile-current-section]" }),
     ).toBeVisible();
     const trigger = screen.getByRole("button", {
-      name: "Open navigation. Current section: Settings",
+      name: "Menu, current section: Settings",
     });
 
     await user.click(trigger);
@@ -61,7 +61,7 @@ describe("MobileNavigation", () => {
     const user = userEvent.setup();
     renderNavigation("/policies/policy_egress");
     const trigger = screen.getByRole("button", {
-      name: "Open navigation. Current section: Policies",
+      name: "Menu, current section: Policies",
     });
 
     await user.click(trigger);
@@ -79,7 +79,7 @@ describe("MobileNavigation", () => {
     const user = userEvent.setup();
     renderNavigation();
     const trigger = screen.getByRole("button", {
-      name: "Open navigation. Current section: Settings",
+      name: "Menu, current section: Settings",
     });
 
     await user.click(trigger);

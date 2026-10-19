@@ -28,7 +28,7 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
           <h1 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 600 }}>
             {strings.globalError.title}
           </h1>
-          <p style={{ margin: "0.5rem 0 0", fontSize: "0.875rem", color: "#6e7a94" }}>
+          <p style={{ margin: "0.5rem 0 0", fontSize: "0.875rem", color: "#5b6782" }}>
             {strings.globalError.detail}
           </p>
           {error.digest ? (
@@ -37,7 +37,7 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
                 margin: "1rem 0 0",
                 fontFamily: "ui-monospace, SFMono-Regular, monospace",
                 fontSize: "0.75rem",
-                color: "#6e7a94",
+                color: "#5b6782",
               }}
             >
               {strings.states.reference}: {error.digest}
