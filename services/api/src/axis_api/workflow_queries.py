@@ -123,14 +123,12 @@ def query_persisted_workflow_runs(
         state=query.state,
         limit=query.limit,
     )
+    timelines = repository.list_workflow_timeline_events_for_workflows(
+        query.tenant_id,
+        [record.workflow_id for record in records],
+    )
     runs = [
-        _workflow_run_to_public(
-            record,
-            repository.list_workflow_timeline_events(
-                tenant_id=record.tenant_id,
-                workflow_id=record.workflow_id,
-            ),
-        )
+        _workflow_run_to_public(record, timelines.get(record.workflow_id, []))
         for record in records
     ]
     has_persisted_records = bool(records)

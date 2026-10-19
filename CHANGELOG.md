@@ -373,6 +373,11 @@ release-bound behavior, not the complete commit history.
 
 ### Changed
 
+- `GET /operations/workflows/runs` and the connector credential-handle
+  registry read their timelines and rotations in one batched query per page
+  instead of one per row (1 + N statements before). Workflow timelines capped
+  at 100 events now keep the newest 100, returned oldest first; previously the
+  newest events beyond the 100th were dropped.
 - Bearer-token verification keeps the last good JWKS when a scheduled refresh
   fails (stale-if-error) and retries after a short backoff (a tenth of
   `AXIS_OIDC_JWKS_CACHE_SECONDS`, 1 to 30 s) instead of on every request.

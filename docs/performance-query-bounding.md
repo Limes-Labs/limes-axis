@@ -161,6 +161,25 @@ SQLite plan: before the index it was
 after it reads the composite index with no sort. `NOT RUN` here: the PostgreSQL
 `EXPLAIN (ANALYZE, BUFFERS)` reproduction for the three run/approval tables.
 
+## Batched Child Reads
+
+Two list projections read one child collection per parent row. The workflow
+run list (`GET /operations/workflows/runs`) read each run's timeline
+separately, so a page of N runs cost 1 + N statements, and the credential-handle
+registry read each handle's rotations separately. Both now read the children of
+the whole page in one windowed query (`row_number()` partitioned by parent),
+in batches of 500 parent ids. Each parent keeps the same per-parent cap: 100
+timeline events and 25 rotations.
+
+The timeline cap previously kept the 100 *oldest* events and silently dropped
+the newest, so a long-running workflow showed a stale history. Both the single
+and the batched read now keep the newest 100, returned oldest first.
+
+`services/api/tests/test_list_child_batching.py` asserts one child statement
+per page (12 runs: 12 statements before, 1 after; 10 handles: 10 before, 1
+after), that the batched rotations match the per-handle read, and that a
+130-event timeline returns events 31 to 130.
+
 ## Verification
 
 | Property | Test |
