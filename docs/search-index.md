@@ -40,7 +40,13 @@ store or source artifacts.
   re-reading the source is safe.
 * **Tombstones always apply** (deletion is monotone) and clear text and digest.
   A tombstone can only be replaced by live content carrying bound ordering
-  evidence; late out-of-order live events cannot resurrect deleted rows.
+  evidence; late out-of-order live events cannot resurrect deleted rows. A
+  deletion of an identity the index has not seen yet still records a
+  text-free tombstone row, so a create delivered after its deletion stays
+  deleted.
+* **Live updates carry the current kind and locator.** A newer revision
+  rewrites the stored `source_locator`, so per-object locator denials at
+  query time see where the object lives now, not where it was first indexed.
 * **Generations never move backwards.** An applied update keeps the larger of
   the row's current and the incoming `index_generation`, so an incremental
   writer that is unaware of a rebuild cannot demote a row to an older

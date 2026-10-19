@@ -1222,6 +1222,8 @@ class SearchIndexProjectionUpdate(BaseModel):
     next_state: str = Field(min_length=1, max_length=20)
     next_content_revision: str | None = Field(default=None, max_length=220)
     next_generation: int = Field(ge=1, strict=True)
+    kind: str | None = Field(default=None, min_length=1, max_length=40)
+    source_locator: str | None = Field(default=None, min_length=1, max_length=500)
     searchable_text: str | None = Field(default=None, max_length=20_000)
     text_digest: str | None = Field(default=None, min_length=64, max_length=64)
     language: str = Field(default="simple", min_length=2, max_length=12)
@@ -6342,6 +6344,13 @@ class AxisPersistenceRepository:
             record.searchable_text = None
             record.text_digest = None
         else:
+            # Live content brings its current kind and locator: per-object
+            # locator denials are evaluated on the stored locator, so a moved
+            # object must not keep serving under its old location.
+            if projection.kind is not None:
+                record.kind = projection.kind
+            if projection.source_locator is not None:
+                record.source_locator = projection.source_locator
             record.searchable_text = projection.searchable_text
             record.text_digest = projection.text_digest
             record.language = projection.language
