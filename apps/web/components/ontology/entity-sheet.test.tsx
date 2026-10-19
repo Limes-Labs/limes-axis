@@ -338,7 +338,7 @@ describe("OntologyEntityDetail tenant scope", () => {
 
     render(<OntologyEntityDetail nodeId="asset_line_2" />);
 
-    expect(screen.getByRole("heading", { name: "Identity API unavailable" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Can't reach Axis" })).toBeInTheDocument();
     expect(mocks.axisFetch).not.toHaveBeenCalled();
   });
 });

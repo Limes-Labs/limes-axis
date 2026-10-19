@@ -17,6 +17,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { SsoSignInLink } from "@/components/sso-sign-in-link";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
 import {
@@ -32,6 +33,7 @@ import {
   currentReturnPath,
 } from "@/lib/oidc-session";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
+import { strings } from "@/lib/strings";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 
@@ -201,10 +203,10 @@ export function AccountPanel({
         </>
       ) : (
         <div className="grid gap-2">
-          <a className={commandClass} href={authorizeUrl}>
+          <SsoSignInLink className={commandClass} href={authorizeUrl}>
             <ShieldCheck size={16} />
-            Sign in with SSO
-          </a>
+            {strings.identityGate.signIn}
+          </SsoSignInLink>
           <a
             className={commandSecondaryClass}
             href={onboardingUrl}

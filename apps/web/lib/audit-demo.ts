@@ -128,6 +128,30 @@ type AuditEventSelectionInput = {
   selectedEventId: string;
 };
 
+/**
+ * Read evidence: the API writes `<surface>_read` events whenever a console
+ * surface is viewed (`connector.workspace_read`, `connector.egress_policies_read`,
+ * ...). They are legitimate evidence but they are not state changes, and the
+ * console's own page views otherwise crowd every activity feed.
+ * `platform.notification.read` is deliberately not matched: marking a
+ * notification read persists new state.
+ */
+export function isReadAuditEvent(event: { event_type: string }): boolean {
+  return event.event_type.endsWith("_read");
+}
+
+/** Display-only partition of an audit window; never used to write or delete. */
+export function partitionReadAuditEvents<TEvent extends { event_type: string }>(
+  events: readonly TEvent[],
+): { stateChanging: TEvent[]; reads: TEvent[] } {
+  const stateChanging: TEvent[] = [];
+  const reads: TEvent[] = [];
+  for (const event of events) {
+    (isReadAuditEvent(event) ? reads : stateChanging).push(event);
+  }
+  return { stateChanging, reads };
+}
+
 export function filterAuditEvents(
   explorer: ManufacturingAuditExplorer,
   filters: AuditFilters,

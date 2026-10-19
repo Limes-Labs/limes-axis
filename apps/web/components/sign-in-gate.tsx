@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 
 import { AxisMark } from "@/components/axis-mark";
+import { SsoSignInLink } from "@/components/sso-sign-in-link";
 import { ShieldKeyIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { cn } from "@/lib/cn";
@@ -89,14 +90,16 @@ export function SignInGate({
         >
           {reasonCopy(identitySession.unauthenticated_reason)}
         </p>
-        <a
-          className="mt-5 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-signal px-4 text-sm font-semibold text-white transition-transform hover:opacity-90 active:scale-[0.98]"
-          data-gate-sign-in
-          href={signInHref}
-        >
-          <HugeiconsIcon icon={ShieldKeyIcon} size={17} strokeWidth={1.8} aria-hidden />
-          {strings.identityGate.signIn}
-        </a>
+        <div className="mt-5">
+          <SsoSignInLink
+            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-signal px-4 text-sm font-semibold text-white transition-transform hover:opacity-90 active:scale-[0.98]"
+            gate
+            href={signInHref}
+          >
+            <HugeiconsIcon icon={ShieldKeyIcon} size={17} strokeWidth={1.8} aria-hidden />
+            {strings.identityGate.signIn}
+          </SsoSignInLink>
+        </div>
         <p className="mt-3 mb-0 text-xs leading-snug text-muted">
           {strings.identityGate.returnHint}
           {host ? ` Identity provider: ${host}.` : ""}

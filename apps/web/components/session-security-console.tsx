@@ -4,6 +4,7 @@ import { LogOut, MonitorSmartphone, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
 import { ErrorPanel } from "@/components/ui/states";
+import { SsoSignInLink } from "@/components/sso-sign-in-link";
 import { ConsolePage } from "@/components/console-page";
 import {
   toAxisOperatorError,
@@ -24,6 +25,7 @@ import {
 import { buildOidcAuthorizeUrl, buildOidcLogoutUrl } from "@/lib/oidc-session";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import { parseIdentityBrowserSessionList } from "@/lib/runtime-contracts/identity";
+import { strings } from "@/lib/strings";
 import {
   deriveSourceState,
   PROVENANCE_NOT_APPLICABLE,
@@ -151,10 +153,10 @@ function SignedOutPanel({ signInUrl }: { signInUrl: string }) {
           sessions.
         </p>
       </div>
-      <a className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href={signInUrl}>
+      <SsoSignInLink className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href={signInUrl}>
         <ShieldCheck size={16} />
-        Sign in with SSO
-      </a>
+        {strings.identityGate.signIn}
+      </SsoSignInLink>
     </section>
   );
 }

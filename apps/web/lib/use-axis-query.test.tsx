@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -322,5 +322,30 @@ describe("useAxisQuery", () => {
     expect(result.current.error).toBe("Axis API response did not match the expected contract.");
     expect(result.current.errorRequestId).toBe("request-tenant-mismatch");
     expect(result.current.error).not.toContain("tenant-a-secret");
+  });
+});
+
+describe("useAxisQuery refetch", () => {
+  it("re-runs only this query after a failure and clears the error on success", async () => {
+    mocks.axisFetchParsedJson
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce({ items: ["a"] });
+
+    const { result } = renderHook(() =>
+      useAxisQuery<Registry>("/demo/registry", { parse: parseRegistry }),
+    );
+    await waitFor(() => expect(result.current.source).toBe("unavailable"));
+    const refetch = result.current.refetch;
+
+    act(() => {
+      result.current.refetch();
+    });
+
+    await waitFor(() => expect(result.current.source).toBe("api"));
+    expect(result.current.data).toEqual({ items: ["a"] });
+    expect(result.current.error).toBeNull();
+    expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(2);
+    // Stable identity so consumers can pass it straight to onRetry.
+    expect(result.current.refetch).toBe(refetch);
   });
 });

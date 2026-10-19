@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AxisApiDecodeError, AxisApiError, axisFetchParsedJson } from "@/lib/axis-api";
 import { useConsole } from "@/providers/console-provider";
@@ -55,6 +55,15 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions<T>) {
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [stateKey, setStateKey] = useState<string | null>(null);
+  /**
+   * Bumped by `refetch` to re-run only this query (an ErrorPanel "Try again")
+   * without broadcasting a console-wide refresh. Abort/stale-data handling is
+   * the same as for any other re-run of the effect.
+   */
+  const [retryNonce, setRetryNonce] = useState(0);
+  const refetch = useCallback(() => {
+    setRetryNonce((value) => value + 1);
+  }, []);
   const enabled = options.enabled ?? true;
   const expectedTenantId = options.expectedTenantId;
   const parse = options.parse;
@@ -171,6 +180,7 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions<T>) {
     sessionIdentity,
     queryKey,
     refreshNonce,
+    retryNonce,
     queryEnabled,
     parse,
     expectedTenantId,
@@ -197,5 +207,6 @@ export function useAxisQuery<T>(path: string, options: UseAxisQueryOptions<T>) {
     isLoading: !isCurrentQuery || source === "loading",
     isUnavailable: isCurrentQuery && source === "unavailable",
     isTenantNotFound: isCurrentQuery && source === "tenant_not_found",
+    refetch,
   };
 }

@@ -126,7 +126,8 @@ export function PolicyRegistry() {
         detail="The console could not verify the current actor and tenant. Policy data is not loaded until identity is available."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }

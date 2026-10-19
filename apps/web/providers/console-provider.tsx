@@ -6,11 +6,17 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 
-import { getApiBaseUrl, summarizeApiStatus, type ApiStatusSummary } from "@/lib/api-status";
+import {
+  getApiBaseUrl,
+  summarizeApiStatus,
+  type ApiStatusState,
+  type ApiStatusSummary,
+} from "@/lib/api-status";
 import { AXIS_BROWSER_SESSION_SIGNED_OUT_EVENT } from "@/lib/axis-api";
 
 type ConsoleContextValue = {
@@ -42,6 +48,11 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
     detail: "Probing Axis API health and readiness.",
   });
   const [refreshNonce, setRefreshNonce] = useState(0);
+  /**
+   * Last probe result that was not "checking". Every probe passes through
+   * "checking", so recovery is detected against the previous settled state.
+   */
+  const settledApiStateRef = useRef<ApiStatusState | null>(null);
 
   const triggerRefresh = useCallback(() => {
     setRefreshNonce((value) => value + 1);
@@ -71,12 +82,25 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
         });
         const nextStatus = await probeApi(apiBaseUrl, controller.signal);
         if (!controller.signal.aborted && probeId === latestProbe) {
-          setApiStatus(nextStatus);
+          settle(nextStatus);
         }
       } catch {
         if (!controller.signal.aborted) {
-          setApiStatus(summarizeApiStatus({ healthOk: false, readyOk: false }));
+          settle(summarizeApiStatus({ healthOk: false, readyOk: false }));
         }
+      }
+    }
+
+    function settle(nextStatus: ApiStatusSummary) {
+      const previous = settledApiStateRef.current;
+      settledApiStateRef.current = nextStatus.state;
+      setApiStatus(nextStatus);
+      if (previous === "unavailable" && nextStatus.state !== "unavailable") {
+        // The API came back after an outage. Every query (identity first —
+        // tenant queries wait on it) failed while it was down and nothing else
+        // would re-run them, so re-run the console. The refresh re-probes once
+        // more; that probe settles from a reachable state and cannot loop.
+        triggerRefresh();
       }
     }
 
@@ -89,7 +113,7 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
       controller.abort();
       window.clearInterval(interval);
     };
-  }, [apiBaseUrl, refreshNonce]);
+  }, [apiBaseUrl, refreshNonce, triggerRefresh]);
 
   const value = useMemo(
     () => ({

@@ -116,6 +116,21 @@ export type ApprovalDecisionRequestPayload = {
   note?: string;
 };
 
+/**
+ * The one definition of "waiting on a human decision". The sidebar badge, the
+ * overview hero, the needs-attention strip and the approvals queue all count
+ * with it, so no two places on screen can disagree about the same number.
+ */
+export function isAwaitingDecision(approval: Pick<ApprovalInboxItem, "status">): boolean {
+  return approval.status !== "decided";
+}
+
+export function countAwaitingDecision(
+  inbox: Pick<ManufacturingApprovalInbox, "approvals"> | null | undefined,
+): number {
+  return inbox?.approvals.filter(isAwaitingDecision).length ?? 0;
+}
+
 export function approvalRiskClass(riskLevel: ApprovalInboxItem["risk_level"]): string {
   if (riskLevel === "high") {
     return "signal-action-required";

@@ -8,6 +8,8 @@ import {
   filterAuditEvents,
   findAuditEventById,
   formatAuditLabel,
+  isReadAuditEvent,
+  partitionReadAuditEvents,
   resolveAuditEventSelection,
   type AuditExportBundle,
   type ManufacturingAuditExplorer,
@@ -202,6 +204,28 @@ const exportBundleFixture: AuditExportBundle = {
   events: [],
   retention_notes: [],
 };
+
+describe("read audit events", () => {
+  it("classifies console page-view evidence as reads, but not notification state", () => {
+    expect(isReadAuditEvent({ event_type: "connector.workspace_read" })).toBe(true);
+    expect(isReadAuditEvent({ event_type: "agent.run.context_read" })).toBe(true);
+    expect(isReadAuditEvent({ event_type: "approval.decision.recorded" })).toBe(false);
+    // Marking a notification read persists new state.
+    expect(isReadAuditEvent({ event_type: "platform.notification.read" })).toBe(false);
+  });
+
+  it("partitions a window without reordering or dropping events", () => {
+    const events = [
+      { event_type: "connector.workspace_read" },
+      { event_type: "policy.egress.blocked" },
+      { event_type: "connector.egress_policies_read" },
+    ];
+    const { stateChanging, reads } = partitionReadAuditEvents(events);
+
+    expect(stateChanging).toEqual([events[1]]);
+    expect(reads).toEqual([events[0], events[2]]);
+  });
+});
 
 describe("audit export summary", () => {
   it("maps a verified hash chain and enforced retention to ready tones", () => {

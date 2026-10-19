@@ -59,7 +59,7 @@ import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SourcePill } from "@/components/ui/source-pill";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const routeDetail = strings.models.reference.routeDetail;
@@ -100,7 +100,8 @@ export function ModelRoutingConsole() {
         detail="Model routing data is not loaded until the current actor and tenant are verified."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -179,6 +180,7 @@ function ReferenceModelRouting({
   const {
     data: routing,
     errorRequestId: routingErrorRequestId,
+    refetch: refetchRouting,
     source,
   } = useAxisQuery<ManufacturingModelRouting>(routingPath, {
     enabled,
@@ -228,10 +230,15 @@ function ReferenceModelRouting({
       return <LoadingPanel layout="detail" />;
     }
 
+    if (source === "tenant_not_found") {
+      return <TenantEmptyPanel icon={Gauge} title={strings.models.reference.noRecords.title} />;
+    }
+
     return (
       <ErrorPanel
         detail={strings.models.reference.error.detail}
         endpoint={routingPath}
+        onRetry={refetchRouting}
         reference={routingErrorRequestId ?? undefined}
         title={strings.models.reference.error.title}
       />

@@ -100,6 +100,14 @@ const identityGate = {
     "This deployment requires an authenticated operator session through your organization's identity provider.",
   signIn: "Sign in with SSO",
   returnHint: "You will return to the page you opened.",
+  /* Shown in place of a live sign-in link when the API's OIDC readiness
+     report says browser sign-in is not configured; following the link would
+     only open the API's raw 503 response. */
+  ssoNotConfigured: {
+    title: "Single sign-on isn't set up yet.",
+    detail:
+      "This deployment has no browser sign-in configured. An administrator needs to set the OIDC client ID and session-cookie signing secret on the Axis API.",
+  },
   reasons: {
     missing_authorization: "No active session was found for this browser.",
     invalid_session_cookie: "Your session is no longer valid. Sign in again to continue.",
@@ -1335,11 +1343,15 @@ const overview = {
   },
   posture: {
     agents: { label: "Agents", link: "Manage agents" },
-    workflows: { label: "Workflows", link: "Open workflows" },
+    workflows: {
+      label: "Open workflows",
+      link: "View workflows",
+      detail: "Persisted workflows that are not completed or cancelled",
+    },
     connectors: {
       label: "Connector activity",
       link: "Manage connectors",
-      detail: "Connector events in the latest audit window",
+      detail: "Connector changes in the latest audit window (reads excluded)",
     },
     policies: { label: "Policies", link: "Review policies" },
     models: { label: "Models", link: "View routing" },
@@ -1425,6 +1437,16 @@ const audit = {
   noRecords: {
     title: "Audit API returned no records",
     detail: "The audit API responded without ledger records for this tenant.",
+  },
+  /* Activity feeds and charts default to state-changing events; console page
+     views write read evidence that would otherwise dominate them. */
+  reads: {
+    show: "Show reads",
+    hidden: (count: number) =>
+      `${count.toLocaleString("en")} read ${count === 1 ? "event" : "events"} hidden`,
+    onlyReadsTitle: "No state-changing events in this window",
+    onlyReadsDetail:
+      "Only read events were recorded in this window. Turn on Show reads to see them.",
   },
 } as const;
 
@@ -1990,7 +2012,10 @@ export const strings = {
     createOrganization: "Create organization",
     activity: {
       title: "Activity by category",
-      window: (count: number) => `Share of ${count} events in the latest window (up to 25).`,
+      window: (count: number, limit: number) =>
+        `Share of ${count} events in the latest window (up to ${limit}).`,
+      dateWindow: (count: number, limit: number) =>
+        `${count} returned events · latest window, up to ${limit}.`,
       errorTitle: "Activity breakdown unavailable",
       errorDetail: "Refresh to load the recent audit window.",
       emptyTitle: "No activity to compare",
@@ -2217,6 +2242,11 @@ export const strings = {
     technicalDetails: "Technical details",
     /** Correlation id an operator can quote to support. */
     reference: "Reference",
+    /* Shown when `/identity/session` cannot be read. The console cannot tell
+       which part of Axis is down, so it does not blame one API. */
+    identityUnavailable: {
+      title: "Can't reach Axis",
+    },
     error: {
       title: "This data could not be loaded",
       detail: "The console could not reach the platform API. Check your connection and try again.",
@@ -2225,6 +2255,15 @@ export const strings = {
     empty: {
       title: "Nothing here yet",
       detail: "Records will appear here as soon as they exist.",
+    },
+    /* A tenant the API has never bootstrapped (`TENANT_NOT_FOUND`). This is
+       an empty state, not an outage: the API answered, there is just nothing
+       recorded for the tenant yet. */
+    tenantEmpty: {
+      title: "This tenant has no records yet",
+      detail:
+        "Nothing has been set up for this tenant. Finish guided setup on the overview, or load demo data, and records will appear here.",
+      action: "Open guided setup",
     },
     requestedRecord: {
       title: "Requested record is not in this view",

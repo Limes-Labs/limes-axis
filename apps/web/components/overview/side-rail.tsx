@@ -11,14 +11,29 @@ import { deriveSourceState } from "@/lib/source-state";
 
 import { normalizeLabel, type OverviewQuery } from "./overview-shared";
 import { ActivityTimeline } from "./activity-timeline";
+import { OVERVIEW_AUDIT_WINDOW } from "./evidence-feed";
 
 /** Each bar uses the same denominator: the returned audit window, not all activity. */
-export function SideRail({ auditEvents }: { auditEvents: OverviewQuery<ManufacturingAuditExplorer> }) {
+export function SideRail({
+  auditEvents,
+  hiddenReadCount = 0,
+  windowLimit = OVERVIEW_AUDIT_WINDOW,
+}: {
+  /** The audit window as displayed: reads are already removed unless shown. */
+  auditEvents: OverviewQuery<ManufacturingAuditExplorer>;
+  /** Read events filtered out of this chart by the feed's "Show reads" switch. */
+  hiddenReadCount?: number;
+  windowLimit?: number;
+}) {
   const copy = strings.clarity.activity;
   const [view, setView] = useState("category");
   if (!auditEvents.data) {
+    if (auditEvents.source === "tenant_not_found") {
+      return <EmptyPanel title={copy.emptyTitle} detail={copy.emptyDetail} />;
+    }
     return auditEvents.source === "loading" ? <LoadingPanel layout="detail" /> : (
       <ErrorPanel title={copy.errorTitle} detail={copy.errorDetail}
+        onRetry={auditEvents.refetch}
         reference={auditEvents.errorRequestId ?? undefined} />
     );
   }
@@ -34,7 +49,10 @@ export function SideRail({ auditEvents }: { auditEvents: OverviewQuery<Manufactu
     <Card as="section" aria-label={view === "category" ? copy.title : "Activity by date"} className="grid min-w-0 content-start gap-4">
       <div className="grid gap-1">
         <h2 className="m-0 font-display text-lg text-ink">{view === "category" ? copy.title : "Activity by date"}</h2>
-        <p className="m-0 text-xs text-muted">{view === "category" ? copy.window(events.length) : `${events.length} returned events · latest window, up to 25.`}</p>
+        <p className="m-0 text-xs text-muted">{view === "category" ? copy.window(events.length, windowLimit) : copy.dateWindow(events.length, windowLimit)}</p>
+        {hiddenReadCount > 0 ? (
+          <p className="m-0 text-xs text-muted">{strings.audit.reads.hidden(hiddenReadCount)}</p>
+        ) : null}
       </div>
       <Tabs value={view} onValueChange={setView}>
         <TabsList aria-label="Activity chart view" className="w-full">

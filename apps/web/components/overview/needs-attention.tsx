@@ -23,6 +23,7 @@ import {
   approvalDecisionLabel,
   approvalRiskClass,
   buildApprovalHref,
+  isAwaitingDecision,
   type ApprovalInboxItem,
   type ManufacturingApprovalInbox,
 } from "@/lib/approval-demo";
@@ -38,7 +39,6 @@ import { strings } from "@/lib/strings";
 import { deriveSourceState, PROVENANCE_NOT_APPLICABLE } from "@/lib/source-state";
 import { buildTenantScopedPath, DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { parseActionRunList } from "@/lib/runtime-contracts/actions";
-import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
 import {
@@ -264,19 +264,21 @@ function AttentionSources({
 
 export function NeedsAttention({
   actor,
+  approvals: approvalsQuery,
   identitySession,
   overview,
   tenantId = DEMO_TENANT_ID,
 }: {
   actor?: { actorId: string; scopes: string[] };
+  /**
+   * The page's single approvals query. The overview hero counts pending
+   * approvals from the same result, so the strip and the hero cannot drift.
+   */
+  approvals: OverviewQuery<ManufacturingApprovalInbox>;
   identitySession: IdentitySessionReadModel | null;
   overview: OverviewQuery<ManufacturingOverview>;
   tenantId?: string;
 }) {
-  const approvalsQuery = useAxisQuery<ManufacturingApprovalInbox>(
-    buildTenantScopedPath(APPROVALS_ENDPOINT, tenantId),
-    { expectedTenantId: tenantId, parse: parseManufacturingApprovalInbox },
-  );
   // Best effort: this source adds stalled runs to the strip, it never gates it.
   const actionRunsQuery = useAxisQuery<ActionRunList>(
     buildTenantScopedPath(ACTION_RUNS_ENDPOINT, tenantId),
@@ -301,6 +303,10 @@ export function NeedsAttention({
       <ErrorPanel
         detail={copy.error.detail}
         endpoint={`${APPROVALS_ENDPOINT} + ${OPERATIONS_API_PREFIX}/overview`}
+        onRetry={() => {
+          overview.refetch?.();
+          approvalsQuery.refetch?.();
+        }}
         reference={overviewErrorReference(overview, approvalsQuery)}
         title={copy.error.title}
       />
@@ -311,7 +317,7 @@ export function NeedsAttention({
   // only invite a decision that can no longer be recorded.
   const approvals =
     approvalsQuery.data?.approvals
-      .filter((approval) => approval.status !== "decided")
+      .filter(isAwaitingDecision)
       .slice(0, APPROVAL_LIMIT) ?? [];
   const blockedWorkflows = overview.data?.workflows.filter(isBlockedWorkflow) ?? [];
   const referenceWorkflows = overview.data?.provenance === "reference_scenario";

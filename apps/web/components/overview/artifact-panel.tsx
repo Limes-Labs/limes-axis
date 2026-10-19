@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { AlertTriangle, FileCheck2, ShieldCheck } from "lucide-react";
 
+import { SsoSignInLink } from "@/components/sso-sign-in-link";
 import { Card } from "@/components/ui/card";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import {
@@ -150,12 +151,12 @@ export function ArtifactPanel({
             <p className="m-0 text-sm font-medium text-ink">{copy.ssoTitle}</p>
             <p className="m-0 text-xs text-muted">{copy.ssoDetail}</p>
           </div>
-          <a
+          <SsoSignInLink
             className="inline-flex items-center gap-2 rounded-full bg-navy px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-signal dark:bg-signal dark:hover:bg-white dark:hover:text-navy"
             href={signInUrl}
           >
             {copy.signIn}
-          </a>
+          </SsoSignInLink>
         </div>
       ) : null}
 
