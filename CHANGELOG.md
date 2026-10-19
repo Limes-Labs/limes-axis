@@ -91,6 +91,13 @@ release-bound behavior, not the complete commit history.
   changes invalidate resume; no HTTP transport or source execution is enabled
   ([#859](https://github.com/Limes-Labs/limes-axis/issues/859)).
 
+- Restore-capable tenant portability manifest contract
+  ([#876](https://github.com/Limes-Labs/limes-axis/issues/876)): versioned
+  component inventory with owner/consistency/restore decisions, typed rebinding
+  references that keep secrets non-portable, watermark-vs-quiesced consistency
+  disclosure, default-suspended restore safety policy and deterministic
+  portability review for the later #877 dry run.
+
 - Microsoft 365 library discovery (#864): bounded Graph v1.0 enumeration of one
   explicitly selected drive, permission evidence normalized into #863
   observations, distinct safe setup states per permission mode, and an
