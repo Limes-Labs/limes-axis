@@ -3,6 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   apiBaseUrl: "http://localhost:8000",
+  ssoAvailability: "available" as "checking" | "available" | "not_configured" | "unknown",
+}));
+
+vi.mock("@/lib/use-browser-sso", () => ({
+  useBrowserSsoAvailability: () => mocks.ssoAvailability,
 }));
 
 vi.mock("@/providers/console-provider", () => ({
@@ -16,6 +21,7 @@ vi.mock("@/providers/console-provider", () => ({
 
 import { SignInGate } from "./sign-in-gate";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
+import { strings } from "@/lib/strings";
 
 function gateSession(
   overrides: Partial<IdentitySessionReadModel> = {},
@@ -44,6 +50,7 @@ function gateSession(
 
 beforeEach(() => {
   window.history.replaceState(null, "", "/approvals");
+  mocks.ssoAvailability = "available";
 });
 
 describe("SignInGate", () => {
@@ -116,5 +123,26 @@ describe("SignInGate", () => {
 
     const gate = container.querySelector<HTMLElement>("[data-signin-gate]");
     expect(gate).toHaveFocus();
+  });
+
+  it("disables sign-in and explains why when the API has no browser SSO configured", () => {
+    mocks.ssoAvailability = "not_configured";
+    const { container } = render(<SignInGate identitySession={gateSession()} />);
+
+    // No link to /identity/oidc/authorize, which would only answer a raw 503.
+    expect(screen.queryByRole("link", { name: /Sign in with SSO/i })).not.toBeInTheDocument();
+    const signIn = screen.getByRole("button", { name: /Sign in with SSO/i });
+    expect(signIn).toBeDisabled();
+    expect(signIn).toHaveAccessibleDescription(
+      expect.stringContaining(strings.identityGate.ssoNotConfigured.title),
+    );
+    expect(container.querySelector("[data-gate-sign-in]")).toBe(signIn);
+  });
+
+  it("keeps the sign-in link when SSO readiness cannot be read", () => {
+    mocks.ssoAvailability = "unknown";
+    render(<SignInGate identitySession={gateSession()} />);
+
+    expect(screen.getByRole("link", { name: /Sign in with SSO/i })).toBeInTheDocument();
   });
 });

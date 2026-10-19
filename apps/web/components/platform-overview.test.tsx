@@ -135,6 +135,16 @@ function mockQueriesByPath(unavailablePaths: string[] = [], options: MockOptions
     [`${OPERATIONS_API_PREFIX}/actions/runs`, emptyActionRunsFixture],
     ["/platform/policies", policyRegistryFixture],
     ["/identity/session", options.identity ?? identitySessionFixture],
+    // Browser SSO readiness behind the artifact panel's sign-in link.
+    [
+      "/identity/oidc/readiness",
+      {
+        checks: [
+          { check_id: "authorization_code_client", status: "ready", detail: "" },
+          { check_id: "session_cookie_signing", status: "ready", detail: "" },
+        ],
+      },
+    ],
     ...onboardingRegistryFixtures(options.onboardingCount ?? 1),
   ];
 

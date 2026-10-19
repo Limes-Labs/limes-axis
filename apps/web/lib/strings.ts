@@ -100,6 +100,14 @@ const identityGate = {
     "This deployment requires an authenticated operator session through your organization's identity provider.",
   signIn: "Sign in with SSO",
   returnHint: "You will return to the page you opened.",
+  /* Shown in place of a live sign-in link when the API's OIDC readiness
+     report says browser sign-in is not configured; following the link would
+     only open the API's raw 503 response. */
+  ssoNotConfigured: {
+    title: "Single sign-on isn't set up yet.",
+    detail:
+      "This deployment has no browser sign-in configured. An administrator needs to set the OIDC client ID and session-cookie signing secret on the Axis API.",
+  },
   reasons: {
     missing_authorization: "No active session was found for this browser.",
     invalid_session_cookie: "Your session is no longer valid. Sign in again to continue.",
