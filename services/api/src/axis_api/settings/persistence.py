@@ -31,6 +31,12 @@ class PersistenceSettings(BaseModel):
     typedb_username: str = Field(default="admin", alias="AXIS_TYPEDB_USERNAME")
     typedb_password: str = Field(default="password", alias="AXIS_TYPEDB_PASSWORD")
     typedb_database: str = Field(default="axis", alias="AXIS_TYPEDB_DATABASE")
+    typedb_request_timeout_seconds: float = Field(
+        default=10.0,
+        gt=0,
+        le=300,
+        alias="AXIS_TYPEDB_REQUEST_TIMEOUT_SECONDS",
+    )
     ontology_mutations_enabled: bool = Field(
         default=False,
         alias="AXIS_ONTOLOGY_MUTATIONS_ENABLED",

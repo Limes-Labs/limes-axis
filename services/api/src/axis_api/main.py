@@ -2551,6 +2551,9 @@ def create_app(
                 username=resolved_settings.typedb_username,
                 password=resolved_settings.typedb_password,
                 database=resolved_settings.typedb_database,
+                request_timeout_millis=int(
+                    resolved_settings.typedb_request_timeout_seconds * 1000
+                ),
             )
         )
         if resolved_settings.ontology_mutations_enabled
@@ -2563,6 +2566,9 @@ def create_app(
                 username=resolved_settings.typedb_username,
                 password=resolved_settings.typedb_password,
                 database=resolved_settings.typedb_database,
+                request_timeout_millis=int(
+                    resolved_settings.typedb_request_timeout_seconds * 1000
+                ),
             )
         )
         if resolved_settings.ontology_queries_enabled

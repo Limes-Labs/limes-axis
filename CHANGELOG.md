@@ -373,6 +373,11 @@ release-bound behavior, not the complete commit history.
 
 ### Changed
 
+- Request-path TypeDB calls (ontology graph reads and connector promotions) are
+  bounded by the new `AXIS_TYPEDB_REQUEST_TIMEOUT_SECONDS` (default `10`)
+  instead of the driver's two-hour default. The lazy driver dial is serialized
+  by a lock so concurrent first requests share one connection, and the
+  database-exists check runs once per client instead of before every read.
 - Postgres source extraction no longer holds an Axis transaction across the
   source read and the object-store write, and no longer commits partial
   results. It now matches the S3/REST shape: prepare each selection in a short

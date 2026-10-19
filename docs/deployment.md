@@ -254,6 +254,11 @@ path is off by default; existing deployments are unaffected until it is enabled.
   ```
 
   The command is idempotent and creates the database if absent.
+- **TypeDB request bound.** Request-path ontology reads and promotions use
+  `AXIS_TYPEDB_REQUEST_TIMEOUT_SECONDS` (default `10`, at most `300`) as the
+  driver request timeout instead of the driver's two-hour default. Each runtime
+  dials TypeDB once (serialized across worker threads) and checks that the
+  database exists once, re-checking only after a failed transaction.
 - **Safety.** Each promotion is one atomic TypeDB write transaction using an
   idempotent `put` pipeline keyed on `axis_id`, followed by a read-back that must
   observe the node before the proposal is marked `promoted_to_graph`. TypeDB

@@ -43,6 +43,7 @@
   "typedb_username": {"alias": "AXIS_TYPEDB_USERNAME", "default": "admin", "probe": "settings-contract-probe"},
   "typedb_password": {"alias": "AXIS_TYPEDB_PASSWORD", "default": "password", "probe": "settings-contract-probe"},
   "typedb_database": {"alias": "AXIS_TYPEDB_DATABASE", "default": "axis", "probe": "settings-contract-probe"},
+  "typedb_request_timeout_seconds": {"alias": "AXIS_TYPEDB_REQUEST_TIMEOUT_SECONDS", "default": 10.0, "probe": 11.0},
   "ontology_mutations_enabled": {"alias": "AXIS_ONTOLOGY_MUTATIONS_ENABLED", "default": false, "probe": true},
   "ontology_queries_enabled": {"alias": "AXIS_ONTOLOGY_QUERIES_ENABLED", "default": false, "probe": true},
   "temporal_address": {"alias": "AXIS_TEMPORAL_ADDRESS", "default": "localhost:7233", "probe": "settings-contract-probe"},

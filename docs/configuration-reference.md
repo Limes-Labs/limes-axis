@@ -66,6 +66,7 @@ operational profiles and secret injection.
 | `AXIS_TYPEDB_USERNAME` | `typedb_username` | string | `"admin"` |  |
 | `AXIS_TYPEDB_PASSWORD` | `typedb_password` | string | `"<redacted>"` |  |
 | `AXIS_TYPEDB_DATABASE` | `typedb_database` | string | `"axis"` |  |
+| `AXIS_TYPEDB_REQUEST_TIMEOUT_SECONDS` | `typedb_request_timeout_seconds` | number | `10.0` | exclusiveMinimum: 0; maximum: 300 |
 | `AXIS_ONTOLOGY_MUTATIONS_ENABLED` | `ontology_mutations_enabled` | boolean | `false` |  |
 | `AXIS_ONTOLOGY_QUERIES_ENABLED` | `ontology_queries_enabled` | boolean | `false` |  |
 | `AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ROOT` | `connector_export_object_store_root` | string | `".axis/object-store"` |  |
