@@ -7,6 +7,40 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Versioned Document Studio contract for durable documents and reusable
+  templates: section/block schema with stable IDs, typed template parameters
+  and fixed/editable/required regions, digest-bound template provenance that
+  survives template deletion, published-revision immutability, bounded
+  design tokens, and accessibility outline as contract data. Contract slice
+  only; no storage, editor runtime, rendering or embed resolution
+  ([#829](https://github.com/Limes-Labs/limes-axis/issues/829)).
+
+- Versioned Workbook Studio contract separating workbook structure, source
+  bindings and cell provenance: stable identities disjoint from source
+  storage IDs, opaque resource-prefix bindings without credentials or rows,
+  explicit local-only value labeling, frozen bind-time mapping whose schema
+  drift surfaces as compatibility state instead of silent column remap, and
+  shareable definitions that strip viewer-local values. Contract slice
+  only; no grid UI, source access, formula evaluation or writeback
+  ([#848](https://github.com/Limes-Labs/limes-axis/issues/848)).
+
+- Versioned clean-room agreement contract modeling multi-party collaboration
+  as a time-bounded agreement: typed purpose/input/output classes as
+  enforcement inputs, bounded isolation profiles, provably independent
+  per-party approvals, material amendments that invalidate prior approvals,
+  authoritative suspension/expiry execution gates, and party removal that
+  preserves historical digests while pruning its inputs. Contract slice
+  only; no dataset binding, query engine or compute
+  ([#855](https://github.com/Limes-Labs/limes-axis/issues/855)).
+
+- Versioned public dataset release manifest contract: sealed immutable release
+  revisions with opaque public IDs, closed frozen-source modes (no live query),
+  deterministic digests with tamper-checked withdrawal evidence, private
+  internal-lineage ledger kept structurally out of public manifests, and a
+  deterministic readiness classifier over disclosure/license review evidence.
+  Contract slice only; no distribution, API or storage is enabled
+  ([#838](https://github.com/Limes-Labs/limes-axis/issues/838)).
+
 - Authorized full-text search over the #873 index projection: one bounded query
   service and `GET /operations/search` that re-evaluate current authorization
   before any representation, omit denied and non-evaluable records entirely,
