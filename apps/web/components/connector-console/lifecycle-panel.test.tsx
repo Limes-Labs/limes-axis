@@ -213,7 +213,7 @@ describe("ConnectorLifecyclePanel", () => {
     await user.click(screen.getByRole("button", { name: "Activate for previews" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Your session is missing the connector lifecycle scope (connectors:manifest:lifecycle) for this tenant. A tenant admin can grant it.",
+      "You don't have permission to change connector status in this tenant. A tenant admin can grant connector lifecycle access.",
     );
     expect(screen.getByText("req-403-lifecycle")).toBeInTheDocument();
     expect(onTransitioned).not.toHaveBeenCalled();
@@ -254,7 +254,7 @@ describe("ConnectorLifecyclePanel", () => {
     await user.click(screen.getByRole("button", { name: "Enable live operation" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Enabling live operation additionally requires the enable-live scope (connectors:manifest:enable_live)",
+      "Turning on live operation needs an extra permission you don't have in this tenant.",
     );
   });
 
@@ -277,7 +277,7 @@ describe("ConnectorLifecyclePanel", () => {
     await user.click(screen.getByRole("button", { name: "Activate for previews" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Your session does not carry the connector lifecycle scope for this tenant.",
+      "You don't have permission to change connector status in this tenant.",
     );
     // No fabricated request reference when the API sent none.
     expect(screen.queryByText(/Request reference/)).not.toBeInTheDocument();

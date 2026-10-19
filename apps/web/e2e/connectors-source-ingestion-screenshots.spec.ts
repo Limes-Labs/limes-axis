@@ -165,7 +165,7 @@ test.describe("Axis rendered proof: governed source ingestion", () => {
       const driftedRow = page
         .getByRole("table", { name: "Ingestion eligibility" })
         .getByRole("row", { name: new RegExp(resourceName.replace(/\./g, "\\.")) });
-      await expect(driftedRow.getByText("Stale fingerprint")).toBeVisible({
+      await expect(driftedRow.getByText("Columns changed")).toBeVisible({
         timeout: 15_000,
       });
       await page.screenshot({ path: shot("05-stale-fingerprint-blocked"), fullPage: true });

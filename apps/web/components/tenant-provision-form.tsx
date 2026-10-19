@@ -1,5 +1,6 @@
 "use client";
 
+import { displayName } from "@/lib/display-names";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { Building2 } from "lucide-react";
@@ -306,7 +307,7 @@ export function TenantProvisionForm() {
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
           Tenant provisioned.{" "}
           <Link className="inline-flex min-h-6 items-center font-medium text-signal underline decoration-1 underline-offset-2" href={`/tenants/${submission.record.tenant_id}`}>
-            Open {submission.record.tenant_id}
+            Open {displayName(submission.record.display_name, submission.record.tenant_id, submission.record.tenant_id)}
           </Link>
         </p>
       ) : null}
@@ -315,7 +316,7 @@ export function TenantProvisionForm() {
           Idempotent replay: the API returned the existing tenant for this key without creating a
           duplicate.{" "}
           <Link className="inline-flex min-h-6 items-center font-medium text-signal underline decoration-1 underline-offset-2" href={`/tenants/${submission.record.tenant_id}`}>
-            Open {submission.record.tenant_id}
+            Open {displayName(submission.record.display_name, submission.record.tenant_id, submission.record.tenant_id)}
           </Link>
         </p>
       ) : null}

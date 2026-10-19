@@ -26,6 +26,7 @@ import {
 } from "@/lib/platform-tenants";
 import { formatTimestamp } from "@/lib/format";
 import { useStrings } from "@/providers/locale-provider";
+import { presentText } from "@/lib/display-names";
 import { deriveSourceState, PROVENANCE_NOT_APPLICABLE } from "@/lib/source-state";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
@@ -180,7 +181,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
           <p className="eyebrow m-0">{strings.ui.tenantDetail.platformTenant}</p>
           <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{tenant.display_name}</h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{tenant.description || strings.ui.tenantDetail.noDescriptionRecorded}</p>
-          <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{tenant.tenant_id}</p>
+          <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]" title={tenant.tenant_id}>{tenant.tenant_id}</p>
         </div>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label={strings.ui.tenantDetail.tenantSourceAndStatus}>
           <SourcePill
@@ -217,7 +218,10 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
         <StatCard
           detail={strings.ui.tenantDetail.optionalActorCreatedAtProvisioning}
           label={strings.ui.tenantDetail.bootstrapAdmin}
-          value={tenant.bootstrap_admin_actor_id ?? strings.ui.common.none}
+          value={presentText(tenant.bootstrap_admin_actor_id) ?? (
+            // A missing actor is prose, not an identifier, so it is not set in mono.
+            <span className="font-sans" data-bootstrap-admin-missing>{strings.identifiers.notRecorded}</span>
+          )}
           valueVariant="mono"
         />
         <StatCard
@@ -251,11 +255,11 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
               </div>
               <div>
                 <p className="eyebrow m-0">{strings.ui.common.actor}</p>
-                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{entry.actor ?? strings.ui.tenantDetail.unknownActor}</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{presentText(entry.actor) ?? strings.ui.tenantDetail.unknownActor}</p>
               </div>
               <div>
                 <p className="eyebrow m-0">{strings.ui.tenantDetail.reason}</p>
-                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{entry.reason ?? strings.ui.tenantDetail.noReasonRecorded}</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{presentText(entry.reason) ?? strings.ui.tenantDetail.noReasonRecorded}</p>
               </div>
               <div>
                 <p className="eyebrow m-0">{strings.ui.tenantDetail.auditEventId}</p>

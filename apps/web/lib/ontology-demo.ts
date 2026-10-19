@@ -112,6 +112,61 @@ export function countNodesByType(ontology: ManufacturingOntology): Map<OntologyN
   }, new Map<OntologyNodeType, number>());
 }
 
+/** Why an entity is not ready, derived only from data the detail carries. */
+export type EntityAttention = {
+  status: Exclude<PlatformStatus, "ready">;
+  /** The entity's own summary: the API's explanation of its state. */
+  reason: string;
+  /** Connected entities that are themselves not ready, most urgent first. */
+  peers: OntologyNode[];
+  /** A queue that can resolve it, when the entity relates to one. */
+  link: { kind: "approvals" | "workflows"; href: string } | null;
+};
+
+export function entityAttention(detail: ManufacturingOntologyEntityDetail): EntityAttention | null {
+  const status = detail.node.status;
+  if (status === "ready") {
+    return null;
+  }
+  const seen = new Set<string>();
+  const peers = detail.connected_relationships
+    .map((item) => item.peer_node)
+    .filter((peer) => {
+      if (peer.status === "ready" || peer.node_id === detail.node.node_id || seen.has(peer.node_id)) {
+        return false;
+      }
+      seen.add(peer.node_id);
+      return true;
+    })
+    .sort((left, right) =>
+      left.status === right.status ? 0 : left.status === "action_required" ? -1 : 1,
+    );
+  const link =
+    detail.related_approvals.length > 0
+      ? { kind: "approvals" as const, href: "/approvals" }
+      : detail.related_workflows.length > 0
+        ? { kind: "workflows" as const, href: "/workflows" }
+        : null;
+
+  return { status, reason: detail.node.summary, peers, link };
+}
+
+/**
+ * Resolves related node ids (workflows, approvals, agents) to the connected
+ * peer nodes that carry their display labels. The entity itself resolves to
+ * its own node; ids the detail cannot name are kept so nothing is hidden.
+ */
+export function resolveRelatedNodes(
+  detail: ManufacturingOntologyEntityDetail,
+  ids: readonly string[],
+): Array<{ id: string; node: OntologyNode | null }> {
+  const byId = new Map<string, OntologyNode>([[detail.node.node_id, detail.node]]);
+  for (const item of detail.connected_relationships) {
+    byId.set(item.peer_node.node_id, item.peer_node);
+  }
+  return ids.map((id) => ({ id, node: byId.get(id) ?? null }));
+}
+
 export function formatNodeType(type: OntologyNodeType): string {
   return type
     .split("_")

@@ -173,7 +173,10 @@ test.describe("approval review workspace", () => {
     await page.getByRole("button", { name: /^Approve/ }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "Confirm decision" })).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Approve “Expedite supplier batch”" }),
+    ).toBeVisible();
+    await expect(dialog.getByLabel("What you are deciding")).toContainText("High risk");
     await expectNoHorizontalOverflow(page);
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();

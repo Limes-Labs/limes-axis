@@ -249,7 +249,7 @@ describe("ConnectorSourceIngestionSection", () => {
     const table = screen.getByRole("table", { name: "Ingestion eligibility" });
     expect(table).toHaveTextContent("operations.production_orders");
     expect(table).toHaveTextContent("Eligible");
-    expect(table).toHaveTextContent("Stale fingerprint");
+    expect(table).toHaveTextContent("Columns changed");
     expect(table).toHaveTextContent("Not awaiting ingestion");
   });
 
@@ -263,7 +263,7 @@ describe("ConnectorSourceIngestionSection", () => {
       />,
     );
     expect(screen.getByText(/Validation stage only\./)).toBeInTheDocument();
-    expect(screen.getByText(/No source is dialed and no rows are read/)).toBeInTheDocument();
+    expect(screen.getByText(/does not connect to the source and reads or stores no rows/)).toBeInTheDocument();
     expect(container.textContent ?? "").not.toMatch(/\bsync(ed|ing)\b|extract(ion|ed) rows/i);
   });
 
@@ -343,7 +343,7 @@ describe("ConnectorSourceIngestionSection", () => {
       [
         403,
         { code: "PERMISSION_DENIED", reason: "missing_scope:connectors:source:ingest" },
-        /lacks the connectors:source:ingest scope/,
+        /permission to request ingestion/,
       ],
       [
         409,
@@ -751,7 +751,7 @@ describe("ConnectorSourceIngestionSection", () => {
     await user.click(await screen.findByRole("button", { name: /Re-dispatch after remediation/ }));
     await waitFor(() => {
       // The shared operator error surface names the refusal class.
-      expect(document.body.textContent).toMatch(/dead-lettered requests can be re-dispatched|refused/i);
+      expect(document.body.textContent).toMatch(/failed permanently can be sent again|refused/i);
     });
   });
 

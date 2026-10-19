@@ -4,9 +4,8 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -114,6 +113,39 @@ export function ConsoleUrlStateProvider({ children }: { children: ReactNode }) {
   return <ConsoleUrlContext.Provider value={value}>{children}</ConsoleUrlContext.Provider>;
 }
 
+const browserLocationListeners = new Set<() => void>();
+
+function notifyBrowserLocation() {
+  for (const listener of browserLocationListeners) {
+    listener();
+  }
+}
+
+function subscribeBrowserLocation(listener: () => void) {
+  browserLocationListeners.add(listener);
+  window.addEventListener("popstate", listener);
+  return () => {
+    browserLocationListeners.delete(listener);
+    window.removeEventListener("popstate", listener);
+  };
+}
+
+function readBrowserHref() {
+  return `${window.location.pathname}${window.location.search}`;
+}
+
+/** The server has no query string; hydration must start from the defaults. */
+function readServerHref() {
+  return "";
+}
+
+function parseBrowserHref(href: string): { pathname: string; search: string } {
+  const queryIndex = href.indexOf("?");
+  return queryIndex === -1
+    ? { pathname: href, search: "" }
+    : { pathname: href.slice(0, queryIndex), search: href.slice(queryIndex + 1) };
+}
+
 function readState<TSchema extends ConsoleUrlSchema>(
   schema: TSchema,
   search: string,
@@ -142,27 +174,18 @@ export function useConsoleUrlState<const TSchema extends ConsoleUrlSchema>(
   ) => void,
 ] {
   const context = useContext(ConsoleUrlContext);
-  const [browserLocation, setBrowserLocation] = useState(() =>
-    typeof window === "undefined" ? { pathname: "", search: "" } : {
-      pathname: window.location.pathname,
-      search: window.location.search.slice(1),
-    },
+  // Outside a provider the hook reads the browser location. It must not do
+  // that during the server render or the hydration pass: the server cannot
+  // see the query string, so reading `window.location` in render would make
+  // the first client markup differ (for example `/settings?tab=identity`
+  // selecting another tab than the server did). `useSyncExternalStore` renders
+  // the server snapshot while hydrating and then re-renders with the URL.
+  const browserHref = useSyncExternalStore(
+    subscribeBrowserLocation,
+    readBrowserHref,
+    readServerHref,
   );
-
-  useEffect(() => {
-    if (context || typeof window === "undefined") {
-      return;
-    }
-
-    const syncLocation = () => {
-      setBrowserLocation({
-        pathname: window.location.pathname,
-        search: window.location.search.slice(1),
-      });
-    };
-    window.addEventListener("popstate", syncLocation);
-    return () => window.removeEventListener("popstate", syncLocation);
-  }, [context]);
+  const browserLocation = useMemo(() => parseBrowserHref(browserHref), [browserHref]);
 
   const search = context?.search ?? browserLocation.search;
   const state = useMemo(() => readState(schema, search), [schema, search]);
@@ -202,7 +225,7 @@ export function useConsoleUrlState<const TSchema extends ConsoleUrlSchema>(
           ? `${browserLocation.pathname}?${nextSearch}`
           : browserLocation.pathname;
         window.history[`${historyMode}State`](window.history.state, "", nextUrl);
-        setBrowserLocation((current) => ({ ...current, search: nextSearch }));
+        notifyBrowserLocation();
       }
     },
     [browserLocation.pathname, context, schema, search, state],

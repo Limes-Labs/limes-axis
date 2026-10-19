@@ -29,6 +29,7 @@ import {
 } from "@/lib/platform-overview";
 import { deriveSourceState } from "@/lib/source-state";
 import { useStrings } from "@/providers/locale-provider";
+import { humanizeIdentifier } from "@/lib/display-names";
 import { parseManufacturingAgentRegistry } from "@/lib/runtime-contracts/agents";
 import {
   buildTenantScopedPath,
@@ -235,8 +236,8 @@ export function AgentRegistry() {
         aria-label={strings.ui.agentRegistry.agentSourceAndRegistryStatus}
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
-        <p className="m-0 min-w-0 text-sm break-words text-muted">
-          {formatContextPath(registry.plant_name, registry.scenario, registry.tenant_id)}
+        <p className="m-0 min-w-0 text-sm break-words text-muted" title={registry.tenant_id}>
+          {formatContextPath(registry.plant_name ?? humanizeIdentifier(registry.tenant_id), registry.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill

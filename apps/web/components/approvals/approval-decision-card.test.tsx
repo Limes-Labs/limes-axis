@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,7 +25,9 @@ import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 const approvalFixture: ApprovalInboxItem = {
   approval_id: "appr_supply_fixture",
   action: "Expedite fixture batch",
-  risk_level: "high",
+  // Medium risk: approving needs no rationale; the high-risk and reject
+  // requirements have their own tests below.
+  risk_level: "medium",
   status: "pending",
   requested_by: "agent_supply_fixture",
   owner_role: "plant-operations-owner",
@@ -59,6 +61,8 @@ const approvalFixture: ApprovalInboxItem = {
     },
   ],
 };
+
+const CONFIRM_APPROVE = "Approve & execute “Expedite fixture batch”";
 
 const persistenceResultFixture = {
   tenant_id: "tenant_fixture",
@@ -166,7 +170,7 @@ describe("ApprovalDecisionCard", () => {
     render(<Harness />);
 
     await user.click(screen.getByRole("button", { name: /Approve & execute/ }));
-    await user.click(await screen.findByRole("button", { name: "Confirm decision" }));
+    await user.click(await screen.findByRole("button", { name: CONFIRM_APPROVE }));
 
     await waitFor(() =>
       expect(screen.getByRole("region", { name: "Decision" })).toHaveFocus(),
@@ -183,7 +187,7 @@ describe("ApprovalDecisionCard", () => {
       await screen.findByLabelText("Rationale (optional)"),
       "Supplier confirmed the slot.",
     );
-    await user.click(screen.getByRole("button", { name: "Confirm decision" }));
+    await user.click(screen.getByRole("button", { name: CONFIRM_APPROVE }));
 
     await waitFor(() => {
       expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1);
@@ -215,7 +219,7 @@ describe("ApprovalDecisionCard", () => {
     );
 
     await user.click(screen.getByRole("button", { name: /Approve & execute/ }));
-    await user.click(await screen.findByRole("button", { name: "Confirm decision" }));
+    await user.click(await screen.findByRole("button", { name: CONFIRM_APPROVE }));
 
     await waitFor(() => expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1));
     expect(mocks.axisFetchParsedJson).toHaveBeenCalledWith(
@@ -236,7 +240,7 @@ describe("ApprovalDecisionCard", () => {
     render(<Harness />);
 
     await user.click(screen.getByRole("button", { name: /Approve & execute/ }));
-    await user.click(await screen.findByRole("button", { name: "Confirm decision" }));
+    await user.click(await screen.findByRole("button", { name: CONFIRM_APPROVE }));
 
     // Inline confirmation and the success toast both deep-link to the audit
     // event id returned by the decision API.
@@ -321,7 +325,7 @@ describe("ApprovalDecisionCard", () => {
     render(<Harness />);
 
     await user.click(screen.getByRole("button", { name: /Approve & execute/ }));
-    await user.click(await screen.findByRole("button", { name: "Confirm decision" }));
+    await user.click(await screen.findByRole("button", { name: CONFIRM_APPROVE }));
 
     expect(
       await screen.findByText("Approval persistence is temporarily unavailable."),
@@ -332,5 +336,90 @@ describe("ApprovalDecisionCard", () => {
     expect(screen.getByText("request-approval-503")).toBeInTheDocument();
     expect(screen.queryByText(/database-credential/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Approve & execute/ })).toBeEnabled();
+  });
+
+  it("names the action on the confirm button and restates risk, cost and due date", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await user.click(screen.getByRole("button", { name: /Approve & execute/ }));
+    const dialog = await screen.findByRole("dialog");
+
+    expect(
+      within(dialog).getByRole("button", { name: CONFIRM_APPROVE }),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Confirm decision" })).toBeNull();
+    const summary = within(dialog).getByLabelText("What you are deciding");
+    expect(summary).toHaveTextContent("Medium risk");
+    expect(summary).toHaveTextContent("EUR 120");
+    expect(summary).toHaveTextContent("Today 17:30");
+    expect(within(dialog).getByLabelText("Rationale (optional)")).toBeInTheDocument();
+  });
+
+  it("requires a rationale before recording a rejection", async () => {
+    const user = userEvent.setup();
+    mocks.axisFetchParsedJson.mockResolvedValue({
+      ...persistenceResultFixture,
+      decision: "reject",
+      status: "rejected",
+    });
+    render(<Harness />);
+
+    await user.click(screen.getByRole("button", { name: /^Reject/ }));
+    const dialog = await screen.findByRole("dialog");
+    const rationale = within(dialog).getByLabelText("Rationale (required)");
+    expect(rationale).toHaveAttribute("aria-required", "true");
+    const confirm = within(dialog).getByRole("button", {
+      name: "Reject “Expedite fixture batch”",
+    });
+
+    await user.click(confirm);
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "Enter a rationale before recording this decision.",
+    );
+    expect(rationale).toHaveAttribute("aria-invalid", "true");
+    expect(rationale).toHaveFocus();
+    expect(mocks.axisFetchParsedJson).not.toHaveBeenCalled();
+
+    // Whitespace is not a rationale.
+    await user.type(rationale, "   ");
+    await user.click(confirm);
+    expect(mocks.axisFetchParsedJson).not.toHaveBeenCalled();
+
+    await user.type(rationale, "Supplier slot is not confirmed.");
+    expect(within(dialog).queryByRole("alert")).toBeNull();
+    await user.click(confirm);
+
+    await waitFor(() => expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1));
+    expect(mocks.axisFetchParsedJson).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Function),
+      expect.objectContaining({
+        body: expect.objectContaining({
+          decision: "reject",
+          note: "Supplier slot is not confirmed.",
+        }),
+      }),
+    );
+  });
+
+  it("requires a rationale for every decision on a high-risk approval", async () => {
+    const user = userEvent.setup();
+    mocks.axisFetchParsedJson.mockResolvedValue(persistenceResultFixture);
+    render(<Harness approval={{ ...approvalFixture, risk_level: "high" }} />);
+
+    await user.click(screen.getByRole("button", { name: /Approve & execute/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("High risk");
+    expect(dialog).toHaveTextContent("High-risk decisions need a rationale.");
+    const confirm = within(dialog).getByRole("button", { name: CONFIRM_APPROVE });
+
+    await user.click(confirm);
+    expect(mocks.axisFetchParsedJson).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole("alert")).toBeInTheDocument();
+
+    await user.type(within(dialog).getByLabelText("Rationale (required)"), "Line stop risk.");
+    await user.click(confirm);
+    await waitFor(() => expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1));
   });
 });

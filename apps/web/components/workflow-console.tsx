@@ -35,6 +35,7 @@ import {
 import { deriveSourceState } from "@/lib/source-state";
 import type { ConsoleStrings } from "@/lib/i18n";
 import { useStrings } from "@/providers/locale-provider";
+import { humanizeIdentifier } from "@/lib/display-names";
 import { parseManufacturingWorkflowConsole } from "@/lib/runtime-contracts/workflows";
 import {
   buildTenantScopedPath,
@@ -350,7 +351,10 @@ function WorkflowDetail({
           <span className="block font-mono text-xs text-muted">{workflow.adapter}</span>
         </KeyValueRow>
         <KeyValueRow label={copy.detail.owner}>
-          {workflow.owner_role} / <Term k="autonomy_level">{workflow.autonomy_level}</Term>
+          <span title={workflow.owner_role}>
+            {humanizeIdentifier(workflow.owner_role) ?? strings.identifiers.notRecorded}
+          </span>{" "}
+          / <Term k="autonomy_level">{workflow.autonomy_level}</Term>
         </KeyValueRow>
         <KeyValueRow label={copy.detail.started}>
           {formatDateTime(workflow.started_at)}
@@ -498,12 +502,8 @@ export function WorkflowConsole() {
         aria-label={strings.ui.workflowConsole.workflowSourceAndRuntimeStatus}
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
-        <p className="m-0 min-w-0 text-sm break-words text-muted">
-          {formatContextPath(
-            workflowData.plant_name,
-            workflowData.scenario,
-            workflowData.tenant_id,
-          )}
+        <p className="m-0 min-w-0 text-sm break-words text-muted" title={workflowData.tenant_id}>
+          {formatContextPath(workflowData.plant_name ?? humanizeIdentifier(workflowData.tenant_id), workflowData.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill state={source} subject="workflow runs" />

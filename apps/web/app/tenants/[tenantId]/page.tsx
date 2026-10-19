@@ -10,9 +10,11 @@ type TenantDetailPageProps = {
   }>;
 };
 
-export async function generateMetadata({ params }: TenantDetailPageProps): Promise<Metadata> {
-  const [{ tenantId }, strings] = await Promise.all([params, getServerStrings()]);
-  return { title: strings.ui.detailPages.tenantMetaTitle(tenantId) };
+// The raw tenant id stays out of the document title; the page shows the
+// tenant's display name once the API record loads.
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = await getServerStrings();
+  return { title: strings.identifiers.tenantDetailTitle };
 }
 
 export default async function TenantDetailPage({ params }: TenantDetailPageProps) {

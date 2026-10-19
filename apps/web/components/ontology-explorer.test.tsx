@@ -113,6 +113,14 @@ describe("OntologyExplorer", () => {
     );
   });
 
+  it("keeps the tenant id out of the context breadcrumb", () => {
+    render(<OntologyExplorer />);
+
+    const context = screen.getByText("Fixture Plant / Runtime contract fixture");
+    expect(context).toHaveAttribute("title", DEMO_TENANT_ID);
+    expect(context.textContent).not.toContain(DEMO_TENANT_ID);
+  });
+
   it("renders no per-type metric cards", () => {
     render(<OntologyExplorer />);
 

@@ -121,15 +121,27 @@ export function ConsoleTopbar({
       className="ops-topbar sticky top-12 isolate z-10 -mx-4 flex min-h-[62px] flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface/80 px-4 py-2 backdrop-blur-xl max-sm:grid max-sm:min-h-0 max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-1 max-sm:px-3 max-sm:py-0.5 sm:-mx-6 sm:px-6 min-[921px]:top-0 dark:border-white/10"
       aria-label={strings.ui.consoleTopbar.consoleStatusBar}
     >
-      <div className="flex min-w-0 flex-wrap items-center gap-2 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:pb-px max-sm:[&_.status-pill]:px-2 max-sm:[&_.status-pill]:text-[11px] max-sm:[&_.status-pill]:whitespace-nowrap sm:ml-auto sm:justify-end">
-        <span className={`status-pill ${apiStatusClass(apiStatus.state)}`} title={apiStatus.detail}>
+      {/* Below `sm` the status row takes its own full-width line under the
+          utility icons and wraps instead of scrolling sideways: as a
+          one-line scroller beside the icons it was about 90px wide at 390px
+          and clipped the API pill. Each pill stays on one line and never
+          grows wider than the row. */}
+      <div
+        className="flex min-w-0 flex-wrap items-center gap-2 max-sm:order-last max-sm:col-span-2 max-sm:gap-1.5 max-sm:[&_.status-pill]:max-w-full max-sm:[&_.status-pill]:px-2 max-sm:[&_.status-pill]:text-[11px] max-sm:[&_.status-pill]:whitespace-nowrap sm:ml-auto sm:justify-end"
+        data-status-row
+      >
+        <span
+          className={`status-pill ${apiStatusClass(apiStatus.state)}`}
+          data-api-status-pill
+          title={apiStatus.detail}
+        >
           <span aria-hidden="true" className={`status-dot ${apiStatusClass(apiStatus.state)}`} />
-          <span className="max-sm:sr-only">API </span>{apiStatus.label}
+          API {apiStatus.label}
         </span>
-        {/* Below `sm` this row is a one-line horizontal scroller, so the Demo
-            pill used to sit past its clipped edge. There it moves first and
-            sticks to the left edge on an opaque backing (its own tint is
-            translucent); on wider layouts the slot is `display: contents`. */}
+        {/* Below `sm` the Demo pill moves first so it is the leading status
+            on phones, and keeps its sticky left pin on an opaque backing (its
+            own tint is translucent); on wider layouts the slot is
+            `display: contents`. */}
         <span
           className="contents empty:hidden max-sm:sticky max-sm:left-0 max-sm:z-1 max-sm:order-first max-sm:flex max-sm:shrink-0 max-sm:rounded-full max-sm:bg-surface"
           data-demo-badge-slot
