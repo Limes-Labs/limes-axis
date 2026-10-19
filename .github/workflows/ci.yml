@@ -127,38 +127,22 @@ jobs:
           AXIS_MODEL_CONTRACT_POSTGRES_DSN: postgresql+psycopg://axis:axis@localhost:5432/axis
         run: make test-model-persistence-postgres
 
-      - name: Setup Go for MinIO fixture
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-        with:
-          go-version: '1.25.5'
-          cache: false
-
-      - name: Build MinIO source fixture
-        env:
-          GOBIN: ${{ runner.temp }}/axis-ci-minio-bin
-          GOPROXY: https://proxy.golang.org
-          GOSUMDB: sum.golang.org
-        # Official RELEASE.2024-10-13T13-34-11Z, pinned to its source commit.
-        # Upstream's public images and archived binaries are unavailable.
-        run: go install github.com/minio/minio@d10bb7e1b667c2df72c394ef1fa52ab4a6802d0f
-
-      - name: Start MinIO source fixture
-        env:
-          MINIO_ROOT_USER: axis335fixture
-          MINIO_ROOT_PASSWORD: axis335fixturepassword
+      # MinIO no longer publishes anonymously pullable images (quay.io and
+      # Docker Hub both answer 401), so the S3 protocol fixture is the
+      # pinned moto server from PyPI. Any S3-compatible endpoint satisfies
+      # these tests; they only create and remove unique fixture buckets.
+      - name: Start S3-compatible source fixture
         run: |
-          mkdir -p "$RUNNER_TEMP/axis-ci-minio-data"
-          "$RUNNER_TEMP/axis-ci-minio-bin/minio" server \
-            --address 127.0.0.1:19335 --console-address 127.0.0.1:19336 \
-            "$RUNNER_TEMP/axis-ci-minio-data" > "$RUNNER_TEMP/minio.log" 2>&1 &
-          echo $! > "$RUNNER_TEMP/minio.pid"
+          uvx --from "moto[server]==5.2.4" moto_server -H 127.0.0.1 -p 19335 \
+            > "${RUNNER_TEMP}/s3-fixture.log" 2>&1 &
+          echo "$!" > "${RUNNER_TEMP}/s3-fixture.pid"
           for _ in $(seq 1 60); do
-            if curl -fsS --max-time 1 http://127.0.0.1:19335/minio/health/ready > /dev/null; then
+            if curl -fsS --max-time 1 http://127.0.0.1:19335/moto-api/ > /dev/null; then
               exit 0
             fi
             sleep 1
           done
-          cat "$RUNNER_TEMP/minio.log"
+          cat "${RUNNER_TEMP}/s3-fixture.log"
           exit 1
 
       - name: Test S3 input and checkpoint contracts
@@ -170,23 +154,9 @@ jobs:
           AXIS_MODEL_CONTRACT_POSTGRES_DSN: postgresql+psycopg://axis:axis@localhost:5432/axis
         run: uv run pytest tests/integration/test_s3_source_minio.py tests/integration/test_s3_checkpoint_postgres.py -q
 
-      - name: Stop MinIO source fixture
+      - name: Stop S3-compatible source fixture
         if: always()
-        run: |
-          if [ -f "$RUNNER_TEMP/minio.pid" ]; then
-            pid=$(cat "$RUNNER_TEMP/minio.pid")
-            if kill -0 "$pid" 2>/dev/null; then
-              kill "$pid"
-              for _ in $(seq 1 20); do
-                if ! kill -0 "$pid" 2>/dev/null; then
-                  exit 0
-                fi
-                sleep .25
-              done
-              echo 'MinIO did not stop after SIGTERM' >&2
-              exit 1
-            fi
-          fi
+        run: kill "$(cat "${RUNNER_TEMP}/s3-fixture.pid")" > /dev/null 2>&1 || true
 
       # Migrations are Postgres-only (JSONB columns), which is why this job cannot
       # fall back to SQLite the way local development can.
