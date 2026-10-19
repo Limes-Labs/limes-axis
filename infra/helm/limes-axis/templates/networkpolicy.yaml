@@ -1,5 +1,8 @@
 {{- if .Values.networkPolicy.enabled -}}
 {{- $egressMode := .Values.networkPolicy.egressMode | default "port_allowlist" -}}
+{{- if eq $egressMode "local_only" -}}
+{{- include "limes-axis.validateLocalOnly" . -}}
+{{- end -}}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -22,6 +25,9 @@ spec:
         - protocol: TCP
           port: {{ .Values.web.service.port }}
   egress:
+    {{- if eq $egressMode "local_only" }}
+    {{- include "limes-axis.localOnlyEgress" . | nindent 4 }}
+    {{- else }}
     - ports:
         - protocol: UDP
           port: {{ .Values.networkPolicy.dnsPort }}
@@ -45,7 +51,10 @@ spec:
         {{- end }}
     {{- end }}
     {{- else if eq $egressMode "offline" }}
-    # Offline mode intentionally renders no generic external egress rule.
+    # Offline mode intentionally renders no generic external egress rule, but
+    # DNS stays unrestricted because the chart cannot infer the local
+    # resolvers. Use egressMode: local_only for the strict #473 profile.
+    {{- end }}
     {{- end }}
     {{- if .Values.tests.smoke.enabled }}
     - to:
