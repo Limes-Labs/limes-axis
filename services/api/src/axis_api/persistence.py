@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import Select, and_, case, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from axis_api.audit import AuditEventCreate
 from axis_api.models import (
@@ -6423,3 +6423,48 @@ class AxisPersistenceRepository:
             )
         )
         return rows[:limit], (offset + limit) if has_more else 0, generation or 0
+
+    def lock_search_rebuild(self, *, tenant_id: str) -> None:
+        """Serialize #875 index rebuilds of one tenant across replicas.
+
+        A rebuild derives its fresh generation from the tenant's current
+        maximum and fences rows below that generation. Two concurrent
+        rebuilds would otherwise derive the same generation, and the later
+        one would pass the fence over the earlier one's newer rows. The lock
+        is transaction-scoped, so it is released with the rebuild's commit
+        or rollback. SQLite (local/test profiles) serializes writes itself.
+        """
+        dialect_name = self.session.get_bind().dialect.name
+        if dialect_name == "sqlite":
+            return
+        if dialect_name != "postgresql":
+            raise NotImplementedError(
+                f"Search rebuild locking is not supported for dialect {dialect_name!r}."
+            )
+        lock_key = f"axis:search-rebuild:{len(tenant_id)}:{tenant_id}"
+        self.session.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0))))
+
+    def list_search_index_states(self, *, tenant_id: str) -> Sequence[SearchIndexRecord]:
+        """Full tenant index state for the #875 rebuild switch validator.
+
+        Unlike the query-service candidate window this applies no state
+        filter: tombstones must be visible so a generation switch can prove
+        that no identity was lost between generations. The rebuild validator
+        loads identity/state/revision/digest columns only; text never leaves the
+        storage boundary through this method's callers.
+        """
+
+        statement = (
+            select(SearchIndexRecord)
+            .options(
+                load_only(
+                    SearchIndexRecord.source_object_id,
+                    SearchIndexRecord.state,
+                    SearchIndexRecord.content_revision,
+                    SearchIndexRecord.text_digest,
+                )
+            )
+            .where(SearchIndexRecord.tenant_id == tenant_id)
+            .order_by(SearchIndexRecord.source_object_id)
+        )
+        return list(self.session.scalars(statement))
