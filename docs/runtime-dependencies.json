@@ -1108,7 +1108,7 @@
     },
     {
       "path": "infra/helm/limes-axis/templates/_helpers.tpl",
-      "git_blob": "fd9afc2734bdefd3e9b67abde18309510e901688"
+      "git_blob": "2359b38547b282ca38968f9951e603a4e18d0080"
     },
     {
       "path": "infra/helm/limes-axis/templates/api-deployment.yaml",

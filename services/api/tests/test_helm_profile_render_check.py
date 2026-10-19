@@ -339,13 +339,18 @@ def test_local_only_egress_flags_a_port_only_rule() -> None:
     assert any("port-only rule" in problem for problem in problems)
 
 
-def test_local_only_egress_flags_an_all_address_cidr() -> None:
+@pytest.mark.parametrize(
+    "cidr",
+    ["0.0.0.0/0", "::/0", "0::/0", "10.0.0.0/0", "0.0.0.0/1", "128.0.0.0/1", "8000::/1",
+     "not-a-cidr", ""],
+)
+def test_local_only_egress_flags_an_all_address_cidr(cidr: str) -> None:
     checker = load_render_module()
 
     rules = [dns_rule(), *declared_service_rules()]
     rules.append(
         {
-            "to": [{"ipBlock": {"cidr": "0.0.0.0/0"}}],
+            "to": [{"ipBlock": {"cidr": cidr}}],
             "ports": [{"protocol": "TCP", "port": 443}],
         }
     )
@@ -448,3 +453,82 @@ def test_all_render_checks_pass_for_the_shipped_profiles() -> None:
     ]
 
     assert not failures, failures
+
+
+LOCAL_ONLY_PROFILE = REPO_ROOT / "infra" / "helm" / "limes-axis" / "profiles" / "local-only.yaml"
+# Index 4 of the shipped profile is the optional distributed-rate-limit entry:
+# optional entries are rendered too, so they must be validated like required ones.
+OPTIONAL_SERVICE = "networkPolicy.localOnly.services[4]"
+
+
+@pytest.mark.skipif(shutil.which("helm") is None, reason="helm binary is required")
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ((f"{OPTIONAL_SERVICE}.ipBlock.cidr=0.0.0.0/0",), "must declare a bounded CIDR"),
+        ((f"{OPTIONAL_SERVICE}.ipBlock.cidr=0::/0",), "must declare a bounded CIDR"),
+        ((f"{OPTIONAL_SERVICE}.ipBlock.cidr=0.0.0.0/1",), "must declare a bounded CIDR"),
+        ((f"{OPTIONAL_SERVICE}.ipBlock.cidr=10.0.0.0/00",), "must declare a bounded CIDR"),
+        ((f"{OPTIONAL_SERVICE}.ipBlock.cidr=example.com/24",), "must declare a bounded CIDR"),
+        ((f"{OPTIONAL_SERVICE}.state=omitted",), "omitted without a reason"),
+        ((f"{OPTIONAL_SERVICE}.name=operational-database",), "more than once"),
+        (("networkPolicy.localOnly.services[0].name=renamed",), "missing required local service"),
+        (("networkPolicy.localOnly.dns.mode=explicit",), "resolvers is empty"),
+        (
+            (
+                "networkPolicy.localOnly.dns.mode=node_local",
+                "networkPolicy.localOnly.dns.nodeLocalCidr=::/0",
+            ),
+            "must declare a bounded CIDR",
+        ),
+        (("networkPolicy.allowedEgressCidrs[0]=10.0.0.0/8",), "allowedEgressCidrs is not read"),
+    ],
+)
+def test_local_only_chart_fails_closed_on_unbounded_or_incomplete_values(
+    overrides: tuple[str, ...], message: str
+) -> None:
+    command = [
+        "helm",
+        "template",
+        "limes-axis",
+        str(REPO_ROOT / "infra" / "helm" / "limes-axis"),
+        "-f",
+        str(LOCAL_ONLY_PROFILE),
+    ]
+    for override in overrides:
+        command.extend(("--set", override))
+
+    completed = subprocess.run(command, check=False, capture_output=True, text=True)
+
+    assert completed.returncode != 0
+    assert message in completed.stderr
+
+
+@pytest.mark.skipif(shutil.which("helm") is None, reason="helm binary is required")
+def test_local_only_chart_accepts_a_bounded_optional_ip_block() -> None:
+    completed = subprocess.run(
+        [
+            "helm",
+            "template",
+            "limes-axis",
+            str(REPO_ROOT / "infra" / "helm" / "limes-axis"),
+            "-f",
+            str(LOCAL_ONLY_PROFILE),
+            "--set",
+            f"{OPTIONAL_SERVICE}.ipBlock.cidr=10.20.0.0/24",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert 'cidr: 10.20.0.0/24' in completed.stdout
+
+
+def test_forbidden_secret_detection_normalizes_crlf_rendered_output() -> None:
+    checker = load_render_module()
+
+    assert checker._forbidden_secret_terms("apiVersion: v1\r\nkind: Secret\r\n") == [
+        "kind: Secret"
+    ]

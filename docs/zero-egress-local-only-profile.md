@@ -75,16 +75,23 @@ entries. A `podSelector` without `namespace` resolves to the release namespace;
 services in another namespace must declare `namespace`, and off-cluster services
 must declare a bounded `ipBlock`.
 
+Every entry is validated, required or optional, and each name may appear only
+once. A bounded `ipBlock` is a well-formed CIDR with an IPv4 prefix of `/8` or
+longer, or an IPv6 prefix of `/7` or longer: any `/0` spelling, and broader
+prefixes that could be combined into an all-address allow, fail rendering.
+
 ### DNS modes
 
 - **`cluster`** (default): pins the cluster DNS service pods by namespace and
   pod label. No other DNS destination is reachable.
-- **`node_local`**: pins node-local DNS pods and the documented link-local
-  resolver address (`nodeLocalCidr`, default `169.254.20.10/32`). Use it only
-  where the CNI and node network support node-local DNS.
+- **`node_local`**: pins the DNS pods selected by `namespace` and
+  `podSelector` (chart default `k8s-app: kube-dns`; set the selector your
+  node-local DNS deployment uses) and the documented link-local resolver address
+  (`nodeLocalCidr`, default `169.254.20.10/32`). Use it only where the CNI and
+  node network support node-local DNS.
 - **`explicit`**: renders exactly the declared `resolvers`, each a namespace
   plus optional `podSelector`, or a bounded `ipBlock`. It fails when the list is
-  empty.
+  empty. `resolvers` is ignored by the other two modes.
 
 ## What rendering does not prove
 

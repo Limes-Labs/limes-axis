@@ -1,6 +1,6 @@
-# ADR: Static runtime dependency inventory
+# ADR 0019: Static runtime dependency inventory
 
-Status: Proposed, unmerged. The complete-checkout inventory guard and 112 targeted
+Status: Proposed. The complete-checkout inventory guard and 112 targeted
 regression tests pass; full repository verification and PR CI remain pending.
 Related issue: #869. Parent workstream: #473.
 
