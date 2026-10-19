@@ -127,6 +127,13 @@ jobs:
           AXIS_MODEL_CONTRACT_POSTGRES_DSN: postgresql+psycopg://axis:axis@localhost:5432/axis
         run: make test-model-persistence-postgres
 
+      - name: Test search index on PostgreSQL
+        working-directory: services/api
+        env:
+          AXIS_RUN_SEARCH_POSTGRES: "1"
+          AXIS_SEARCH_POSTGRES_DSN: postgresql+psycopg://axis:axis@localhost:5432/axis
+        run: uv run pytest tests/integration/test_search_index_postgres.py -q
+
       # MinIO no longer publishes anonymously pullable images (quay.io and
       # Docker Hub both answer 401), so the S3 protocol fixture is the
       # pinned moto server from PyPI. Any S3-compatible endpoint satisfies
