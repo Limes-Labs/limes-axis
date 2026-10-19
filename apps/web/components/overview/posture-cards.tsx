@@ -14,7 +14,8 @@ import {
   type PlatformStatus,
 } from "@/lib/platform-overview";
 import type { PlatformPolicyRegistry } from "@/lib/platform-policies";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import { buildTenantScopedPath, DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import { parsePlatformPolicyRegistry } from "@/lib/runtime-contracts/policies";
 import {
@@ -66,7 +67,7 @@ function connectorEventCount(snapshot: ManufacturingOperationsSnapshot): number 
 function cardState<T>(
   query: OverviewQuery<T>,
   build: (data: T) => Pick<PostureCard, "value" | "detail" | "status">,
-  provenanceOf: (data: T) => SourceProvenance,
+  provenanceOf: (data: T) => SourceProvenance, strings: ConsoleStrings,
 ): Pick<PostureCard, "value" | "detail" | "status" | "sourceState"> {
   if (query.data) {
     return {
@@ -103,6 +104,7 @@ export function PostureCards({
   routing: OverviewQuery<ManufacturingModelRouting>;
   tenantId?: string;
 }) {
+  const strings = useStrings();
   const policiesQuery = useAxisQuery<PlatformPolicyRegistry>(
     buildTenantScopedPath(POLICIES_ENDPOINT, tenantId),
     { expectedTenantId: tenantId, parse: parsePlatformPolicyRegistry },
@@ -119,7 +121,7 @@ export function PostureCards({
         value: String(data.agents.length),
         detail: metricByLabel(data, "Agents")?.detail ?? "Governed autonomy records",
         status: metricByLabel(data, "Agents")?.status ?? "ready",
-      }), (data) => data.provenance),
+      }), (data) => data.provenance, strings),
     },
     {
       key: "workflows",
@@ -138,7 +140,7 @@ export function PostureCards({
           detail: metric?.detail ?? copy.workflows.detail,
           status: metric?.status ?? "watch",
         };
-      }, (data) => data.provenance),
+      }, (data) => data.provenance, strings),
     },
     {
       key: "connectors",
@@ -161,7 +163,7 @@ export function PostureCards({
           // Quiet connectors are not a problem, so zero activity is neutral.
           status: "ready",
         };
-      }, (data) => data.provenance),
+      }, (data) => data.provenance, strings),
     },
     {
       key: "policies",
@@ -172,7 +174,7 @@ export function PostureCards({
         value: String(data.active_policy_count),
         detail: `${data.policy_count} authored, ${data.active_policy_count} active`,
         status: data.active_policy_count > 0 ? "ready" : "watch",
-      }), () => PROVENANCE_NOT_APPLICABLE),
+      }), () => PROVENANCE_NOT_APPLICABLE, strings),
     },
     {
       key: "models",
@@ -183,13 +185,13 @@ export function PostureCards({
         value: formatNumber(data.routes.length),
         detail: pluralize(countBlockedModelRoutes(data), "blocked route"),
         status: data.routing_status,
-      }), (data) => data.provenance),
+      }), (data) => data.provenance, strings),
     },
   ];
 
   return (
     <div
-      aria-label="Platform posture"
+      aria-label={strings.ui.overviewPostureCards.platformPosture}
       className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5"
       role="list"
     >

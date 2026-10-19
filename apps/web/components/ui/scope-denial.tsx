@@ -3,7 +3,7 @@
 import { ShieldOff } from "lucide-react";
 
 import { cn } from "@/lib/cn";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 /**
  * Classified failure of one governed read: the API answered 403 with the
@@ -40,6 +40,7 @@ export function ScopeDenialPanel({
   requiredPermission: string;
   subject: string;
 }) {
+  const strings = useStrings();
   return (
     <section
       aria-live="polite"

@@ -1,6 +1,6 @@
 "use client";
 
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 import "./globals.css";
 
@@ -10,6 +10,7 @@ import "./globals.css";
  * neutral styling rather than the token layer, which may not have applied.
  */
 export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
+  const strings = useStrings();
   return (
     <html lang="en">
       <body

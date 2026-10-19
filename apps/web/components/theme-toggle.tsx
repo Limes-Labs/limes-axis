@@ -11,7 +11,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { isThemePreference, type ThemePreference } from "@/lib/theme";
 import { useTheme } from "@/providers/theme-provider";
 
@@ -33,6 +33,7 @@ const subscribeNoop = () => () => {};
  * name; server and client markup therefore match.
  */
 export function ThemeToggle() {
+  const strings = useStrings();
   const { theme, setTheme } = useTheme();
   const copy = strings.shell.theme;
   const hydrated = useSyncExternalStore(

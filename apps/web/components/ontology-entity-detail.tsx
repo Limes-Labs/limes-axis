@@ -13,7 +13,7 @@ import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel } from "@/components/ui/states";
 import { formatContextPath, formatTimestamp } from "@/lib/format";
 import { deriveSourceState } from "@/lib/source-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import {
   IDENTITY_SESSION_ENDPOINT,
@@ -21,6 +21,7 @@ import {
 } from "@/lib/use-console-tenant-scope";
 
 export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
+  const strings = useStrings();
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const { detail, endpoint, errorRequestId, source } = useOntologyEntity(
     nodeId,
@@ -31,7 +32,7 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
   if (identity.source === "unavailable") {
     return (
       <ErrorPanel
-        detail="The entity is not loaded until the current actor and tenant are verified."
+        detail={strings.ui.ontologyEntityDetail.theEntityIsNotLoaded}
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
         onRetry={identity.refetch}
@@ -43,9 +44,9 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
   if (identity.source === "api" && !tenantId) {
     return (
       <ErrorPanel
-        detail="The authenticated identity response does not contain a tenant. Axis will not fall back to a demo entity."
+        detail={strings.ui.ontologyEntityDetail.theAuthenticatedIdentityResponseDoes}
         endpoint={IDENTITY_SESSION_ENDPOINT}
-        title="Authenticated tenant missing"
+        title={strings.ui.common.authenticatedTenantMissing}
       />
     );
   }
@@ -53,7 +54,7 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
   if (!detail) {
     if (source === "loading") {
       return (
-        <div className="grid gap-5" aria-busy="true" aria-label="Loading entity API">
+        <div className="grid gap-5" aria-busy="true" aria-label={strings.ui.ontologyEntityDetail.loadingEntityApi}>
           <Skeleton className="h-28" />
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <Skeleton className="h-28" />
@@ -69,19 +70,19 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
     if (source !== "missing") {
       return (
         <ErrorPanel
-          detail="Axis did not receive an API-backed ontology entity. Local fallback entity records are disabled."
+          detail={strings.ui.ontologyEntityDetail.axisDidNotReceiveAn}
           endpoint={endpoint ?? undefined}
           reference={errorRequestId ?? undefined}
-          title="Entity API unavailable"
+          title={strings.ui.ontologyEntityDetail.entityApiUnavailable}
         />
       );
     }
 
     return (
       <EmptyPanel
-        action={{ label: "Back to ontology", href: "/ontology" }}
-        detail={`No ontology entity exists with the id ${nodeId}. It may have been renamed or removed from the graph.`}
-        title="Entity not found"
+        action={{ label: strings.ui.ontologyEntityDetail.backToOntology, href: "/ontology" }}
+        detail={strings.ui.ontologyEntityDetail.notFoundDetail(nodeId)}
+        title={strings.ui.ontologyEntityDetail.entityNotFound}
       />
     );
   }
@@ -90,7 +91,7 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
     <div className="grid gap-5">
       <Card className="flex flex-wrap items-start justify-between gap-4">
         <div className="grid gap-1">
-          <Eyebrow>Ontology Entity</Eyebrow>
+          <Eyebrow>{strings.ui.ontologyEntityDetail.ontologyEntity}</Eyebrow>
           <h2 className="font-display m-0 text-2xl text-ink">{detail.node.label}</h2>
           <p className="m-0 text-sm text-muted">
             {formatContextPath(detail.scenario, detail.tenant_id)}
@@ -98,7 +99,7 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
         </div>
         <div
           className="flex flex-wrap items-center gap-2"
-          aria-label="Entity source and node status"
+          aria-label={strings.ui.ontologyEntityDetail.entitySourceAndNodeStatus}
         >
           <SourcePill
             state={deriveSourceState(
@@ -123,7 +124,7 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
             href="/ontology"
           >
             <ArrowLeft size={16} />
-            Ontology
+            {strings.ui.ontologyEntityDetail.ontology}
           </Link>
         }
       />

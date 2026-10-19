@@ -12,7 +12,8 @@ import {
   currentReturnPath,
 } from "@/lib/oidc-session";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import { useConsole } from "@/providers/console-provider";
 
 /**
@@ -24,7 +25,7 @@ import { useConsole } from "@/providers/console-provider";
  * screen behind the gate.
  */
 
-function reasonCopy(reason: string | null): string {
+function reasonCopy(reason: string | null, strings: ConsoleStrings): string {
   const reasons = strings.identityGate.reasons;
   if (reason && reason in reasons) {
     return reasons[reason as keyof typeof reasons];
@@ -47,6 +48,7 @@ export function SignInGate({
   identitySession: IdentitySessionReadModel;
   className?: string;
 }) {
+  const strings = useStrings();
   const { apiBaseUrl } = useConsole();
   const signInHref = buildOidcAuthorizeUrl(apiBaseUrl, currentReturnPath());
   const host = issuerHost(identitySession.issuer);
@@ -88,7 +90,7 @@ export function SignInGate({
           role="status"
           data-gate-reason
         >
-          {reasonCopy(identitySession.unauthenticated_reason)}
+          {reasonCopy(identitySession.unauthenticated_reason, strings)}
         </p>
         <div className="mt-5">
           <SsoSignInLink

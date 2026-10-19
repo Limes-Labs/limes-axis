@@ -27,7 +27,7 @@ import {
   platformStatusClass,
   type ManufacturingOperationsSnapshot,
 } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import {
   parseOperationsArtifactResponse,
 } from "@/lib/runtime-contracts/overview";
@@ -60,6 +60,7 @@ export function ArtifactPanel({
   snapshot: OverviewQuery<ManufacturingOperationsSnapshot>;
   onArtifactCommitted: () => void;
 }) {
+  const strings = useStrings();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { apiBaseUrl } = useConsole();
@@ -160,7 +161,7 @@ export function ArtifactPanel({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Governed artifact actions">
+      <div className="flex flex-wrap gap-2" role="group" aria-label={strings.ui.overviewArtifactPanel.governedArtifactActions}>
         {OPERATIONS_ARTIFACT_ACTIONS.map((action) => {
           const state = getOperationsArtifactActionState(action.kind, identitySession);
           const pending = pendingKind === action.kind;
@@ -177,7 +178,7 @@ export function ArtifactPanel({
               type="button"
             >
               <Icon aria-hidden="true" size={14} />
-              {pending ? "Persisting..." : action.label}
+              {pending ? strings.ui.overviewArtifactPanel.persisting : action.label}
               <span className="sr-only" id={`${action.kind}-artifact-state`}>
                 {state.reason ?? action.description}
               </span>
@@ -198,7 +199,7 @@ export function ArtifactPanel({
             </p>
             <p className="m-0 text-xs text-muted">{operationsArtifactHeadline(artifact.response)}</p>
             <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-muted">
-              <span>{artifact.response.idempotent_replay ? "Idempotent replay" : "Created"}</span>
+              <span>{artifact.response.idempotent_replay ? strings.ui.overviewArtifactPanel.idempotentReplay : strings.ui.overviewArtifactPanel.created}</span>
               <span>{artifact.response.source_record_ids.length} source records</span>
               <span>{artifact.response.audit_event_type}</span>
             </div>
@@ -208,7 +209,7 @@ export function ArtifactPanel({
               className="font-mono text-xs tracking-[0.12em] text-signal uppercase hover:underline"
               href={buildAuditEventHref(artifact.response.audit_event_id)}
             >
-              Open audit
+              {strings.ui.common.openAudit}
             </Link>
           ) : null}
         </div>
@@ -218,7 +219,7 @@ export function ArtifactPanel({
         <ErrorPanel
           detail={error.message}
           reference={error.requestId ?? undefined}
-          title="Artifact persistence failed"
+          title={strings.ui.overviewArtifactPanel.artifactPersistenceFailed}
         />
       ) : null}
     </Card>

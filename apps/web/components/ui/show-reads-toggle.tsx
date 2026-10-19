@@ -1,6 +1,6 @@
 "use client";
 
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 /**
  * "Show reads" switch for audit activity feeds and charts. Every console page
@@ -18,6 +18,7 @@ export function ShowReadsToggle({
   hiddenCount: number;
   onCheckedChange: (checked: boolean) => void;
 }) {
+  const strings = useStrings();
   const copy = strings.audit.reads;
 
   return (

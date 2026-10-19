@@ -2,12 +2,15 @@ import type { Metadata } from "next";
 
 import { ConsolePage } from "@/components/console-page";
 import { PolicyRegistry } from "@/components/policy-registry";
-import { strings } from "@/lib/strings";
+import { getServerStrings } from "@/lib/locale-server";
 
-export const metadata: Metadata = {
-  title: strings.pages.policies.title,
-  description: strings.pages.policies.description,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = await getServerStrings();
+  return {
+    title: strings.pages.policies.title,
+    description: strings.pages.policies.description,
+  };
+}
 
 export default function PoliciesPage() {
   return (

@@ -19,7 +19,7 @@ import { cn } from "@/lib/cn";
 import { announcePopoverOpened, useExclusivePopover } from "@/lib/console-popovers";
 import { operatorInitials } from "@/lib/identity-format";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 type SidebarPanel = "account" | "help";
@@ -54,6 +54,7 @@ export function SidebarAccount({
    */
   variant?: "rail" | "compact";
 }) {
+  const strings = useStrings();
   const { session } = useOidcConsoleSession();
   const [activePanel, setActivePanel] = useState<SidebarPanel | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -138,10 +139,10 @@ export function SidebarAccount({
         </Link>
         <button
           aria-expanded={activePanel === "help"}
-          aria-label="Open platform help"
+          aria-label={strings.ui.sidebarAccount.openPlatformHelp}
           className={cn("icon-button", activePanel === "help" && "icon-button-active")}
           onClick={() => toggle("help")}
-          title="Open platform help"
+          title={strings.ui.sidebarAccount.openPlatformHelp}
           type="button"
         >
           <HugeiconsIcon icon={HelpCircleIcon} size={17} strokeWidth={1.8} />
@@ -191,10 +192,10 @@ export function SidebarAccount({
 
       <button
         aria-expanded={activePanel === "help"}
-        aria-label="Open platform help"
+        aria-label={strings.ui.sidebarAccount.openPlatformHelp}
         className={cn(footerRowClass, activePanel === "help" && "bg-signal/10 text-ink")}
         onClick={() => toggle("help")}
-        title="Open platform help"
+        title={strings.ui.sidebarAccount.openPlatformHelp}
         type="button"
       >
         <HugeiconsIcon icon={HelpCircleIcon} size={18} strokeWidth={1.8} />

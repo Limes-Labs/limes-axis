@@ -30,6 +30,7 @@ import {
 } from "@/lib/runtime-contracts/overview";
 import { deriveSourceState, type AxisSource } from "@/lib/source-state";
 import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
+import { useStrings } from "@/providers/locale-provider";
 
 type AcknowledgementScope = Readonly<{
   key: string | null;
@@ -128,6 +129,7 @@ export function NotificationPanel({
   session: ReturnType<typeof useOidcConsoleSession>["session"];
   source: AxisSource;
 }) {
+  const strings = useStrings();
   const scopeKey = acknowledgementScopeKey(identitySession);
   // Object identity is intentional: this is a request-generation token as
   // well as a tenant+actor key. A late A -> B -> A completion must not mutate
@@ -167,13 +169,13 @@ export function NotificationPanel({
   if (!center) {
     const sourceState = deriveSourceState(source, false);
     return (
-      <section className={popoverClass} aria-label="Notifications">
-        <PopoverHeader label="Notifications">
+      <section className={popoverClass} aria-label={strings.ui.topbarNotificationPanel.notifications}>
+        <PopoverHeader label={strings.ui.topbarNotificationPanel.notifications}>
           <SourcePill state={sourceState} subject="notifications" />
         </PopoverHeader>
         <p className="m-0 text-sm leading-snug text-muted">
           {sourceState === "loading"
-            ? "Loading notification evidence."
+            ? strings.ui.topbarNotificationPanel.loadingNotificationEvidence
             : `Notification data requires ${OPERATIONS_API_PREFIX}/notifications.`}
         </p>
       </section>
@@ -278,8 +280,8 @@ export function NotificationPanel({
   }
 
   return (
-    <section className={popoverClass} aria-label="Notifications">
-      <PopoverHeader label="Notifications">
+    <section className={popoverClass} aria-label={strings.ui.topbarNotificationPanel.notifications}>
+      <PopoverHeader label={strings.ui.topbarNotificationPanel.notifications}>
         <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
           <span className="status-pill status-checking">
             {formatNumber(center.unread_count)} unread
@@ -315,7 +317,7 @@ export function NotificationPanel({
                   <strong>{item.title}</strong>
                   <small>
                     {acknowledged
-                      ? item.acknowledgement_reason ?? "Acknowledged"
+                      ? item.acknowledgement_reason ?? strings.ui.topbarNotificationPanel.acknowledged
                       : item.detail}
                   </small>
                 </span>
@@ -325,7 +327,7 @@ export function NotificationPanel({
                     href={item.route}
                     title={item.action_label}
                   >
-                    Open
+                    {strings.ui.topbarNotificationPanel.open}
                   </Link>
                   <button
                     className="grid h-7 w-[52px] cursor-pointer place-items-center rounded-lg border border-positive/35 bg-positive/8 text-[11px] leading-none font-bold whitespace-nowrap text-positive disabled:cursor-not-allowed disabled:border-line/60 disabled:bg-ink/3 disabled:text-muted dark:disabled:bg-white/5"
@@ -333,7 +335,7 @@ export function NotificationPanel({
                     onClick={() => void acknowledgeNotification(item)}
                     type="button"
                   >
-                    {acknowledged ? "Acked" : pending ? "Saving" : "Ack"}
+                    {acknowledged ? strings.ui.topbarNotificationPanel.acked : pending ? strings.ui.common.saving : strings.ui.topbarNotificationPanel.ack}
                   </button>
                 </span>
               </div>
@@ -343,8 +345,8 @@ export function NotificationPanel({
           <div className={popoverRowClass}>
             <span aria-hidden="true" className="status-dot signal-ready" />
             <span>
-              <strong>No active notifications</strong>
-              <small>Axis did not derive pending alerts from persisted platform state.</small>
+              <strong>{strings.ui.topbarNotificationPanel.noActiveNotifications}</strong>
+              <small>{strings.ui.topbarNotificationPanel.axisDidNotDerivePending}</small>
             </span>
           </div>
         )}
@@ -363,7 +365,7 @@ export function NotificationPanel({
         </p>
       ) : null}
       <Link className={popoverLinkClass} href="/audit">
-        Open audit evidence
+        {strings.ui.topbarNotificationPanel.openAuditEvidence}
       </Link>
     </section>
   );

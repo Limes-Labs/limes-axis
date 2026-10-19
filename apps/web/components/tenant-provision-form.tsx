@@ -25,6 +25,7 @@ import { useConsole } from "@/providers/console-provider";
 import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
 import { InlineOperatorError } from "@/components/ui/inline-operator-error";
+import { useStrings } from "@/providers/locale-provider";
 
 type SubmissionState =
   | { phase: "idle" }
@@ -35,6 +36,7 @@ type SubmissionState =
   | { phase: "failed"; error: AxisOperatorError };
 
 export function TenantProvisionForm() {
+  const strings = useStrings();
   const { session } = useOidcConsoleSession();
   const identity = useIdentitySession();
   const { ssoBlocked } = deriveGovernedActor(identity.data ?? null, "platform-tenant-operator");
@@ -153,8 +155,8 @@ export function TenantProvisionForm() {
     <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
-          <p className="eyebrow m-0">Provision Tenant</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">New tenant</h2>
+          <p className="eyebrow m-0">{strings.ui.tenantProvisionForm.provisionTenant}</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.tenantProvisionForm.newTenant}</h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             Creates an active tenant through POST /platform/tenants. The API enforces the{" "}
             {platformTenantProvisionScope} scope and records provisioning audit evidence.
@@ -165,14 +167,14 @@ export function TenantProvisionForm() {
       </div>
 
       <form
-        aria-label="Tenant provisioning"
+        aria-label={strings.ui.tenantProvisionForm.tenantProvisioning}
         className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
         noValidate
         onSubmit={(event) => void submitProvision(event)}
       >
-        <Field label="Tenant ID">
+        <Field label={strings.ui.tenantProvisionForm.tenantId}>
           <Input
-            aria-label="New tenant id"
+            aria-label={strings.ui.tenantProvisionForm.newTenantId}
             onChange={(event) => updateForm({ tenantId: event.target.value })}
             pattern={tenantIdPattern}
             placeholder="tenant_acme_manufacturing"
@@ -181,21 +183,21 @@ export function TenantProvisionForm() {
             value={form.tenantId}
           />
         </Field>
-        <Field label="Display Name">
+        <Field label={strings.ui.common.displayName}>
           <Input
-            aria-label="New tenant display name"
+            aria-label={strings.ui.tenantProvisionForm.newTenantDisplayName}
             onChange={(event) => updateForm({ displayName: event.target.value })}
-            placeholder="Acme Manufacturing"
+            placeholder={strings.ui.tenantProvisionForm.acmeManufacturing}
             required
             type="text"
             value={form.displayName}
           />
         </Field>
-        <Field className="col-span-full" label="Description">
+        <Field className="col-span-full" label={strings.ui.common.description}>
           <Input
-            aria-label="New tenant description"
+            aria-label={strings.ui.tenantProvisionForm.newTenantDescription}
             onChange={(event) => updateForm({ description: event.target.value })}
-            placeholder="What this tenant is for (optional)"
+            placeholder={strings.ui.tenantProvisionForm.whatThisTenantIsFor}
             type="text"
             value={form.description}
           />
@@ -218,45 +220,44 @@ export function TenantProvisionForm() {
 
         <label className="col-span-full flex items-center gap-2.5">
           <Input
-            aria-label="Bootstrap an admin actor"
+            aria-label={strings.ui.tenantProvisionForm.bootstrapAnAdminActor}
             checked={form.bootstrapEnabled}
             onChange={(event) => updateForm({ bootstrapEnabled: event.target.checked })}
             type="checkbox"
           />
-          <span className="eyebrow m-0">Bootstrap an admin actor for this tenant</span>
+          <span className="eyebrow m-0">{strings.ui.tenantProvisionForm.bootstrapAnAdminActorFor}</span>
         </label>
 
         {form.bootstrapEnabled ? (
           <>
-            <Field label="Bootstrap Admin Actor ID">
+            <Field label={strings.ui.tenantProvisionForm.bootstrapAdminActorId}>
               <Input
-                aria-label="Bootstrap admin actor id"
+                aria-label={strings.ui.tenantProvisionForm.bootstrapAdminActorId2}
                 onChange={(event) => updateForm({ bootstrapActorId: event.target.value })}
                 placeholder="acme-admin-role"
                 type="text"
                 value={form.bootstrapActorId}
               />
             </Field>
-            <Field label="Bootstrap Admin Display Name">
+            <Field label={strings.ui.tenantProvisionForm.bootstrapAdminDisplayName}>
               <Input
-                aria-label="Bootstrap admin display name"
+                aria-label={strings.ui.tenantProvisionForm.bootstrapAdminDisplayName2}
                 onChange={(event) => updateForm({ bootstrapDisplayName: event.target.value })}
-                placeholder="Acme Administrator"
+                placeholder={strings.ui.tenantProvisionForm.acmeAdministrator}
                 type="text"
                 value={form.bootstrapDisplayName}
               />
             </Field>
-            <Field className="col-span-full" label="Bootstrap Admin Requested Scopes (comma or newline separated)">
+            <Field className="col-span-full" label={strings.ui.tenantProvisionForm.bootstrapAdminRequestedScopesComma}>
               <Textarea
-                aria-label="Bootstrap admin requested scopes"
+                aria-label={strings.ui.tenantProvisionForm.bootstrapAdminRequestedScopes}
                 onChange={(event) => updateForm({ bootstrapScopesText: event.target.value })}
                 placeholder="platform:tenant:read"
                 rows={2}
                 value={form.bootstrapScopesText}
               />
               <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                Recorded as audit evidence only. Scope grants stay IdP-owned; the API never
-                grants these live.
+                {strings.ui.tenantProvisionForm.recordedAsAuditEvidenceOnly}
               </span>
             </Field>
             {fieldErrors.bootstrapActorId ? (
@@ -272,11 +273,11 @@ export function TenantProvisionForm() {
           </>
         ) : null}
 
-        <Field className="col-span-full" label="Notes (one per line)">
+        <Field className="col-span-full" label={strings.ui.common.notesOnePerLine}>
           <Textarea
-            aria-label="New tenant notes"
+            aria-label={strings.ui.tenantProvisionForm.newTenantNotes}
             onChange={(event) => updateForm({ notesText: event.target.value })}
-            placeholder="Optional provisioning notes"
+            placeholder={strings.ui.tenantProvisionForm.optionalProvisioningNotes}
             rows={2}
             value={form.notesText}
           />
@@ -284,12 +285,12 @@ export function TenantProvisionForm() {
         {ssoBlocked ? (
           <p className="m-0 flex items-center gap-2 text-sm text-muted" role="status">
             <Building2 aria-hidden="true" className="shrink-0 text-signal" size={15} />
-            Sign in with SSO to provision tenants.
+            {strings.ui.tenantProvisionForm.signInWithSsoTo}
           </p>
         ) : (
           <button className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none" disabled={submission.phase === "saving"} type="submit">
             <Building2 size={15} />
-            {submission.phase === "saving" ? "Provisioning" : "Provision tenant"}
+            {submission.phase === "saving" ? strings.ui.tenantProvisionForm.provisioning : strings.ui.tenantProvisionForm.provisionTenant2}
           </button>
         )}
       </form>

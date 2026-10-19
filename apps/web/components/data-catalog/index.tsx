@@ -25,7 +25,7 @@ import {
   useConsoleUrlState,
 } from "@/lib/console-url-state";
 import type { DataAssetEvidenceState } from "@/lib/data-assets";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { useConsoleTenantScope } from "@/lib/use-console-tenant-scope";
 import { DATA_ASSET_ENDPOINTS, useDataAssetCatalog } from "@/lib/use-data-asset-catalog";
 import { useConsole } from "@/providers/console-provider";
@@ -53,6 +53,7 @@ function metricTone(status: "ready" | "watch" | "action_required"): Metric["tone
  * selected asset are URL-backed so deep links stay shareable and fail closed.
  */
 export function DataCatalog() {
+  const strings = useStrings();
   const { tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const [urlState, setUrlState] = useConsoleUrlState(dataCatalogUrlSchema);
   const catalog = useDataAssetCatalog(tenantId, tenantQueriesEnabled);

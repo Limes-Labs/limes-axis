@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { useStrings } from "@/providers/locale-provider";
 
 type TimedEvent = { occurred_at: string };
 export type AuditTimeInterval = { start: number; end: number; label: string };
@@ -70,6 +71,7 @@ export function AuditActivityHeatmap({ events, returnedEvents, selectedInterval 
   onSelectInterval?: (interval: AuditTimeInterval | null) => void;
   controlsId?: string;
 }) {
+  const strings = useStrings();
   const id = useId();
   const [inspected, setInspected] = useState<string | null>(null);
   const activity = buildAuditActivity(events, returnedEvents);
@@ -90,8 +92,8 @@ export function AuditActivityHeatmap({ events, returnedEvents, selectedInterval 
   return (
     <section aria-labelledby={`${id}-title`} className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <h2 id={`${id}-title`} className="font-display m-0 text-lg text-ink">Activity by time</h2>
-        <span className="rounded-full bg-ink/4 px-2.5 py-1 text-xs tabular-nums text-muted dark:bg-white/5">UTC · 6-hour bins</span>
+        <h2 id={`${id}-title`} className="font-display m-0 text-lg text-ink">{strings.ui.auditActivityHeatmap.activityByTime}</h2>
+        <span className="rounded-full bg-ink/4 px-2.5 py-1 text-xs tabular-nums text-muted dark:bg-white/5">{strings.ui.auditActivityHeatmap.utc6HourBins}</span>
       </div>
       <p className="mb-2 mt-2 text-xs leading-relaxed text-muted">
         {completeWindow ? (
@@ -102,7 +104,7 @@ export function AuditActivityHeatmap({ events, returnedEvents, selectedInterval 
       </p>
       {activity.days.length > 0 ? (
         <>
-          <table className="w-full table-fixed border-separate border-spacing-1" aria-label="Audit events by UTC date and six-hour interval">
+          <table className="w-full table-fixed border-separate border-spacing-1" aria-label={strings.ui.auditActivityHeatmap.auditEventsByUtcDate}>
             <thead>
               <tr>
                 <th scope="col" className="w-12 text-left text-[11px] font-normal text-muted">UTC</th>
@@ -164,7 +166,7 @@ export function AuditActivityHeatmap({ events, returnedEvents, selectedInterval 
               <p className="m-0 text-xs font-medium text-ink">Time filter: {selectedInterval.label}</p>
               <button type="button" onClick={() => onSelectInterval(null)} aria-controls={controlsId}
                 className="min-h-8 cursor-pointer rounded-lg border border-line bg-transparent px-2.5 text-xs font-medium text-ink hover:bg-ink/4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal dark:border-white/15">
-                Clear time filter
+                {strings.ui.auditActivityHeatmap.clearTimeFilter}
               </button>
             </div>
           ) : null}

@@ -2,7 +2,7 @@
 
 import { ConsolePage } from "@/components/console-page";
 import { ErrorPanel } from "@/components/ui/states";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 /**
  * Route-segment error boundary.
@@ -20,6 +20,7 @@ export default function ConsoleRouteError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const strings = useStrings();
   return (
     <ConsolePage
       eyebrow={strings.routeError.eyebrow}

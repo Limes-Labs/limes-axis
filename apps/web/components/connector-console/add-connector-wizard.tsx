@@ -50,7 +50,7 @@ import {
   parseConnectorCsvPreviewResult,
   parseConnectorExternalDbPreviewResult,
 } from "@/lib/runtime-contracts/connectors";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
@@ -142,6 +142,7 @@ export function AddConnectorWizard({
   returnFocusRef?: RefObject<HTMLElement | null>;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const copy = strings.connectors.wizard;
   const { push } = useToast();
   const { session } = useOidcConsoleSession();
@@ -498,8 +499,8 @@ export function AddConnectorWizard({
           <DialogDescription>{copy.description}</DialogDescription>
         </DialogHeader>
 
-        {templatesLoading ? <p role="status">Loading connector templates…</p> : null}
-        {templatesUnavailable ? <FieldError>Connector templates unavailable. Close and reopen to retry.</FieldError> : null}
+        {templatesLoading ? <p role="status">{strings.ui.connectorConsoleAddConnectorWizard.loadingConnectorTemplates}</p> : null}
+        {templatesUnavailable ? <FieldError>{strings.ui.connectorConsoleAddConnectorWizard.connectorTemplatesUnavailableCloseAnd}</FieldError> : null}
         {step === "type" ? (
           <div className="grid gap-3">
             <p className="m-0 text-sm font-medium text-ink">{copy.typeStep.title}</p>
@@ -627,9 +628,9 @@ export function AddConnectorWizard({
                       >
                         <thead>
                           <tr>
-                            <th>Node</th>
-                            <th>Type</th>
-                            <th>Ontology target</th>
+                            <th>{strings.ui.common.node}</th>
+                            <th>{strings.ui.common.type}</th>
+                            <th>{strings.ui.connectorConsoleAddConnectorWizard.ontologyTarget}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -760,9 +761,9 @@ export function AddConnectorWizard({
                       <DataTable aria-label={copy.dbStep.columnsTitle} minWidth={360}>
                         <thead>
                           <tr>
-                            <th>Column</th>
-                            <th>Target</th>
-                            <th>Ontology target</th>
+                            <th>{strings.ui.connectorConsoleAddConnectorWizard.column}</th>
+                            <th>{strings.ui.connectorConsoleAddConnectorWizard.target}</th>
+                            <th>{strings.ui.connectorConsoleAddConnectorWizard.ontologyTarget}</th>
                           </tr>
                         </thead>
                         <tbody>

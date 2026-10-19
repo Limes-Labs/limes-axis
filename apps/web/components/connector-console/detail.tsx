@@ -15,7 +15,7 @@ import {
   type ConnectorRegistryItem,
 } from "@/lib/connectors-demo";
 import { connectorWithCurrentManifest } from "@/lib/connectors-console";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { formatNumber, formatTimestamp } from "@/lib/format";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import { parseConnectorManifestDetail } from "@/lib/runtime-contracts/connectors";
@@ -41,8 +41,9 @@ import { ManifestExportPanel } from "./manifest-export-panel";
  */
 
 function ChipList({ items, emptyLabel }: { items: string[]; emptyLabel?: string }) {
+  const strings = useStrings();
   if (items.length === 0) {
-    return <span className="text-sm text-muted">{emptyLabel ?? "None"}</span>;
+    return <span className="text-sm text-muted">{emptyLabel ?? strings.ui.common.none}</span>;
   }
 
   return (
@@ -80,6 +81,7 @@ function OverviewTab({
   registries: ConnectorRegistries;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const copy = strings.connectors.overview;
   const { manifest, runtime_policy: runtimePolicy } = connector;
   const persistedManifest = connector.persisted_manifest;
@@ -226,6 +228,7 @@ function OverviewTab({
 }
 
 function DataSchemaTab({ connector }: { connector: ConnectorRegistryItem }) {
+  const strings = useStrings();
   const copy = strings.connectors.schema;
   const { schema_fields: schemaFields } = connector.manifest;
   const sample = connector.preview_sample;
@@ -319,6 +322,7 @@ export function ConnectorDetail({
   registries: ConnectorRegistries;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const tabs = strings.connectors.tabs;
   const { manifest } = connector;
   const { triggerRefresh } = useConsole();

@@ -4,6 +4,7 @@ import { RotateCcw } from "lucide-react";
 
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
+import { useStrings } from "@/providers/locale-provider";
 
 export type FilterDef = {
   id: string;
@@ -20,8 +21,9 @@ export interface FilterBarProps {
 
 /** Consistent filter row for list pages: labelled selects + a visible Reset. */
 export function FilterBar({ filters, values, onChange, onReset }: FilterBarProps) {
+  const strings = useStrings();
   return (
-    <div aria-label="Filters" className="flex min-w-0 flex-wrap items-end gap-3" role="group">
+    <div aria-label={strings.ui.common.filters} className="flex min-w-0 flex-wrap items-end gap-3" role="group">
       {filters.map((filter) => (
         <Field key={filter.id} className="w-44 max-w-full" label={filter.label}>
           <Select
@@ -42,7 +44,7 @@ export function FilterBar({ filters, values, onChange, onReset }: FilterBarProps
         onClick={onReset}
       >
         <RotateCcw aria-hidden="true" size={14} />
-        Reset
+        {strings.ui.common.reset}
       </button>
     </div>
   );

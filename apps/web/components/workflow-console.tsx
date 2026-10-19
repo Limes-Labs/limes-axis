@@ -36,7 +36,8 @@ import {
   type PlatformStatus,
 } from "@/lib/platform-overview";
 import { deriveSourceState } from "@/lib/source-state";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import { parseManufacturingWorkflowConsole } from "@/lib/runtime-contracts/workflows";
 import {
   buildTenantScopedPath,
@@ -97,7 +98,7 @@ function runStatusToneClass(status: PlatformStatus): string {
 
 function buildFilterDefs(
   workflowData: ManufacturingWorkflowConsole,
-  labelDomain: (domain: string) => string,
+  labelDomain: (domain: string) => string, strings: ConsoleStrings,
 ): FilterDef[] {
   const options = workflowFilterOptions(workflowData);
   const copy = strings.workflows.filters;
@@ -130,12 +131,13 @@ function buildFilterDefs(
  * blocking approval when the record's pending signals carry its id.
  */
 function BlockerBanner({ workflow }: { workflow: WorkflowRun }) {
+  const strings = useStrings();
   const approvalId = workflowBlockingApprovalId(workflow);
   const copy = strings.workflows.blocker;
 
   return (
     <div
-      aria-label="Current blocker"
+      aria-label={strings.ui.workflowConsole.currentBlocker}
       className="flex items-start gap-3 rounded-2xl border border-warning/50 bg-warning/10 p-4"
       role="status"
     >
@@ -164,6 +166,7 @@ function BlockerBanner({ workflow }: { workflow: WorkflowRun }) {
 
 /** The visual centerpiece: the recorded runtime history with tone dots. */
 function RuntimeTimeline({ workflow }: { workflow: WorkflowRun }) {
+  const strings = useStrings();
   const copy = strings.workflows.timeline;
   const waitingSignals = workflow.pending_signals.filter(
     (signal) => signal.status === "waiting",
@@ -181,7 +184,7 @@ function RuntimeTimeline({ workflow }: { workflow: WorkflowRun }) {
           {formatNumber(waitingSignals)} {copy.waiting}
         </span>
       </div>
-      <DataTable aria-label="Workflow runtime timeline" minWidth={560}>
+      <DataTable aria-label={strings.ui.workflowConsole.workflowRuntimeTimeline} minWidth={560}>
         <thead>
           <tr>
             <th>{copy.columns.step}</th>
@@ -273,6 +276,7 @@ function ChipList({ items }: { items: string[] }) {
 }
 
 function PendingSignals({ workflow }: { workflow: WorkflowRun }) {
+  const strings = useStrings();
   const copy = strings.workflows.detail;
 
   if (workflow.pending_signals.length === 0) {
@@ -309,6 +313,7 @@ function WorkflowDetail({
   workflow: WorkflowRun;
   domainLabel: string;
 }) {
+  const strings = useStrings();
   const copy = strings.workflows;
 
   return (
@@ -388,6 +393,7 @@ function WorkflowDetail({
 }
 
 export function WorkflowConsole() {
+  const strings = useStrings();
   const { labelDomain } = useTenantVocabulary();
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const runsPath = buildTenantScopedPath(
@@ -430,7 +436,7 @@ export function WorkflowConsole() {
   if (identity.source === "unavailable" || !tenantId) {
     return (
       <ErrorPanel
-        detail="The console could not verify the current actor and tenant. Workflow data is not loaded until identity is available."
+        detail={strings.ui.workflowConsole.theConsoleCouldNotVerify}
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
         onRetry={identity.refetch}
@@ -442,7 +448,7 @@ export function WorkflowConsole() {
   if (!workflowData) {
     if (source === "loading") {
       return (
-        <div aria-label="Loading workflow API" className="grid gap-4">
+        <div aria-label={strings.ui.workflowConsole.loadingWorkflowApi} className="grid gap-4">
           <LoadingPanel layout="metrics" rows={4} />
           <MasterDetail
             detail={<LoadingPanel layout="detail" />}
@@ -493,7 +499,7 @@ export function WorkflowConsole() {
   return (
     <div className="grid gap-4">
       <div
-        aria-label="Workflow source and runtime status"
+        aria-label={strings.ui.workflowConsole.workflowSourceAndRuntimeStatus}
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm break-words text-muted">
@@ -518,7 +524,7 @@ export function WorkflowConsole() {
       {metrics.length > 0 ? <MetricStrip metrics={metrics} /> : null}
 
       <FilterBar
-        filters={buildFilterDefs(workflowData, labelDomain)}
+        filters={buildFilterDefs(workflowData, labelDomain, strings)}
         values={{ state: filters.state, domain: filters.domain }}
         onChange={(id, value) => {
           if (id === "state" || id === "domain") {
@@ -598,7 +604,7 @@ export function WorkflowConsole() {
 
       {workflowData.runtime_notes.length > 0 ? (
         <Card className="grid content-start gap-3">
-          <Eyebrow>Runtime Notes</Eyebrow>
+          <Eyebrow>{strings.ui.workflowConsole.runtimeNotes}</Eyebrow>
           <div className="grid gap-2">
             {workflowData.runtime_notes.map((note) => (
               <p className="m-0 text-sm text-muted" key={note}>

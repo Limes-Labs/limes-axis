@@ -33,7 +33,7 @@ import {
 import { cn } from "@/lib/cn";
 import { deriveGovernedActor } from "@/lib/governed-action";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { parseApprovalDecisionPersistenceResult } from "@/lib/runtime-contracts/approvals";
 import { buildTenantScopedPath, DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
@@ -145,6 +145,7 @@ export function ApprovalDecisionCard({
   onErrorChange,
   tenantId = DEMO_TENANT_ID,
 }: ApprovalDecisionCardProps) {
+  const strings = useStrings();
   const [pendingOption, setPendingOption] = useState<ApprovalDecisionOption | null>(null);
   const [note, setNote] = useState("");
   // Focus returns to the option that opened the confirmation; once a decision
@@ -249,7 +250,7 @@ export function ApprovalDecisionCard({
   const alreadyDecided = approval.status === "decided";
   return (
     <section
-      aria-label="Decision"
+      aria-label={strings.ui.common.decision}
       ref={sectionRef}
       tabIndex={-1}
       className="grid content-start gap-3 rounded-2xl border border-signal/25 bg-tint-50 p-4 dark:border-signal/30 dark:bg-signal/8"
@@ -320,7 +321,7 @@ export function ApprovalDecisionCard({
         <ErrorPanel
           detail={error.message}
           reference={error.requestId ?? undefined}
-          title="Decision persistence error"
+          title={strings.ui.approvalsApprovalDecisionCard.decisionPersistenceError}
         />
       ) : null}
 

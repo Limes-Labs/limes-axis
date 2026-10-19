@@ -24,6 +24,7 @@ import { useConsole } from "@/providers/console-provider";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InlineOperatorError } from "@/components/ui/inline-operator-error";
+import { useStrings } from "@/providers/locale-provider";
 
 type QuotaSource = "loading" | "api" | "unavailable" | "missing";
 
@@ -52,6 +53,7 @@ function formsEqual(a: TenantQuotaFormState, b: TenantQuotaFormState): boolean {
 }
 
 export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
+  const strings = useStrings();
   const { session } = useOidcConsoleSession();
   const { refreshNonce } = useConsole();
   const [quotaSet, setQuotaSet] = useState<TenantQuotaSet | null>(null);
@@ -213,11 +215,10 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
     <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
-          <p className="eyebrow m-0">Per-Tenant Quotas</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Quota overrides</h2>
+          <p className="eyebrow m-0">{strings.ui.tenantQuotaEditor.perTenantQuotas}</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.tenantQuotaEditor.quotaOverrides}</h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            Leaving a field blank clears the override and falls
-            back to the global configuration.
+            {strings.ui.tenantQuotaEditor.leavingAFieldBlankClears}
           </p>
         </div>
         <Gauge size={18} />
@@ -229,7 +230,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
         </p>
       ) : (
         <form
-          aria-label="Tenant quota update"
+          aria-label={strings.ui.tenantQuotaEditor.tenantQuotaUpdate}
           className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
           noValidate
           onSubmit={requestConfirmation}
@@ -242,7 +243,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
                 max={descriptor.max}
                 min={descriptor.min}
                 onChange={(event) => updateField(descriptor.field, event.target.value)}
-                placeholder="Global default"
+                placeholder={strings.ui.tenantQuotaEditor.globalDefault}
                 type="number"
                 value={form[descriptor.field]}
               />
@@ -258,7 +259,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
           {save.phase === "confirming" ? (
             <div className="col-span-full grid min-w-0 gap-2.5">
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
-                Confirm the quota update: blank fields clear the override.
+                {strings.ui.tenantQuotaEditor.confirmTheQuotaUpdateBlank}
               </p>
               <div className="grid w-full min-w-0 gap-2.5 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:justify-end">
                 <button
@@ -267,21 +268,21 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
                   type="button"
                 >
                   <Gauge size={15} />
-                  Confirm quota update
+                  {strings.ui.tenantQuotaEditor.confirmQuotaUpdate}
                 </button>
                 <button
                   className="inline-flex items-center justify-center rounded-full px-3 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:text-signal"
                   onClick={() => setSave({ phase: "idle" })}
                   type="button"
                 >
-                  Cancel
+                  {strings.ui.tenantQuotaEditor.cancel}
                 </button>
               </div>
             </div>
           ) : (
             <button className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none" disabled={save.phase === "saving"} type="submit">
               <Gauge size={15} />
-              {save.phase === "saving" ? "Saving" : "Review quota update"}
+              {save.phase === "saving" ? strings.ui.common.saving : strings.ui.tenantQuotaEditor.reviewQuotaUpdate}
             </button>
           )}
         </form>
@@ -298,7 +299,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
       ) : null}
 
       <details className="mt-4 border-t border-line/60 pt-3 text-sm text-muted dark:border-white/10">
-        <summary className="cursor-pointer font-medium text-ink">Quota technical details</summary>
+        <summary className="cursor-pointer font-medium text-ink">{strings.ui.tenantQuotaEditor.quotaTechnicalDetails}</summary>
         <div className="mt-3 grid min-w-0 grid-cols-1 gap-2.5 [&>p]:min-w-0 [&>p]:[overflow-wrap:anywhere]">
           <p className="m-0 leading-snug break-words">Required permission: {platformTenantQuotaScope}.</p>
           <p className="m-0 break-words font-mono text-[13px]">GET / PUT {buildPlatformTenantQuotasPath(tenantId)}</p>

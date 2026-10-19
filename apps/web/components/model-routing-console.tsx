@@ -46,7 +46,7 @@ import {
 } from "@/lib/platform-overview";
 import { Disclosure } from "@/components/ui/disclosure";
 import { ModelRoutingFlow } from "@/components/model-routing-flow";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { parseManufacturingModelRouting } from "@/lib/runtime-contracts/model-routing";
 import { buildTenantScopedPath, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
@@ -61,8 +61,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-const routeDetail = strings.models.reference.routeDetail;
 
 const defaultFilters: ModelRoutingFilters = {
   domain: allModelRoutingFilter,
@@ -87,6 +85,7 @@ function routeDecisionClass(route: ModelRouteTelemetry): string {
 }
 
 export function ModelRoutingConsole() {
+  const strings = useStrings();
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const [urlState, setUrlState] = useConsoleUrlState(modelRoutingUrlSchema);
 
@@ -97,7 +96,7 @@ export function ModelRoutingConsole() {
   if (identity.source === "unavailable") {
     return (
       <ErrorPanel
-        detail="Model routing data is not loaded until the current actor and tenant are verified."
+        detail={strings.ui.modelRoutingConsole.modelRoutingDataIsNot}
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
         onRetry={identity.refetch}
@@ -109,9 +108,9 @@ export function ModelRoutingConsole() {
   if (!tenantId) {
     return (
       <ErrorPanel
-        detail="The authenticated identity response does not contain a tenant. Axis will not fall back to demo routing data."
+        detail={strings.ui.modelRoutingConsole.theAuthenticatedIdentityResponseDoes}
         endpoint={IDENTITY_SESSION_ENDPOINT}
-        title="Authenticated tenant missing"
+        title={strings.ui.common.authenticatedTenantMissing}
       />
     );
   }
@@ -176,6 +175,8 @@ function ReferenceModelRouting({
   selectedRouteId: string;
   tenantId: string;
 }) {
+  const strings = useStrings();
+  const routeDetail = strings.models.reference.routeDetail;
   const routingPath = buildTenantScopedPath(`${OPERATIONS_API_PREFIX}/model-routing`, tenantId);
   const {
     data: routing,
@@ -284,7 +285,7 @@ function ReferenceModelRouting({
   return (
     <div className="grid min-w-0 gap-4">
       <div
-        aria-label="Model routing source and status"
+        aria-label={strings.ui.modelRoutingConsole.modelRoutingSourceAndStatus}
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
@@ -312,16 +313,16 @@ function ReferenceModelRouting({
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow m-0">Filters</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Routing telemetry</h2>
+          <p className="eyebrow m-0">{strings.ui.common.filters}</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.modelRoutingConsole.routingTelemetry}</h2>
         </div>
         <div className="grid w-full min-w-0 gap-2.5 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:justify-end">
-          <Field label="Domain">
+          <Field label={strings.ui.common.domain}>
             <Select
               value={filters.domain}
               onChange={(event) => updateFilter("domain", event.target.value)}
             >
-              <option value={allModelRoutingFilter}>All domains</option>
+              <option value={allModelRoutingFilter}>{strings.ui.common.allDomains}</option>
               {routing.filter_options.domains.map((domain) => (
                 <option key={domain} value={domain}>
                   {domain}
@@ -329,12 +330,12 @@ function ReferenceModelRouting({
               ))}
             </Select>
           </Field>
-          <Field label="Provider">
+          <Field label={strings.ui.common.provider}>
             <Select
               value={filters.provider}
               onChange={(event) => updateFilter("provider", event.target.value)}
             >
-              <option value={allModelRoutingFilter}>All providers</option>
+              <option value={allModelRoutingFilter}>{strings.ui.modelRoutingConsole.allProviders}</option>
               {routing.filter_options.providers.map((provider) => (
                 <option key={provider} value={provider}>
                   {provider}
@@ -342,12 +343,12 @@ function ReferenceModelRouting({
               ))}
             </Select>
           </Field>
-          <Field label="Decision">
+          <Field label={strings.ui.common.decision}>
             <Select
               value={filters.decision}
               onChange={(event) => updateFilter("decision", event.target.value)}
             >
-              <option value={allModelRoutingFilter}>All decisions</option>
+              <option value={allModelRoutingFilter}>{strings.ui.modelRoutingConsole.allDecisions}</option>
               {routing.filter_options.egress_decisions.map((decision) => (
                 <option key={decision} value={decision}>
                   {formatModelRoutingLabel(decision)}
@@ -355,7 +356,7 @@ function ReferenceModelRouting({
               ))}
             </Select>
           </Field>
-          <button className="icon-button" onClick={resetFilters} title="Reset routing filters" type="button">
+          <button className="icon-button" onClick={resetFilters} title={strings.ui.modelRoutingConsole.resetRoutingFilters} type="button">
             <RotateCcw size={17} />
           </button>
         </div>
@@ -365,7 +366,7 @@ function ReferenceModelRouting({
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="eyebrow m-0">Routes</p>
+              <p className="eyebrow m-0">{strings.ui.modelRoutingConsole.routes}</p>
               <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{formatNumber(filteredRoutes.length)} visible</h2>
             </div>
             <span className="status-pill signal-ready">
@@ -520,7 +521,7 @@ function ReferenceModelRouting({
           <div className="grid min-w-0 gap-3 border-t border-line/60 pt-3.5 dark:border-white/10">
             <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="eyebrow m-0">Provider Boundary</p>
+                <p className="eyebrow m-0">{strings.ui.modelRoutingConsole.providerBoundary}</p>
                 <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">{selectedProvider.display_name}</h3>
               </div>
               <span className={`status-pill ${routeDecisionClass(selectedRoute)}`}>
@@ -529,15 +530,15 @@ function ReferenceModelRouting({
             </div>
             <div className="grid min-w-0 gap-2">
               <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
-                <p className="eyebrow m-0">Type</p>
+                <p className="eyebrow m-0">{strings.ui.common.type}</p>
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedProvider.provider_type}</p>
               </div>
               <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
-                <p className="eyebrow m-0">Hosting</p>
+                <p className="eyebrow m-0">{strings.ui.modelRoutingConsole.hosting}</p>
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedProvider.hosting_boundary}</p>
               </div>
               <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5">
-                <p className="eyebrow m-0">Cost Basis</p>
+                <p className="eyebrow m-0">{strings.ui.modelRoutingConsole.costBasis}</p>
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedProvider.cost_basis}</p>
               </div>
             </div>
@@ -549,7 +550,7 @@ function ReferenceModelRouting({
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
             <div>
-              <p className="eyebrow m-0">Budget Notes</p>
+              <p className="eyebrow m-0">{strings.ui.modelRoutingConsole.budgetNotes}</p>
               <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{formatEuroCost(estimatedCost)} estimated</h2>
             </div>
             <FileText size={18} />
@@ -574,17 +575,19 @@ function ReferenceModelRouting({
 }
 
 function LiveSourceBadge() {
+  const strings = useStrings();
   return (
     <span className="status-pill signal-ready" data-source-badge="live">
       <Activity size={15} />
-      Live executed
+      {strings.ui.modelRoutingConsole.liveExecuted}
     </span>
   );
 }
 
 function LivePanelSkeleton() {
+  const strings = useStrings();
   return (
-    <div className="grid gap-2.5" aria-label="Loading live model router data">
+    <div className="grid gap-2.5" aria-label={strings.ui.modelRoutingConsole.loadingLiveModelRouterData}>
       <Skeleton className="h-9 w-full" />
       <Skeleton className="h-9 w-full" />
       <Skeleton className="h-9 w-2/3" />
@@ -602,6 +605,7 @@ function endpointChip(label: string): string {
  * registry. Nothing here is seeded — every row is a recorded invocation.
  */
 function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenantId: string }) {
+  const strings = useStrings();
   const telemetryPath = buildTenantScopedPath(
     "/platform/models/routing/telemetry",
     tenantId,
@@ -640,16 +644,15 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
     <section className="grid min-w-0 gap-4" data-live-model-router>
       <div className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="eyebrow m-0">Live Model Router</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Executed invocations</h2>
+          <p className="eyebrow m-0">{strings.ui.modelRoutingConsole.liveModelRouter}</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.modelRoutingConsole.executedInvocations}</h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            Persisted invocation records from the platform model router. Token counts, latency,
-            cost estimates and egress decisions are recorded values, never reference data.
+            {strings.ui.modelRoutingConsole.persistedInvocationRecordsFromThe}
           </p>
         </div>
         <div
           className="flex min-w-0 flex-wrap items-center justify-end gap-2"
-          aria-label="Live model router source and status"
+          aria-label={strings.ui.modelRoutingConsole.liveModelRouterSourceAnd}
         >
           {/*
            * Gated on the live invocation query actually having resolved —
@@ -675,11 +678,11 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
       <div className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 grid gap-4">
         <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="eyebrow m-0">Live Invocations</p>
+            <p className="eyebrow m-0">{strings.ui.modelRoutingConsole.liveInvocations}</p>
             <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
               {invocations.data
                 ? `${formatNumber(invocations.data.invocations.length)} recorded${invocations.data.has_more ? "+" : ""}`
-                : "Awaiting invocation API"}
+                : strings.ui.modelRoutingConsole.awaitingInvocationApi}
             </h3>
           </div>
           {invocations.data && invocations.data.invocations.length > 0 ? (
@@ -700,23 +703,23 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
           />
         ) : invocations.data.invocations.length === 0 ? (
           <EmptyPanel
-            detail={`No live model invocations are recorded for this tenant. Model routing execution is deferred by default until ${MODEL_ROUTING_EXECUTION_FLAG} is enabled on the API; deferred requests perform zero provider calls and Axis never fabricates rows.`}
-            title="No invocations recorded yet"
+            detail={strings.ui.modelRoutingConsole.noLiveInvocationsDetail(MODEL_ROUTING_EXECUTION_FLAG)}
+            title={strings.ui.modelRoutingConsole.noInvocationsRecordedYet}
           />
         ) : (
           <DataTable data-testid="live-invocations-table" minWidth={980}>
             <thead>
               <tr>
-                <th>Model</th>
-                <th>Endpoint</th>
-                <th>Task</th>
-                <th>Status</th>
-                <th>Tokens in / out</th>
-                <th>Est. cost</th>
-                <th>Latency</th>
-                <th>Egress</th>
-                <th>Recorded</th>
-                <th>Audit</th>
+                <th>{strings.ui.common.model}</th>
+                <th>{strings.ui.common.endpoint}</th>
+                <th>{strings.ui.modelRoutingConsole.task}</th>
+                <th>{strings.ui.common.status}</th>
+                <th>{strings.ui.modelRoutingConsole.tokensInOut}</th>
+                <th>{strings.ui.modelRoutingConsole.estCost}</th>
+                <th>{strings.ui.modelRoutingConsole.latency}</th>
+                <th>{strings.ui.modelRoutingConsole.egress}</th>
+                <th>{strings.ui.modelRoutingConsole.recorded}</th>
+                <th>{strings.ui.common.audit}</th>
               </tr>
             </thead>
             <tbody>
@@ -753,7 +756,7 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
                         className="font-mono text-[13px] text-signal underline-offset-2 hover:underline"
                         href={buildAuditEventHref(invocation.audit_event_id)}
                       >
-                        Open audit
+                        {strings.ui.common.openAudit}
                       </a>
                     ) : (
                       <span className="font-mono text-[13px] text-muted">pending</span>
@@ -777,16 +780,16 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
       <div className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 grid gap-4">
         <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="eyebrow m-0">Endpoint Registry</p>
+            <p className="eyebrow m-0">{strings.ui.modelRoutingConsole.endpointRegistry}</p>
             <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
               {endpoints.data
                 ? `${formatNumber(endpoints.data.enabled_endpoint_count)} of ${formatNumber(endpoints.data.endpoint_count)} enabled`
-                : "Awaiting endpoint API"}
+                : strings.ui.modelRoutingConsole.awaitingEndpointApi}
             </h3>
           </div>
           <span className="status-pill signal-ready">
             <Cable size={15} />
-            Metadata only
+            {strings.ui.modelRoutingConsole.metadataOnly}
           </span>
         </div>
 
@@ -802,7 +805,7 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
         ) : endpoints.data.endpoints.length === 0 ? (
           <EmptyPanel
             detail="This tenant has no registered model endpoints. Register an endpoint through POST /platform/models/endpoints to enable deterministic, fail-closed routing."
-            title="No model endpoints registered"
+            title={strings.ui.modelRoutingConsole.noModelEndpointsRegistered}
           />
         ) : (
           <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-3 [&>*]:min-w-0">
@@ -832,13 +835,13 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
                   </span>
                 </div>
                 <div>
-                  <p className="eyebrow m-0">Default Model</p>
+                  <p className="eyebrow m-0">{strings.ui.modelRoutingConsole.defaultModel}</p>
                   <p className="mx-0 mt-1 mb-0 font-mono text-[13px] text-ink break-words">
                     {endpoint.default_model}
                   </p>
                 </div>
                 <div>
-                  <p className="eyebrow m-0">Task Types</p>
+                  <p className="eyebrow m-0">{strings.ui.modelRoutingConsole.taskTypes}</p>
                   <div className="mt-1.5 flex min-w-0 flex-wrap gap-2">
                     {endpoint.task_types.map((taskType) => (
                       <span
@@ -857,7 +860,7 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
                     }`}
                   >
                     <KeyRound size={14} />
-                    {endpoint.credential_attached ? "Credential attached" : "No credential handle"}
+                    {endpoint.credential_attached ? strings.ui.modelRoutingConsole.credentialAttached : strings.ui.modelRoutingConsole.noCredentialHandle}
                   </span>
                   <span
                     className={`inline-flex items-center gap-1.5 text-xs ${
@@ -865,7 +868,7 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
                     }`}
                   >
                     <ShieldCheck size={14} />
-                    {endpoint.egress_policy_attached ? "Egress policy attached" : "No egress policy"}
+                    {endpoint.egress_policy_attached ? strings.ui.modelRoutingConsole.egressPolicyAttached : strings.ui.modelRoutingConsole.noEgressPolicy}
                   </span>
                 </div>
               </article>
@@ -884,7 +887,7 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
 
       {telemetry.data && telemetry.data.telemetry_notes.length > 0 ? (
         <div className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-          <p className="eyebrow m-0">Telemetry Notes</p>
+          <p className="eyebrow m-0">{strings.ui.modelRoutingConsole.telemetryNotes}</p>
           <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
             {telemetry.data.telemetry_notes.map((note, index) => (
               <li key={`${index}:${note}`}>{note}</li>
