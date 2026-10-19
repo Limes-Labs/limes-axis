@@ -457,8 +457,8 @@ function ReferenceModelRouting({
             <div>
               <p className="eyebrow m-0">{routeDetail.requiredPermissions}</p>
               <div className="flex min-w-0 flex-wrap gap-2">
-                {selectedRoute.required_permissions.map((permission) => (
-                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={permission}>
+                {selectedRoute.required_permissions.map((permission, index) => (
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={`${index}:${permission}`}>
                     {permission}
                   </span>
                 ))}
@@ -476,8 +476,8 @@ function ReferenceModelRouting({
             <div>
               <p className="eyebrow m-0">{routeDetail.observabilityEvents}</p>
               <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
-                {selectedRoute.observability_events.map((event) => (
-                  <li className="min-w-0" key={event} title={event}>
+                {selectedRoute.observability_events.map((event, index) => (
+                  <li className="min-w-0" key={`${index}:${event}`} title={event}>
                     <span className="line-clamp-2 break-all">{event}</span>
                   </li>
                 ))}
@@ -486,8 +486,8 @@ function ReferenceModelRouting({
             <div>
               <p className="eyebrow m-0">{routeDetail.evidence}</p>
               <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
-                {selectedRoute.evidence_refs.map((evidence) => (
-                  <li className="min-w-0" key={evidence} title={evidence}>
+                {selectedRoute.evidence_refs.map((evidence, index) => (
+                  <li className="min-w-0" key={`${index}:${evidence}`} title={evidence}>
                     <span className="line-clamp-2 font-mono text-xs break-all">{evidence}</span>
                   </li>
                 ))}
@@ -548,16 +548,16 @@ function ReferenceModelRouting({
             <FileText size={18} />
           </div>
           <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
-            {routing.budget_notes.map((note) => (
-              <li key={note}>{note}</li>
+            {routing.budget_notes.map((note, index) => (
+              <li key={`${index}:${note}`}>{note}</li>
             ))}
           </ul>
         </section>
 
         <Disclosure title={strings.clarity.modelMonitoring}>
           <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
-            {routing.observability_notes.map((note) => (
-              <li key={note}>{note}</li>
+            {routing.observability_notes.map((note, index) => (
+              <li key={`${index}:${note}`}>{note}</li>
             ))}
           </ul>
         </Disclosure>
@@ -760,8 +760,8 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
 
         {invocations.data && invocations.data.invocation_notes.length > 0 ? (
           <ul className="mx-0 mt-0 mb-0 grid list-disc gap-1.5 pl-5 text-xs leading-relaxed text-muted">
-            {invocations.data.invocation_notes.map((note) => (
-              <li key={note}>{note}</li>
+            {invocations.data.invocation_notes.map((note, index) => (
+              <li key={`${index}:${note}`}>{note}</li>
             ))}
           </ul>
         ) : null}
@@ -868,8 +868,8 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
 
         {endpoints.data && endpoints.data.endpoint_notes.length > 0 ? (
           <ul className="mx-0 mt-0 mb-0 grid list-disc gap-1.5 pl-5 text-xs leading-relaxed text-muted">
-            {endpoints.data.endpoint_notes.map((note) => (
-              <li key={note}>{note}</li>
+            {endpoints.data.endpoint_notes.map((note, index) => (
+              <li key={`${index}:${note}`}>{note}</li>
             ))}
           </ul>
         ) : null}
@@ -879,8 +879,8 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
         <div className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
           <p className="eyebrow m-0">Telemetry Notes</p>
           <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
-            {telemetry.data.telemetry_notes.map((note) => (
-              <li key={note}>{note}</li>
+            {telemetry.data.telemetry_notes.map((note, index) => (
+              <li key={`${index}:${note}`}>{note}</li>
             ))}
           </ul>
         </div>
