@@ -33,6 +33,18 @@ release-bound behavior, not the complete commit history.
   a signature proves integrity and provenance, not certification
   ([#885](https://github.com/Limes-Labs/limes-axis/issues/885)).
 
+- A provider-neutral writeback contract that maps an existing typed action onto
+  one registered external mutation: adapter capability/readiness and conformance
+  declarations, a schema-bound REST operation mapping with allowlisted methods,
+  protected host-derived headers and bounded response projection, remote
+  identifier/version/precondition fields, honest idempotency metadata and
+  normalized outcome states that keep remote request, acknowledgement, business
+  result and later source verification apart. A tenant-bound registry keeps
+  append-only target versions with explicit enable/disable, and resolution
+  rechecks tenant, approval payload digest, credential handle and lease,
+  resolved egress target, readiness and request bounds before any I/O
+  ([#510](https://github.com/Limes-Labs/limes-axis/issues/510)).
+
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
