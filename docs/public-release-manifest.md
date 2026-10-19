@@ -31,7 +31,7 @@ drift underneath public consumers.
 | A release is created from a frozen source, never a live query | `SourceBinding.mode` is a closed literal set (`governed_snapshot`, `materialized_view`, `frozen_publication`, `external_artifact`); no live mode exists in the vocabulary |
 | Issued release binds published bytes | sealed states (`issued`, `superseded`, `deprecated`, `withdrawn`, `archived`) require `issued_at` **and** `population.content_digest`; issuing without the digest is a construction failure, not a silent success |
 | Approval is never claimed without evidence | `approved` and every sealed state require an `approved` disclosure review **and** an `approved` license review; a missing or pending review is a construction failure, while drafts surface the same gaps through `release_readiness` |
-| Authorization cannot predate the data | every decided review's `decided_at` must be at or after `source.captured_at`, else the manifest is rejected as stale authorization |
+| Authorization cannot predate the data | every decided review's `decided_at` must be at or after `source.captured_at`, else the manifest is rejected as stale authorization; `issued_at` must follow the source capture and the required approvals, and `withdrawn_at` cannot precede `issued_at` |
 | Public schema is bounded and typed | 1–256 uniquely-named fields with closed dtype vocabulary and per-field descriptions |
 
 ## Public evidence versus internal lineage
@@ -72,7 +72,8 @@ is enforced by requiring explicit review records per kind.
 * `SupersedesRecord` binds a new version to the exact prior manifest digest,
   must reference the same public dataset id and must name an earlier release
   version. Release versions and timestamps accept ASCII digits only, so the
-  lexicographic ordering checks cannot be bypassed with other Unicode digits.
+  lexicographic ordering checks cannot be bypassed with other Unicode digits;
+  timestamps and coverage dates must also be real calendar values.
 * `WithdrawalRecord` pins `issued_manifest_digest` — the digest of the
   manifest exactly as issued. The validator reconstructs that issuance
   (`state="issued"`, no withdrawal record) and re-digests it, so tampered or

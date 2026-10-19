@@ -162,7 +162,7 @@ def test_internal_source_change_leaves_issued_release_immutable() -> None:
             manifest_digest=v1.digest(),
         ),
         release_notes=ReleaseNotes(summary="Refreshed source snapshot", changes=()),
-        issued_at="2026-09-16T08:00:00Z",
+        issued_at="2026-09-16T12:00:00Z",
     )
     assert v1.digest() == digest_v1
     assert v2.digest() != digest_v1
@@ -178,7 +178,7 @@ def test_candidate_v2_diff_reports_public_changes_only() -> None:
         source=_source(_SOURCE_DIGEST_V2, "2026-09-15T09:00:00Z"),
         reviews=_reviews(decided_at="2026-09-16T10:00:00Z"),
         release_notes=ReleaseNotes(summary="placeholder", changes=()),
-        issued_at="2026-09-16T08:00:00Z",
+        issued_at="2026-09-16T12:00:00Z",
     )
     notes = diff_releases(v1, candidate)
     final = candidate.model_copy(update={"release_notes": notes})
@@ -372,7 +372,7 @@ def test_supersedes_must_reference_same_public_dataset() -> None:
                 release_version="1.0",
                 manifest_digest="a" * 64,
             ),
-            issued_at="2026-09-16T08:00:00Z",
+            issued_at="2026-09-16T12:00:00Z",
         )
 
 
@@ -500,3 +500,36 @@ def test_field_names_must_be_unique() -> None:
                 ],
             }
         )
+
+
+@pytest.mark.parametrize(
+    "captured_at", ["2026-13-01T09:00:00Z", "2026-02-30T09:00:00Z", "2026-09-01T25:00:00Z"]
+)
+def test_impossible_calendar_timestamps_are_rejected(captured_at: str) -> None:
+    with pytest.raises(ValidationError):
+        _source(_SOURCE_DIGEST_V1, captured_at)
+
+
+def test_impossible_coverage_dates_are_rejected() -> None:
+    with pytest.raises(ValidationError):
+        _manifest(coverage_end="2024-12-99")
+
+
+def test_issuance_cannot_precede_source_or_required_approvals() -> None:
+    with pytest.raises(ValidationError, match="follow the frozen source"):
+        _manifest(issued_at="2026-09-01T08:00:00Z")
+    with pytest.raises(ValidationError, match="follow the frozen source"):
+        _manifest(reviews=_reviews(decided_at="2026-09-06T10:00:00Z"))
+
+
+def test_withdrawal_cannot_precede_issuance() -> None:
+    issued = _manifest()
+    payload = issued.model_dump(mode="json")
+    payload["state"] = "withdrawn"
+    payload["withdrawal"] = WithdrawalRecord(
+        issued_manifest_digest=issued.digest(),
+        reason="backdated",
+        withdrawn_at="2026-09-04T08:00:00Z",
+    ).model_dump(mode="json")
+    with pytest.raises(ValidationError, match="withdrawn before it was issued"):
+        PublicReleaseManifest.model_validate(payload)

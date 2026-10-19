@@ -32,10 +32,12 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Literal
+from collections.abc import Callable
+from datetime import datetime
+from typing import Annotated, Literal
 
 from axis_sdk.connector_authoring.contracts import ContractModel, Digest, Identifier
-from pydantic import Field, ValidationError, model_validator
+from pydantic import AfterValidator, Field, ValidationError, model_validator
 
 RELEASE_MANIFEST_FORMAT = "axis.public-dataset-release"
 RELEASE_VERSION_MAJOR = 1
@@ -61,6 +63,28 @@ _DATE = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
 _PUBLIC_ID = r"^ds-[a-z0-9]{12,32}$"
 _RELEASE_VERSION_PATTERN = r"^[0-9]{1,6}\.[0-9]{1,6}$"
 _RELEASE_VERSION = re.compile(_RELEASE_VERSION_PATTERN)
+
+
+def _calendar(fmt: str) -> Callable[[str], str]:
+    def check(value: str) -> str:
+        # The pattern guarantees the shape; this rejects impossible calendar
+        # values (month 13, hour 25) that would still order lexicographically.
+        datetime.strptime(value, fmt)
+        return value
+
+    return check
+
+
+Timestamp = Annotated[
+    str,
+    Field(pattern=_TIMESTAMP, min_length=20, max_length=20),
+    AfterValidator(_calendar("%Y-%m-%dT%H:%M:%SZ")),
+]
+CalendarDate = Annotated[
+    str,
+    Field(pattern=_DATE, min_length=10, max_length=10),
+    AfterValidator(_calendar("%Y-%m-%d")),
+]
 
 SourceMode = Literal[
     "governed_snapshot", "materialized_view", "frozen_publication", "external_artifact"
@@ -166,7 +190,7 @@ class SourceBinding(ContractModel):
 
     mode: SourceMode
     source_digest: Digest
-    captured_at: str = Field(pattern=_TIMESTAMP, min_length=20, max_length=40)
+    captured_at: Timestamp
 
 
 class PopulationRecord(ContractModel):
@@ -188,7 +212,7 @@ class ReviewEvidence(ContractModel):
     kind: ReviewKind
     status: ReviewStatus
     authority_ref: Identifier | None = None
-    decided_at: str | None = Field(default=None, pattern=_TIMESTAMP, min_length=20, max_length=40)
+    decided_at: Timestamp | None = None
 
     @model_validator(mode="after")
     def decided_evidence(self) -> ReviewEvidence:
@@ -225,7 +249,7 @@ class WithdrawalRecord(ContractModel):
 
     issued_manifest_digest: Digest
     reason: str = Field(min_length=1, max_length=1_000)
-    withdrawn_at: str = Field(pattern=_TIMESTAMP, min_length=20, max_length=40)
+    withdrawn_at: Timestamp
     external_copies_note: Literal["external_copies_not_retracted"] = "external_copies_not_retracted"
 
 
@@ -252,13 +276,13 @@ class PublicReleaseManifest(ContractModel):
     population: PopulationRecord
     license: LicenseRecord
     reviews: tuple[ReviewEvidence, ...] = Field(min_length=1, max_length=_MAX_REVIEWS)
-    coverage_start: str = Field(pattern=_DATE, min_length=10, max_length=10)
-    coverage_end: str | None = Field(default=None, pattern=_DATE, min_length=10, max_length=10)
+    coverage_start: CalendarDate
+    coverage_end: CalendarDate | None = None
     release_notes: ReleaseNotes
     supersedes: SupersedesRecord | None = None
     withdrawal: WithdrawalRecord | None = None
     limitations: tuple[KnownLimitation, ...] = Field(default=(), max_length=_MAX_LIMITATIONS)
-    issued_at: str | None = Field(default=None, pattern=_TIMESTAMP, min_length=20, max_length=40)
+    issued_at: Timestamp | None = None
 
     @model_validator(mode="after")
     def coherent_release(self) -> PublicReleaseManifest:
@@ -288,6 +312,14 @@ class PublicReleaseManifest(ContractModel):
                 raise ValueError(
                     "Issuing without the published content digest is a fabricated success"
                 )
+            if self.issued_at < self.source.captured_at or any(
+                review.decided_at is not None and review.decided_at > self.issued_at
+                for review in self.reviews
+                if review.kind in _REQUIRED_APPROVALS
+            ):
+                raise ValueError(
+                    "Issuance must follow the frozen source and its required approvals"
+                )
         else:
             if self.issued_at is not None:
                 raise ValueError("Only sealed states carry an issuance timestamp")
@@ -296,6 +328,8 @@ class PublicReleaseManifest(ContractModel):
                 "Withdrawn releases require withdrawal evidence; no other state may carry it"
             )
         if self.withdrawal is not None:
+            if self.issued_at is not None and self.withdrawal.withdrawn_at < self.issued_at:
+                raise ValueError("A release cannot be withdrawn before it was issued")
             issued_as_before = self.model_copy(update={"state": "issued", "withdrawal": None})
             if self.withdrawal.issued_manifest_digest != issued_as_before.digest():
                 raise ValueError(
@@ -370,7 +404,7 @@ class InternalSourceLedger(ContractModel):
     manifest_digest: Digest = Field(repr=False)
     internal_catalog_ref: Identifier = Field(repr=False)
     sources: tuple[InternalSourceRef, ...] = Field(min_length=1, max_length=16, repr=False)
-    captured_at: str = Field(pattern=_TIMESTAMP, min_length=20, max_length=40, repr=False)
+    captured_at: Timestamp = Field(repr=False)
 
 
 class ReleaseReadiness(ContractModel):
