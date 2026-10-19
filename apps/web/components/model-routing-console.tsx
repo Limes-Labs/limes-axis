@@ -253,7 +253,7 @@ function ReferenceModelRouting({
         <div className="flex justify-end">
           <SourcePill
             state={deriveSourceState(source, true, routing.provenance)}
-            subject="model routing"
+            subject={strings.sources.subjects.modelRouting}
           />
         </div>
         <EmptyPanel

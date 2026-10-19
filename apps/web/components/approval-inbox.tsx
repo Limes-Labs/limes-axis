@@ -606,7 +606,7 @@ export function ApprovalInbox() {
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
             state={deriveSourceState(source, Boolean(inbox), inbox.provenance)}
-            subject="approval queue"
+            subject={strings.sources.subjects.approvalQueue}
           />
           <span className="font-mono text-xs text-muted">
             {formatTimestamp(inbox.as_of)}

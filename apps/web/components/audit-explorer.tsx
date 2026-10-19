@@ -340,7 +340,7 @@ export function AuditExplorer() {
 
     const deniedScope = missingRequiredScopePermission(auditQuery);
     if (deniedScope) {
-      return <ScopeDenialPanel requiredPermission={deniedScope} subject="audit ledger" />;
+      return <ScopeDenialPanel requiredPermission={deniedScope} subject={strings.sources.subjects.auditLedger} />;
     }
 
     if (auditQuery.isTenantNotFound) {
@@ -414,7 +414,7 @@ export function AuditExplorer() {
           {formatContextPath(auditData.plant_name ?? humanizeIdentifier(auditData.tenant_id), auditData.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <SourcePill state={source} subject="audit ledger" />
+          <SourcePill state={source} subject={strings.sources.subjects.auditLedger} />
           <span className={`status-pill ${platformStatusClass(auditData.ledger_status)}`}>
             <ShieldCheck size={15} />
             {platformStatusLabel(auditData.ledger_status, strings)}

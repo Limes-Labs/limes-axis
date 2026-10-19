@@ -202,7 +202,7 @@ export function PostureCards({
           data-source-state={card.sourceState}
           key={card.key}
           label={card.label}
-          title={sourceStateLabel(card.sourceState, card.label.toLowerCase())}
+          title={sourceStateLabel(card.sourceState, card.label.toLowerCase(), strings)}
           value={card.value}
         >
           {/* Provenance is in the tooltip and the page banner; stale numbers

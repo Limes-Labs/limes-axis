@@ -190,7 +190,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
               Boolean(tenant),
               PROVENANCE_NOT_APPLICABLE,
             )}
-            subject="tenant"
+            subject={strings.sources.subjects.tenant}
           />
           <span className={`status-pill ${tenantStatusClass(tenant.status)}`}>
             <ShieldCheck size={15} />

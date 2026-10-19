@@ -170,7 +170,7 @@ export function NotificationPanel({
     return (
       <section className={popoverClass} aria-label={strings.ui.topbarNotificationPanel.notifications}>
         <PopoverHeader label={strings.ui.topbarNotificationPanel.notifications}>
-          <SourcePill state={sourceState} subject="notifications" />
+          <SourcePill state={sourceState} subject={strings.sources.subjects.notifications} />
         </PopoverHeader>
         <p className="m-0 text-sm leading-snug text-muted">
           {sourceState === "loading"
@@ -287,7 +287,7 @@ export function NotificationPanel({
           </span>
           <SourcePill
             state={deriveSourceState(source, true, center.provenance)}
-            subject="notifications"
+            subject={strings.sources.subjects.notifications}
           />
         </span>
       </PopoverHeader>

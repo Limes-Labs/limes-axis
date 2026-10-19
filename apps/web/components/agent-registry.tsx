@@ -242,7 +242,7 @@ export function AgentRegistry() {
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
             state={deriveSourceState(source, Boolean(registry), registry.provenance)}
-            subject="agent registry"
+            subject={strings.sources.subjects.agentRegistry}
           />
           <span className={`status-pill ${platformStatusClass(registry.registry_status)}`}>
             <Bot size={15} />

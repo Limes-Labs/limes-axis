@@ -110,7 +110,7 @@ export function ModelRoutingFlow({ routes, sourceState, onInspect }: {
           <h2 className="m-0 font-display text-xl text-ink">{strings.ui.modelRoutingFlow.routingDependencies}</h2>
           <p className="m-0 text-sm text-muted">{strings.ui.modelRoutingFlow.configuredSummary(routes.length, providers.length)}</p>
         </div>
-        <SourcePill state={sourceState} subject="model routing" />
+        <SourcePill state={sourceState} subject={strings.sources.subjects.modelRouting} />
       </div>
       <p className="m-0 text-xs leading-relaxed text-muted">{strings.ui.modelRoutingFlow.includesBlockedRoutesWidthConfigured}</p>
       {routes.length > 0 ? (

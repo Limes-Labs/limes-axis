@@ -506,7 +506,7 @@ export function WorkflowConsole() {
           {formatContextPath(workflowData.plant_name ?? humanizeIdentifier(workflowData.tenant_id), workflowData.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <SourcePill state={source} subject="workflow runs" />
+          <SourcePill state={source} subject={strings.sources.subjects.workflowRuns} />
           <span className={`status-pill ${platformStatusClass(workflowData.runtime_status)}`}>
             <Route size={15} />
             {platformStatusLabel(workflowData.runtime_status, strings)}

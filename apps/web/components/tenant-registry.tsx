@@ -224,7 +224,7 @@ export function TenantRegistry() {
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
             state={deriveSourceState(source, Boolean(registry), PROVENANCE_NOT_APPLICABLE)}
-            subject="tenant registry"
+            subject={strings.sources.subjects.tenantRegistry}
           />
           <span className="status-pill signal-watch">
             <ShieldCheck size={15} />

@@ -190,7 +190,7 @@ export function OntologyExplorer() {
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
             state={deriveSourceState(source, Boolean(ontology), ontology.provenance)}
-            subject="ontology"
+            subject={strings.sources.subjects.ontology}
           />
           <span className="font-mono text-xs text-muted">{strings.ui.ontologyExplorer.nodeCount(ontology.nodes.length)}</span>
           <span className="font-mono text-xs text-muted">

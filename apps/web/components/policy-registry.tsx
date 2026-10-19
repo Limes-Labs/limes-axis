@@ -147,7 +147,7 @@ export function PolicyRegistry() {
     });
     if (deniedScope) {
       return (
-        <ScopeDenialPanel requiredPermission={deniedScope} subject="policy registry" />
+        <ScopeDenialPanel requiredPermission={deniedScope} subject={strings.sources.subjects.policyRegistry} />
       );
     }
 
@@ -221,7 +221,7 @@ export function PolicyRegistry() {
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
             state={deriveSourceState(source, Boolean(registry), PROVENANCE_NOT_APPLICABLE)}
-            subject="policy registry"
+            subject={strings.sources.subjects.policyRegistry}
           />
           <span className="status-pill signal-watch">
             <ShieldCheck size={15} />

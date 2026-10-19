@@ -198,7 +198,7 @@ function OverviewHero({
             data-source-state={fact.source.state}
             key={fact.label}
             label={fact.label}
-            title={sourceStateLabel(fact.source.state, fact.source.subject)}
+            title={sourceStateLabel(fact.source.state, fact.source.subject, strings)}
             value={fact.value}
             valueTestId={fact.testId}
           />

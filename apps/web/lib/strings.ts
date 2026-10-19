@@ -3510,4 +3510,45 @@ export const strings = {
       notes: "Notes",
     },
   },
+  sources: {
+    /* Data-provenance wording for <SourcePill /> and `sourceStateLabel`. The
+       state word is composed here so tone and wording never disagree. */
+    states: {
+      loading: (subject: string) => `${subject}: loading`,
+      live: (subject: string) => `${subject}: live`,
+      reference: (subject: string) => `${subject}: reference scenario`,
+      empty: (subject: string) => `${subject}: no records`,
+      stale: (subject: string) => `${subject}: stale`,
+      unavailable: (subject: string) => `${subject}: unavailable`,
+    },
+    /* Plain-text source labels for `ConsolePage.sourceLabel`, which has no pill. */
+    pageLabels: {
+      live: (subject: string) => `Live ${subject}`,
+      stale: (subject: string) => `Stale ${subject}`,
+      unavailable: (subject: string) => `${subject} unavailable`,
+      loading: (subject: string) => `Loading ${subject}`,
+    },
+    subjects: {
+      actionRegistry: "action registry",
+      agentRegistry: "agent registry",
+      approvalQueue: "approval queue",
+      auditLedger: "audit ledger",
+      auditWindow: "audit window",
+      connectorRegistry: "connector registry",
+      modelRouting: "model routing",
+      notifications: "notifications",
+      ontology: "ontology",
+      ontologyEntity: "ontology entity",
+      policy: "policy",
+      policyRegistry: "policy registry",
+      replayArtifacts: "replay artifacts",
+      sessionSecurity: "session security",
+      tenant: "tenant",
+      tenantRegistry: "tenant registry",
+      workflowRuns: "workflow runs",
+      risks: "Risks",
+      approvals: "Approvals",
+      outcomes: "Outcomes",
+    },
+  },
 } as const;

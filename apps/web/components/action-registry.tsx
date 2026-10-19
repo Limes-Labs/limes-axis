@@ -268,7 +268,7 @@ export function ActionRegistry() {
         <div className="flex justify-end">
           <SourcePill
             state={deriveSourceState(source, true, registry.provenance)}
-            subject="action registry"
+            subject={strings.sources.subjects.actionRegistry}
           />
         </div>
         <EmptyPanel
@@ -306,7 +306,7 @@ export function ActionRegistry() {
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
             state={deriveSourceState(source, Boolean(registry), registry.provenance)}
-            subject="action registry"
+            subject={strings.sources.subjects.actionRegistry}
           />
           <span className={`status-pill ${platformStatusClass(registry.registry_status)}`}>
             <FileText size={15} />

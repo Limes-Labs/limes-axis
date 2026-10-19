@@ -70,35 +70,18 @@ function isSampleIdentifier(text: string): boolean {
  * components/ui/source-pill.tsx and still need a catalogue of their own.
  */
 const ATTRIBUTE_DEBT = new Set([
-  "components/action-registry.tsx|subject|action registry",
-  "components/agent-registry.tsx|subject|agent registry",
-  "components/approval-inbox.tsx|subject|approval queue",
-  "components/audit-explorer.tsx|subject|audit ledger",
   "components/connector-console/governance.tsx|title|… invariant",
-  "components/connector-console/index.tsx|subject|connector registry",
   "components/connector-console/runs.tsx|aria-label|… error",
   "components/connector-console/runs.tsx|title|… failed",
   "components/model-routing-console.tsx|detail|This tenant has no registered model endpoints. Register an endpoint through POST /platform/models/endpoints to enable deterministic, fail-closed routing.",
-  "components/model-routing-console.tsx|subject|model routing",
-  "components/model-routing-flow.tsx|subject|model routing",
-  "components/ontology-entity-detail.tsx|subject|ontology entity",
-  "components/ontology-explorer.tsx|subject|ontology",
   "components/overview/needs-attention.tsx|detail|… / due …",
-  "components/overview/side-rail.tsx|subject|audit window",
   "components/platform-settings-console.tsx|title|… report",
   "components/policy-condition-fields.tsx|aria-label|… action domains",
   "components/policy-condition-fields.tsx|aria-label|… amount threshold",
   "components/policy-condition-fields.tsx|label|… autonomy levels",
   "components/policy-condition-fields.tsx|label|… risk levels",
-  "components/policy-detail.tsx|subject|policy",
-  "components/policy-registry.tsx|subject|policy registry",
-  "components/simulation-console.tsx|subject|replay artifacts",
-  "components/tenant-detail.tsx|subject|tenant",
-  "components/tenant-registry.tsx|subject|tenant registry",
   "components/tenant-usage-panel.tsx|detail|… … in window",
-  "components/topbar/notification-panel.tsx|subject|notifications",
   "components/ui/page-header.tsx|aria-label|Page actions",
-  "components/workflow-console.tsx|subject|workflow runs",
 ]);
 
 type Finding = { file: string; line: number; kind: string; text: string };

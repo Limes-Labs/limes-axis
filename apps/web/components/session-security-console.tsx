@@ -65,17 +65,18 @@ function revokeOperatorError(caught: unknown, strings: ConsoleStrings): AxisOper
  * This mirrors `SourcePill`'s own wording so the copy stays consistent with
  * consoles that render the full component.
  */
-function sourceStateLabel(state: SourceState, subject: string): string {
+function sourceStateLabel(state: SourceState, subject: string, copy: ConsoleStrings): string {
+  const labels = copy.sources.pageLabels;
   if (state === "live") {
-    return `Live ${subject}`;
+    return labels.live(subject);
   }
   if (state === "stale") {
-    return `Stale ${subject}`;
+    return labels.stale(subject);
   }
   if (state === "unavailable") {
-    return `${subject} unavailable`;
+    return labels.unavailable(subject);
   }
-  return `Loading ${subject}`;
+  return labels.loading(subject);
 }
 
 function SessionRow({
@@ -331,7 +332,8 @@ export function SessionSecurityConsole() {
           Boolean(identitySession),
           PROVENANCE_NOT_APPLICABLE,
         ),
-        "session security",
+        strings.sources.subjects.sessionSecurity,
+        strings,
       )}
       subtitle={strings.ui.sessionSecurityConsole.apiOwnedOidcBrowserSessions}
       title={strings.ui.sessionSecurityConsole.sessionSecurity}

@@ -145,7 +145,7 @@ export function SimulationConsole() {
           {formatContextPath(simulationData.plant_name ?? humanizeIdentifier(simulationData.tenant_id), simulationData.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <SourcePill state={source} subject="replay artifacts" />
+          <SourcePill state={source} subject={strings.sources.subjects.replayArtifacts} />
           <span className={`status-pill ${platformStatusClass(simulationData.simulation_status)}`}>
             <ShieldCheck size={15} />
             {platformStatusLabel(simulationData.simulation_status, strings)}

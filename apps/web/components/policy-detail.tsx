@@ -312,7 +312,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
               Boolean(detail),
               PROVENANCE_NOT_APPLICABLE,
             )}
-            subject="policy"
+            subject={strings.sources.subjects.policy}
           />
           <span className={`status-pill ${policyEffectClass(current.effect)}`}>
             <ShieldCheck size={15} />

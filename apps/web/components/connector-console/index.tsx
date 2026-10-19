@@ -300,7 +300,7 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
               Boolean(registry.data),
               registryData.provenance,
             )}
-            subject="connector registry"
+            subject={strings.sources.subjects.connectorRegistry}
           />
           <span className={`status-pill ${platformStatusClass(registryData.registry_status)}`}>
             <Cable size={15} />
