@@ -58,6 +58,14 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- The console is available in Italian (#945). A language control on Settings
+  and in the account panel sets the `axis-locale` cookie; without it the
+  browser's `Accept-Language` decides, then English. `<html lang>`, page
+  titles, dates and numbers follow the locale. `lib/strings.it.ts` is typed
+  against the English catalogue, so a missing or mis-shaped translation fails
+  typecheck. Copy returned by API payloads is still English. Console routes
+  now render per request because the layout reads the locale cookie.
+
 - Versioned Document Studio contract for durable documents and reusable
   templates: section/block schema with stable IDs, typed template parameters
   and fixed/editable/required regions, digest-bound template provenance that
@@ -372,6 +380,22 @@ release-bound behavior, not the complete commit history.
   automated documentation-path check ([#323](https://github.com/Limes-Labs/limes-axis/issues/323)).
 
 ### Changed
+
+- Console product quality (#945): approval decisions name the action on the
+  confirm button, restate risk, cost and due date, and require a rationale
+  for Reject and for high-risk approvals (sent in the existing `note`
+  field); owners, workflows, tenants and scopes show display names with raw
+  IDs behind Inspect; policy, permission and schema copy uses plain operator
+  language, and the policies page states that actions are allowed when no
+  policy matches; entity detail explains why an entity needs action and
+  links to it; one shared Button, Disclosure and StatCard replace the mixed
+  CTA, disclosure and stat-card styles; a single "Example scenario" banner
+  replaces per-item provenance chips; ontology labels stay anchored to their
+  nodes and the graph fits its canvas; on phones the header is shorter,
+  touch targets are at least 44 px and secondary overview sections start
+  collapsed; dates use 24-hour, locale-aware formats and the audit heatmap
+  and list share the browser time zone. `/settings?tab=` no longer renders
+  a different tab on the server than in the browser.
 
 - Console API requests now give up after 30 s (`AXIS_REQUEST_TIMEOUT_MS` in
   `apps/web/lib/axis-api.ts`;

@@ -45,6 +45,13 @@ test.describe("Axis live overview demo", () => {
 
     // One page title followed by persisted activity counts.
     await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
+    if ((page.viewportSize()?.width ?? 1024) < 768) {
+      // On a phone the secondary sections start collapsed behind their
+      // triggers; open them so the story checks the same content everywhere.
+      for (const section of Object.values(strings.overview.mobileSections)) {
+        await page.getByRole("button", { name: section, exact: true }).click();
+      }
+    }
     await expect(page.getByRole("heading", { name: "Recorded activity" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Recorded activity" })).toContainText("Ravenna Works");
 
