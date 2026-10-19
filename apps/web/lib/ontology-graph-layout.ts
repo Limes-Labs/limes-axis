@@ -220,6 +220,23 @@ function labelBox(x: number, y: number, anchor: LabelAnchor, textWidth: number):
   return { left: left - 4, right: left + textWidth + 4, top: y - 14, bottom: y + 4 };
 }
 
+/**
+ * One rectangle covering a node's hit circle and its label slot, so the node
+ * and its label are a single, gap-free pointer target.
+ */
+export function nodeTargetBounds(node: OntologyGraphLayoutNode): GraphViewBox {
+  const circle = squareBox(node.x, node.y, NODE_HIT_RADIUS);
+  const label = labelBox(node.labelX, node.labelY, node.labelAnchor, node.displayLabel.length * LABEL_CHAR_WIDTH);
+  const left = Math.min(circle.left, label.left);
+  const top = Math.min(circle.top, label.top);
+  return {
+    x: round(left),
+    y: round(top),
+    width: round(Math.max(circle.right, label.right) - left),
+    height: round(Math.max(circle.bottom, label.bottom) - top),
+  };
+}
+
 function squareBox(x: number, y: number, half: number): Box {
   return { left: x - half, right: x + half, top: y - half, bottom: y + half };
 }

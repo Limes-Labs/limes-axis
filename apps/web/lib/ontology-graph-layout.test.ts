@@ -7,6 +7,7 @@ import {
   MIN_VIEW_HEIGHT,
   MIN_VIEW_WIDTH,
   NODE_HIT_RADIUS,
+  nodeTargetBounds,
   ONTOLOGY_GRAPH_MAX_ZOOM,
   ONTOLOGY_NODE_TIERS,
   panViewBox,
@@ -356,6 +357,18 @@ describe("client to viewBox mapping", () => {
     expect(viewBoxScale({ left: 0, top: 0, width: 800, height: 200 }, view)).toBe(1);
     expect(viewBoxScale({ left: 0, top: 0, width: 200, height: 400 }, view)).toBe(0.5);
     expect(viewBoxScale({ left: 0, top: 0, width: 0, height: 400 }, view)).toBe(0);
+  });
+
+  it("gives each labelled node one gap-free target over the node and its label", () => {
+    const layout = buildOntologyGraphLayout(nodes, relationships);
+    for (const entry of layout.nodes) {
+      const target = nodeTargetBounds(entry);
+      const label = labelBox(entry);
+      expect(target.x).toBeLessThanOrEqual(Math.min(entry.x - NODE_HIT_RADIUS, label.left) + 0.01);
+      expect(target.y).toBeLessThanOrEqual(Math.min(entry.y - NODE_HIT_RADIUS, label.top) + 0.01);
+      expect(target.x + target.width).toBeGreaterThanOrEqual(Math.max(entry.x + NODE_HIT_RADIUS, label.right) - 0.01);
+      expect(target.y + target.height).toBeGreaterThanOrEqual(Math.max(entry.y + NODE_HIT_RADIUS, label.bottom) - 0.01);
+    }
   });
 
   it("maps pointer positions through the centred letterbox", () => {

@@ -20,6 +20,7 @@ import {
   clientPointToViewBox,
   NODE_HALF,
   NODE_HIT_RADIUS,
+  nodeTargetBounds,
   panViewBox,
   STATUS_DOT_OFFSET,
   STATUS_DOT_RADIUS,
@@ -335,8 +336,13 @@ export function OntologyGraph({
                     strokeWidth={1.5}
                   />
                 ) : null}
-                {/* Generous invisible hit target */}
+                {/* Generous invisible hit target; with a label shown it spans
+                    node and label, so there is no dead gap between them. */}
                 <circle cx={node.x} cy={node.y} fill="transparent" r={NODE_HIT_RADIUS} />
+                {node.labelVisible || focused ? (() => {
+                  const target = nodeTargetBounds(node);
+                  return <rect data-node-target fill="transparent" height={target.height} width={target.width} x={target.x} y={target.y} />;
+                })() : null}
                 <polygon
                   fill={fill}
                   points={diamondPoints(node, node.tier === 0 ? NODE_HALF + 3 : NODE_HALF)}
@@ -355,13 +361,13 @@ export function OntologyGraph({
                     <title>{platformStatusLabel(node.status)}</title>
                   </circle>
                 ) : null}
-                {/* Labels sit in a slot touching their node, so no leader line. */}
+                {/* Labels sit in a slot touching their node, so no leader line;
+                    the label is part of the node's target, so it opens it too. */}
                 {node.labelVisible || focused ? <text
                   className="font-mono"
                   data-label-anchor={node.labelAnchor}
                   fill={focused ? "rgb(var(--signal))" : "rgb(var(--muted))"}
                   fontSize={13}
-                  pointerEvents="none"
                   textAnchor={node.labelAnchor}
                   x={node.labelX}
                   y={node.labelY}

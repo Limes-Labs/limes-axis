@@ -1036,6 +1036,10 @@ test.describe("Axis console smoke", () => {
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
     await page.goto("/");
+    if ((page.viewportSize()?.width ?? 1024) < 768) {
+      // On a phone the posture cards (and their Policies link) start collapsed.
+      await page.getByRole("button", { name: strings.overview.mobileSections.posture, exact: true }).click();
+    }
     await expect(page.getByRole("link", { name: "Policies" }).first()).toHaveAttribute(
       "href",
       "/policies",
