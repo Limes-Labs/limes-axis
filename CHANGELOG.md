@@ -24,13 +24,29 @@ release-bound behavior, not the complete commit history.
   installation remains unverified
   ([#930](https://github.com/Limes-Labs/limes-axis/issues/930)).
 
+- End-to-end portability conformance harness: two isolated deployment facades
+  run the canonical #324/#876 export bundle through the real #877 validation
+  and #878 restore paths with the source permanently disconnected before the
+  destination is touched; zero runtime source access is enforced by the
+  destination view, logical identities/digests/effective permissions are
+  compared against the approved plan, imported audit evidence stays
+  source-origin while new destination actions append separate attributable
+  evidence, and one machine-readable PASS/FAIL/BLOCKED/NOT RUN report carries
+  the exact reason, release and profile per row. `portable` is claimed only
+  on an all-PASS supported profile; missing handlers, planned exclusions,
+  blocked rows or NOT RUN infrastructure yield the narrower
+  `partially_portable`, and corrupt bundles or incompatible versions yield
+  `not_portable` with the exact validator reason
+  ([#879](https://github.com/Limes-Labs/limes-axis/issues/879)).
+
 - Resumable restore runner for portability: persisted run/step state machine
   over versioned component restore ports, dependency-ordered sequencing with
   per-step digest evidence, worker fencing and idempotent retries, quarantine
   and resume of interrupted runs (only identical bundle/plan digests are
   resumed), targets gated on the persisted suspended tenant row (never a
   tenant with lifecycle history) and bound to one bundle, steps settled only
-  by their fencing worker, unsupported plans refused, fail-closed operator authorization, missing handlers recorded as
+  by their fencing worker, unsupported plans refused, fail-closed operator
+  authorization, missing handlers recorded as
   blocked instead of fabricated completion, and activation blockers surfaced
   for the later verification slice
   ([#878](https://github.com/Limes-Labs/limes-axis/issues/878)).
@@ -44,6 +60,25 @@ release-bound behavior, not the complete commit history.
   schedules, and exclusion acknowledgment gating the later write runner.
   Zero network, admission, credential or destination-write behavior
   ([#877](https://github.com/Limes-Labs/limes-axis/issues/877)).
+
+- Versioned assurance pack manifest contract: audience/engagement-bound
+  selection of exact answer, posture and evidence revisions, structured
+  support states that keep gaps and limitations visible, freshness
+  re-verification against observed facts (expired certificates, wrong
+  release/profile, superseded answers cannot pass as current), preflight
+  gating (required entries without positive support block issuance unless
+  the partial pack lists them), entry disclosure bound to the pack's
+  disclosure class, and a fixed scope note for #871/#879 report citations. Contract
+  slice only; no artifact packaging or signing
+  ([#883](https://github.com/Limes-Labs/limes-axis/issues/883)).
+- Deterministic assurance pack assembly: released-only packaging of a
+  preflight-ready manifest into a bounded, stored (uncompressed) archive
+  (canonical manifest JSON, sanitized local Markdown index, permitted
+  attachments) with caller-owned release authorization and final-output
+  secret scanning; revocation, revision changes, digest mismatches or
+  unsupported scan formats abort generation instead of reusing a privileged
+  cached package. No signing, issuance or download delivery
+  ([#884](https://github.com/Limes-Labs/limes-axis/issues/884)).
 
 - A provider-neutral writeback contract that maps an existing typed action onto
   one registered external mutation: adapter capability/readiness and conformance
