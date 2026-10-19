@@ -157,3 +157,34 @@ adoption, source-specific drivers, distributed claims, source clock consistency,
 production load/soak and support certification. Exact full-suite and CI results
 are recorded in the implementation PR, without promoting fixture evidence into
 production conformance.
+
+## Verification scopes for host adoption (#862)
+
+The REST collection host is the first adapter to project the shared health model
+from its own durable records instead of a second status store:
+[`rest_connector_support_evidence.py`](../services/api/src/axis_api/rest_connector_support_evidence.py)
+reads the source binding checkpoint, the extraction batch rows and the ingestion
+request row, and adds no tables, counters or polling.
+
+The projection also records *what the evidence exercised*:
+
+| Scope | Meaning | How it is earned |
+| --- | --- | --- |
+| `contract_only` | Offline contract/fixture checks; carrying committed batches is rejected | The SDK fixture suite and profile tests |
+| `local_wire_level` | A real loopback service with substituted SQLite and local object-store components | [`test_rest_connector_conformance.py`](../services/api/tests/test_rest_connector_conformance.py) |
+| `provider_verified` | A real provider run | Requires a provider evidence reference; never inferred |
+
+Run the whole scenario with one command against an isolated database and
+object-store namespace (pytest's `tmp_path`), which cleans up only its own
+fixtures:
+
+```bash
+make rest-conformance
+```
+
+A local run keeps `local_only_verification` and `provider_not_verified` in its
+reasons. Health follows the same honesty: a never-dispatched binding has no
+freshness and stays `unknown`; a cursor pull cannot read a source head from its
+own records, so readiness additionally needs a caller-supplied live probe and
+otherwise reports `lag_unknown`; and a success older than the freshness budget is
+`stale`. A past green run never certifies current availability.

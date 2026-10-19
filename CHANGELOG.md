@@ -29,6 +29,18 @@ release-bound behavior, not the complete commit history.
   resolved egress target, readiness and request bounds before any I/O
   ([#510](https://github.com/Limes-Labs/limes-axis/issues/510)).
 
+- A reproducible REST connector conformance scenario (one documented command,
+  `make rest-conformance`) that drives a declared synthetic collection through
+  the real host boundaries over a loopback service: pagination completion with a
+  bounded payload digest, durable 429 retry, repeated-cursor and malformed-JSON
+  terminals, schema-change blocking before any request, interrupted acceptance
+  replay and zero source I/O behind disabled gates. Support evidence projects
+  the shared health model from existing durable records and labels its own
+  verification scope (`contract_only`, `local_wire_level`, `provider_verified`),
+  so a local run never claims provider support and a past green run never
+  certifies current availability
+  ([#862](https://github.com/Limes-Labs/limes-axis/issues/862)).
+
 - REST collection ingestion through the existing source-ingestion outbox: one
   governed page per fenced attempt, protocol negotiation before any client,
   per-attempt revalidation of the active binding, declared observation, lease
@@ -54,6 +66,13 @@ release-bound behavior, not the complete commit history.
   permission evidence into the document observation contract with fixed safe setup
   states, shortcut pointers that are never fetched, and no content download
   ([#866](https://github.com/Limes-Labs/limes-axis/issues/866)).
+
+- Opt-in `local_only` Helm egress profile with scoped DNS, an explicit local
+  service graph derived from the runtime dependency inventory and fail-closed
+  validation of missing or unbounded bindings. Rendering a NetworkPolicy is a
+  policy check, not proof of isolation: CNI enforcement, additive policies and
+  upstream resolver forwarding remain deployment prerequisites
+  ([#870](https://github.com/Limes-Labs/limes-axis/issues/870)).
 
 - Versioned static dependency inventory with local options, reasoned capability
   omissions, configuration-reference checks and a generated operator matrix.
