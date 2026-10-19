@@ -143,7 +143,9 @@ test.describe("approval review workspace", () => {
     await expectNoHorizontalOverflow(page);
     await page.getByRole("button", { name: /^30\. Review/ }).click();
     await page.getByRole("button", { name: "Decision trail", exact: true }).click();
-    await expect(page.getByText(/manufacturing_operations_permission_with_a_very_long_identifier/).first()).toBeVisible();
+    // The trail shows the permission by its readable name (#945); the long
+    // name must still wrap inside the rail rather than overflow it.
+    await expect(page.getByText(/Manufacturing operations permission with a very long identifier/).first()).toBeVisible();
     await expectNoHorizontalOverflow(page);
     const trail = page.getByRole("list", { name: "Decision stage rail" });
     const metadataWidths = await trail.locator("p").evaluateAll((paragraphs) => paragraphs.map((paragraph) => ({
