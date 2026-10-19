@@ -31,6 +31,11 @@ release-bound behavior, not the complete commit history.
   and scopes; query `actor_id`/`actor_scopes` only apply to unauthenticated
   demo traffic, so callers can no longer self-assert read scopes or attribute
   append-only read-audit evidence to another actor.
+- Platform tenant provisioning, suspend, reactivate, quota and vocabulary
+  updates evaluate the operator permission before idempotent replay,
+  existence or lifecycle-state checks. An unscoped caller now gets 403 instead
+  of a replayed tenant record or a 404/409 that revealed whether a tenant
+  exists.
 
 ### Added
 

@@ -315,16 +315,9 @@ def provision_tenant(
     repository: AxisPersistenceRepository,
     request: TenantProvisionRequest,
 ) -> TenantRecord:
-    existing_replay = repository.get_tenant_by_provision_idempotency_key(request.idempotency_key)
-    if existing_replay is not None:
-        if not _provision_matches_request(repository, existing_replay, request):
-            raise TenantProvisionConflict(request.tenant_id, "provision_idempotency_conflict")
-        return _tenant_from_record(existing_replay, idempotent_replay=True)
-
-    existing = repository.get_tenant(request.tenant_id)
-    if existing is not None:
-        raise TenantProvisionConflict(request.tenant_id, "tenant_already_exists")
-
+    # Authorize before any replay or existence lookup: an unauthorized caller
+    # must not learn whether a tenant id or idempotency key already exists, nor
+    # receive a replayed tenant record.
     permission_decision = _evaluate_operator_permission(
         tenant_id=request.tenant_id,
         actor_id=request.requested_by,
@@ -335,6 +328,16 @@ def provision_tenant(
             "idempotency_key": request.idempotency_key,
         },
     )
+    existing_replay = repository.get_tenant_by_provision_idempotency_key(request.idempotency_key)
+    if existing_replay is not None:
+        if not _provision_matches_request(repository, existing_replay, request):
+            raise TenantProvisionConflict(request.tenant_id, "provision_idempotency_conflict")
+        return _tenant_from_record(existing_replay, idempotent_replay=True)
+
+    existing = repository.get_tenant(request.tenant_id)
+    if existing is not None:
+        raise TenantProvisionConflict(request.tenant_id, "tenant_already_exists")
+
     bootstrap_admin = request.bootstrap_admin
     if bootstrap_admin is not None and repository.get_actor(bootstrap_admin.actor_id):
         raise TenantProvisionConflict(request.tenant_id, "bootstrap_admin_actor_exists")
@@ -520,12 +523,6 @@ def suspend_tenant(
     tenant_id: str,
     request: TenantSuspendRequest,
 ) -> TenantRecord:
-    tenant = repository.get_tenant(tenant_id)
-    if tenant is None:
-        raise TenantNotFound()
-    if tenant.status != TenantLifecycleStatus.ACTIVE.value:
-        raise TenantLifecycleConflict(tenant_id, "tenant_not_active")
-
     permission_decision = _evaluate_operator_permission(
         tenant_id=tenant_id,
         actor_id=request.requested_by,
@@ -533,6 +530,11 @@ def suspend_tenant(
         action_scope=REQUIRED_SUSPEND_SCOPE,
         attributes={"operation": "suspend_tenant", "reason": request.reason},
     )
+    tenant = repository.get_tenant(tenant_id)
+    if tenant is None:
+        raise TenantNotFound()
+    if tenant.status != TenantLifecycleStatus.ACTIVE.value:
+        raise TenantLifecycleConflict(tenant_id, "tenant_not_active")
     audit_event = repository.append_audit_event(
         AuditEventCreate(
             tenant_id=tenant_id,
@@ -568,12 +570,6 @@ def reactivate_tenant(
     tenant_id: str,
     request: TenantReactivateRequest,
 ) -> TenantRecord:
-    tenant = repository.get_tenant(tenant_id)
-    if tenant is None:
-        raise TenantNotFound()
-    if tenant.status == TenantLifecycleStatus.ACTIVE.value:
-        raise TenantLifecycleConflict(tenant_id, "tenant_already_active")
-
     permission_decision = _evaluate_operator_permission(
         tenant_id=tenant_id,
         actor_id=request.requested_by,
@@ -581,6 +577,11 @@ def reactivate_tenant(
         action_scope=REQUIRED_SUSPEND_SCOPE,
         attributes={"operation": "reactivate_tenant", "reason": request.reason},
     )
+    tenant = repository.get_tenant(tenant_id)
+    if tenant is None:
+        raise TenantNotFound()
+    if tenant.status == TenantLifecycleStatus.ACTIVE.value:
+        raise TenantLifecycleConflict(tenant_id, "tenant_already_active")
     audit_event = repository.append_audit_event(
         AuditEventCreate(
             tenant_id=tenant_id,
@@ -635,10 +636,6 @@ def update_tenant_quotas(
     are update-in-place; the append-only history lives in the
     ``platform.tenant.quota.updated`` audit trail written for every change.
     """
-    tenant = repository.get_tenant(tenant_id)
-    if tenant is None:
-        raise TenantNotFound()
-
     permission_decision = _evaluate_operator_permission(
         tenant_id=tenant_id,
         actor_id=request.requested_by,
@@ -646,6 +643,9 @@ def update_tenant_quotas(
         action_scope=REQUIRED_QUOTA_SCOPE,
         attributes={"operation": "update_tenant_quotas"},
     )
+    tenant = repository.get_tenant(tenant_id)
+    if tenant is None:
+        raise TenantNotFound()
     changes: list[TenantQuotaChange] = []
     for quota_key, new_value in request.quotas.as_mapping().items():
         existing = repository.get_tenant_quota(tenant_id, quota_key)
@@ -726,10 +726,6 @@ def update_tenant_vocabulary(
     tenant_id: str,
     request: TenantVocabularyUpdateRequest,
 ) -> TenantVocabularySet:
-    tenant = repository.get_tenant(tenant_id)
-    if tenant is None:
-        raise TenantNotFound()
-
     permission_decision = _evaluate_operator_permission(
         tenant_id=tenant_id,
         actor_id=request.requested_by,
@@ -737,6 +733,9 @@ def update_tenant_vocabulary(
         action_scope=REQUIRED_CONFIGURE_SCOPE,
         attributes={"operation": "update_tenant_vocabulary"},
     )
+    tenant = repository.get_tenant(tenant_id)
+    if tenant is None:
+        raise TenantNotFound()
     previous_value = (
         TenantVocabulary.model_validate(tenant.vocabulary)
         if tenant.vocabulary is not None
