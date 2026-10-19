@@ -45,7 +45,7 @@ import {
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { SourcePill } from "@/components/ui/source-pill";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 
 type ActionRunSource = "api";
 
@@ -238,6 +238,10 @@ export function ActionRegistry() {
   if (!registry) {
     if (source === "loading") {
       return <LoadingPanel layout="detail" />;
+    }
+
+    if (source === "tenant_not_found") {
+      return <TenantEmptyPanel icon={FileText} />;
     }
 
     return (

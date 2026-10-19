@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
 import { Database, List, Share2, ShieldCheck } from "lucide-react";
 
-import { ErrorPanel } from "@/components/ui/states";
+import { ErrorPanel, TenantEmptyPanel } from "@/components/ui/states";
 import { OntologyEntitySheet } from "@/components/ontology/entity-sheet";
 import { useOntologyEntityHistory } from "@/components/ontology/use-ontology-entity-history";
 import { OntologyGraph } from "@/components/ontology-graph";
@@ -155,6 +155,10 @@ export function OntologyExplorer() {
   if (!ontology) {
     if (source === "loading") {
       return <OntologyExplorerSkeleton />;
+    }
+
+    if (source === "tenant_not_found") {
+      return <TenantEmptyPanel icon={Share2} />;
     }
 
     return (

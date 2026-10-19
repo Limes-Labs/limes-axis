@@ -43,6 +43,11 @@ export function EvidenceFeed({
       return <LoadingPanel rows={6} />;
     }
 
+    // An unbootstrapped tenant has no evidence yet; that is not an outage.
+    if (auditEvents.source === "tenant_not_found") {
+      return <EmptyPanel detail={copy.empty.detail} title={copy.empty.title} />;
+    }
+
     return (
       <ErrorPanel
         detail={copy.error.detail}

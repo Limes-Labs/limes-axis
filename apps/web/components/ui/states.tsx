@@ -167,3 +167,25 @@ export function EmptyPanel({ icon: Icon, title, detail, action }: EmptyPanelProp
     </section>
   );
 }
+
+type TenantEmptyPanelProps = {
+  icon?: LucideIcon;
+  /** Surface-specific empty title; defaults to the generic tenant copy. */
+  title?: string;
+};
+
+/**
+ * Empty state for a tenant the API reports as `TENANT_NOT_FOUND`. A brand-new
+ * tenant is the guided-setup story, so it must never render as an API error.
+ */
+export function TenantEmptyPanel({ icon, title }: TenantEmptyPanelProps) {
+  const copy = strings.states.tenantEmpty;
+  return (
+    <EmptyPanel
+      action={{ label: copy.action, href: "/" }}
+      detail={copy.detail}
+      icon={icon}
+      title={title ?? copy.title}
+    />
+  );
+}

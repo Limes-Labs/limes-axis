@@ -17,6 +17,9 @@ export function SideRail({ auditEvents }: { auditEvents: OverviewQuery<Manufactu
   const copy = strings.clarity.activity;
   const [view, setView] = useState("category");
   if (!auditEvents.data) {
+    if (auditEvents.source === "tenant_not_found") {
+      return <EmptyPanel title={copy.emptyTitle} detail={copy.emptyDetail} />;
+    }
     return auditEvents.source === "loading" ? <LoadingPanel layout="detail" /> : (
       <ErrorPanel title={copy.errorTitle} detail={copy.errorDetail}
         reference={auditEvents.errorRequestId ?? undefined} />

@@ -2,7 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "./states";
+import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "./states";
+import { strings } from "@/lib/strings";
 import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 afterEach(() => {
@@ -144,5 +145,18 @@ describe("EmptyPanel", () => {
     expect(screen.getByText("No audit events")).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+});
+
+describe("TenantEmptyPanel", () => {
+  it("renders an empty state that links to guided setup, not an error", () => {
+    render(<TenantEmptyPanel title="No agents registered yet" />);
+
+    expect(screen.getByRole("heading", { name: "No agents registered yet" })).toBeInTheDocument();
+    expect(screen.getByText(strings.states.tenantEmpty.detail)).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: strings.states.tenantEmpty.action }),
+    ).toHaveAttribute("href", "/");
+    expect(screen.queryByRole("button", { name: "Technical details" })).not.toBeInTheDocument();
   });
 });

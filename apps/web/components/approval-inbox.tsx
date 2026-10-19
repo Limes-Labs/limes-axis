@@ -20,7 +20,7 @@ import { InspectDrawer } from "@/components/ui/inspect-drawer";
 import { MasterDetail } from "@/components/ui/master-detail";
 import type { Metric } from "@/components/ui/metric-strip";
 import { SourcePill } from "@/components/ui/source-pill";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import type { ActionRunList } from "@/lib/action-demo";
 import {
   approvalDecisionLabel,
@@ -466,6 +466,10 @@ export function ApprovalInbox() {
           />
         </div>
       );
+    }
+
+    if (source === "tenant_not_found") {
+      return <TenantEmptyPanel icon={Inbox} title={strings.approvals.empty.title} />;
     }
 
     return (

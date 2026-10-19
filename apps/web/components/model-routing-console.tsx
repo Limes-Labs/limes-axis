@@ -59,7 +59,7 @@ import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SourcePill } from "@/components/ui/source-pill";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const defaultFilters: ModelRoutingFilters = {
@@ -224,6 +224,10 @@ function ReferenceModelRouting({
   if (!routing) {
     if (source === "loading") {
       return <LoadingPanel layout="detail" />;
+    }
+
+    if (source === "tenant_not_found") {
+      return <TenantEmptyPanel icon={Gauge} title={strings.models.reference.noRecords.title} />;
     }
 
     return (

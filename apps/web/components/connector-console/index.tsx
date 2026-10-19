@@ -12,7 +12,7 @@ import { InspectDrawer } from "@/components/ui/inspect-drawer";
 import { MasterDetail } from "@/components/ui/master-detail";
 import { MetricStrip, type Metric } from "@/components/ui/metric-strip";
 import { SourcePill } from "@/components/ui/source-pill";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import {
   formatConnectorLabel,
   type ConnectorEvidenceInvariantSnapshotRecord,
@@ -210,6 +210,10 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
           <MasterDetail detail={<LoadingPanel layout="detail" />} list={<LoadingPanel rows={4} />} />
         </div>
       );
+    }
+
+    if (registry.source === "tenant_not_found") {
+      return <TenantEmptyPanel icon={Cable} title={strings.connectors.empty.title} />;
     }
 
     return (

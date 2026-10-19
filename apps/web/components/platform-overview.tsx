@@ -208,14 +208,14 @@ export function PlatformOverview() {
     );
   }
 
-  // An overview 404 on an otherwise healthy API means the tenant has never
+  // `TENANT_NOT_FOUND` on an otherwise healthy API means the tenant has never
   // been bootstrapped — that is the guided-setup story (spec §6), not an
-  // error. A genuinely unreachable API (network failure, /ready probe down)
-  // keeps the section-level error wall below.
+  // error. useAxisQuery classifies that response as `tenant_not_found`, never
+  // as `unavailable`. A genuinely unreachable API (network failure, /ready
+  // probe down) keeps the section-level error wall below.
   const tenantEmpty =
     !overviewQuery.data
-    && overviewQuery.source === "unavailable"
-    && overviewQuery.errorStatus === 404
+    && overviewQuery.source === "tenant_not_found"
     && apiStatus.state !== "unavailable";
 
   if (tenantEmpty) {

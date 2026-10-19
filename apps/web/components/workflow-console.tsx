@@ -24,7 +24,7 @@ import { InspectDrawer } from "@/components/ui/inspect-drawer";
 import { MasterDetail } from "@/components/ui/master-detail";
 import { MetricStrip, type Metric } from "@/components/ui/metric-strip";
 import { SourcePill } from "@/components/ui/source-pill";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import { cn } from "@/lib/cn";
 import { buildApprovalHref } from "@/lib/approval-demo";
 import { stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
@@ -449,6 +449,10 @@ export function WorkflowConsole() {
           />
         </div>
       );
+    }
+
+    if (persisted.isTenantNotFound) {
+      return <TenantEmptyPanel icon={Workflow} title={strings.workflows.empty.title} />;
     }
 
     return (

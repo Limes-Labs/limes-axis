@@ -58,7 +58,7 @@ import {
   missingRequiredScopePermission,
   ScopeDenialPanel,
 } from "@/components/ui/scope-denial";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 
 const AUDIT_EVENTS_ENDPOINT = `${OPERATIONS_API_PREFIX}/audit/events`;
 const AUDIT_EXPORT_ENDPOINT = `${OPERATIONS_API_PREFIX}/audit/export`;
@@ -314,6 +314,10 @@ export function AuditExplorer() {
     const deniedScope = missingRequiredScopePermission(auditQuery);
     if (deniedScope) {
       return <ScopeDenialPanel requiredPermission={deniedScope} subject="audit ledger" />;
+    }
+
+    if (auditQuery.isTenantNotFound) {
+      return <TenantEmptyPanel icon={FileText} title={strings.overview.evidenceFeed.empty.title} />;
     }
 
     return (

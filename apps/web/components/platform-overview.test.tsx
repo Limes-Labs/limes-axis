@@ -62,17 +62,21 @@ import { parseManufacturingOverview } from "@/lib/runtime-contracts/overview";
 import { strings } from "@/lib/strings";
 import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
-type Source = "loading" | "api" | "unavailable";
+type Source = "loading" | "api" | "tenant_not_found" | "unavailable";
 
 function queryResult(data: unknown, source: Source, errorStatus: number | null = null) {
   return {
     data,
     source,
-    error: source === "unavailable" ? "Axis API request failed." : null,
+    error: source === "unavailable" || source === "tenant_not_found"
+      ? "Axis API request failed."
+      : null,
     errorStatus,
+    errorCode: source === "tenant_not_found" ? "TENANT_NOT_FOUND" : null,
     isRefreshing: false,
     isLoading: source === "loading",
     isUnavailable: source === "unavailable",
+    isTenantNotFound: source === "tenant_not_found",
   };
 }
 
@@ -98,7 +102,7 @@ function onboardingRegistryFixtures(count: number): [string, unknown][] {
 }
 
 type MockOptions = {
-  /** Endpoints answering 404 (tenant not bootstrapped) instead of failing. */
+  /** Endpoints answering 404 TENANT_NOT_FOUND (tenant not bootstrapped). */
   notFoundPaths?: string[];
   /** Overrides every checklist registry count, including /platform/policies. */
   onboardingCount?: number;
@@ -138,7 +142,7 @@ function mockQueriesByPath(unavailablePaths: string[] = [], options: MockOptions
       throw new Error(`Unexpected overview query path: ${path}`);
     }
     if (options.notFoundPaths?.some((prefix) => path.startsWith(prefix))) {
-      return queryResult(null, "unavailable", 404);
+      return queryResult(null, "tenant_not_found", 404);
     }
     if (unavailablePaths.some((prefix) => path.startsWith(prefix))) {
       return queryResult(null, "unavailable");
@@ -349,6 +353,24 @@ describe("PlatformOverview onboarding checklist", () => {
     expect(
       screen.queryByRole("heading", { name: "Operations API unavailable" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("does not treat a plain 404 without TENANT_NOT_FOUND as an empty tenant", () => {
+    mockQueriesByPath([], { onboardingCount: 0 });
+    const routed = mocks.useAxisQuery.getMockImplementation()!;
+    mocks.useAxisQuery.mockImplementation((path: string) =>
+      path.startsWith(`${OPERATIONS_API_PREFIX}/overview`)
+        ? queryResult(null, "unavailable", 404)
+        : routed(path),
+    );
+    renderOverview();
+
+    expect(
+      screen.queryByRole("heading", { name: "Set up your governed platform" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: strings.overview.hero.error.title }),
+    ).toBeInTheDocument();
   });
 
   it("keeps the error wall when the API is down instead of showing the checklist", () => {

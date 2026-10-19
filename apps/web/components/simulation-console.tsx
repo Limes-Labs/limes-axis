@@ -4,7 +4,7 @@ import { FileText, GitBranch, History, ShieldCheck } from "lucide-react";
 
 import { RunReplayForm } from "@/components/simulation/run-replay-form";
 import { SourcePill } from "@/components/ui/source-pill";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import {
   formatContextPath,
   formatDateTime,
@@ -86,6 +86,10 @@ export function SimulationConsole() {
   if (!simulationData) {
     if (source === "loading") {
       return <LoadingPanel layout="detail" />;
+    }
+
+    if (replayQuery.isTenantNotFound) {
+      return <TenantEmptyPanel icon={History} title={strings.simulation.noArtifacts.title} />;
     }
 
     return (

@@ -2090,6 +2090,15 @@ export const strings = {
       title: "Nothing here yet",
       detail: "Records will appear here as soon as they exist.",
     },
+    /* A tenant the API has never bootstrapped (`TENANT_NOT_FOUND`). This is
+       an empty state, not an outage: the API answered, there is just nothing
+       recorded for the tenant yet. */
+    tenantEmpty: {
+      title: "This tenant has no records yet",
+      detail:
+        "Nothing has been set up for this tenant. Finish guided setup on the overview, or load demo data, and records will appear here.",
+      action: "Open guided setup",
+    },
     requestedRecord: {
       title: "Requested record is not in this view",
       detail:

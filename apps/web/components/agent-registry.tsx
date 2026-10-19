@@ -11,7 +11,7 @@ import { Term } from "@/components/ui/glossary";
 import { MasterDetail } from "@/components/ui/master-detail";
 import { MetricStrip, type Metric } from "@/components/ui/metric-strip";
 import { SourcePill } from "@/components/ui/source-pill";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import {
   allAgentFilter,
   filterAgents,
@@ -188,6 +188,10 @@ export function AgentRegistry() {
           />
         </div>
       );
+    }
+
+    if (source === "tenant_not_found") {
+      return <TenantEmptyPanel icon={Bot} title={strings.agents.empty.title} />;
     }
 
     return (
