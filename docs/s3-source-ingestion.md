@@ -126,11 +126,14 @@ release during payload I/O:
 make test-api PYTEST_ARGS='tests/test_connector_s3_source.py tests/test_connector_s3_ingestion.py tests/test_connector_postgres_discovery.py -q'
 ```
 
-The opt-in MinIO tests require a disposable local MinIO on `127.0.0.1:19335`
-with fixture user `axis335fixture` and password `axis335fixturepassword`.
-They create and remove only uniquely named fixture buckets. Run:
+The opt-in S3 protocol tests require a disposable S3-compatible endpoint on
+`127.0.0.1:19335` that accepts the fixture access key `axis335fixture` and
+secret `axis335fixturepassword`. They create and remove only uniquely named
+fixture buckets. CI uses the pinned moto server, because MinIO no longer
+publishes anonymously pullable images:
 
 ```sh
+uvx --from "moto[server]==5.2.4" moto_server -H 127.0.0.1 -p 19335 &
 cd services/api
 AXIS_RUN_S3_MINIO=1 uv run pytest tests/integration/test_s3_source_minio.py -q
 ```

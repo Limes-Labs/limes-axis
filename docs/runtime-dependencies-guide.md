@@ -3,7 +3,7 @@
 The [generated inventory](runtime-dependencies.md) supports issue #869, the first
 inventory slice of the zero-egress workstream. It separates configuration and
 packaging evidence from deployment enforcement and live network evidence.
-The [decision record](adr/runtime-dependency-inventory.md) explains the boundary.
+The [decision record](adr/0019-runtime-dependency-inventory.md) explains the boundary.
 
 ## One source of configuration truth
 

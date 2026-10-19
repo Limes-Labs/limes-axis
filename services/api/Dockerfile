@@ -22,7 +22,11 @@ ENV AXIS_ENV=production \
     PATH="/app/services/api/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
-RUN groupadd --system --gid 10001 axis \
+# Floating base tags lag Debian security releases; apply them at build time.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 10001 axis \
     && useradd --system --uid 10001 --gid axis --home-dir /app --shell /usr/sbin/nologin axis
 
 COPY --from=builder --chown=axis:axis /app/services/api /app/services/api

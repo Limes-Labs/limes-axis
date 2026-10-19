@@ -69,6 +69,9 @@ test.describe("approval review workspace", () => {
     await page.getByRole("combobox", { name: "Domain", exact: true }).selectOption({ label: "Quality" });
     const row = page.getByRole("button", { name: /Place Batch Q-1842/ });
     await row.click();
+    // Selection pushes an async router entry; wait until it is committed
+    // before driving browser history, or Back may target the wrong entry.
+    await expect(page).toHaveURL(/approval_id=/);
     await expect(page.getByRole("heading", { name: "Place Batch Q-1842 on quality hold" })).toBeVisible();
     if (compact(page)) {
       await expect(page.getByRole("region", { name: "Approval review", exact: true })).toBeFocused();
@@ -77,17 +80,20 @@ test.describe("approval review workspace", () => {
       await expect(row).toBeFocused();
     } else {
       await page.goBack();
+      await expect(page).not.toHaveURL(/approval_id=/);
     }
     await expect(page.getByRole("combobox", { name: "Domain", exact: true })).toHaveValue(/quality/i);
     await row.click();
+    await expect(page).toHaveURL(/approval_id=/);
     await page.goBack();
-    await expect(search).toBeVisible();
     await expect(page).not.toHaveURL(/approval_id=/);
+    await expect(search).toBeVisible();
     await row.click();
     if (compact(page)) await page.getByRole("button", { name: "Back to approval inbox" }).click();
     await search.fill("quality");
     await expect(page).toHaveURL(/q=quality/);
     await page.goBack();
+    await expect(page).not.toHaveURL(/q=quality/);
     await expect(search).toHaveValue("");
     await expectNoHorizontalOverflow(page);
   });
