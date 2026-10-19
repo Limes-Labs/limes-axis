@@ -127,6 +127,13 @@ jobs:
           AXIS_MODEL_CONTRACT_POSTGRES_DSN: postgresql+psycopg://axis:axis@localhost:5432/axis
         run: make test-model-persistence-postgres
 
+      - name: Test search index on PostgreSQL
+        working-directory: services/api
+        env:
+          AXIS_RUN_SEARCH_POSTGRES: "1"
+          AXIS_SEARCH_POSTGRES_DSN: postgresql+psycopg://axis:axis@localhost:5432/axis
+        run: uv run pytest tests/integration/test_search_index_postgres.py -q
+
       - name: Start MinIO source fixture
         run: |
           docker run -d --name axis-ci-s3-input -p 127.0.0.1:19335:9000 \
