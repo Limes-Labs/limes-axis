@@ -88,8 +88,8 @@ services:
     image: quay.io/keycloak/keycloak:26.7
     command: start-dev --import-realm
     environment:
-      KEYCLOAK_ADMIN: axis
-      KEYCLOAK_ADMIN_PASSWORD: axis-axis
+      KC_BOOTSTRAP_ADMIN_USERNAME: axis
+      KC_BOOTSTRAP_ADMIN_PASSWORD: axis-axis
     ports:
       - "8080:8080"
     volumes:

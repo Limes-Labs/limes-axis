@@ -607,6 +607,7 @@ def check_secret_boundaries(repo_root: Path) -> list[CheckResult]:
         "postgresql+psycopg://axis:axis@",
         "MINIO_ROOT_PASSWORD",
         "KEYCLOAK_ADMIN_PASSWORD",
+        "KC_BOOTSTRAP_ADMIN_PASSWORD",
     )
     forbidden = [term for term in forbidden_defaults if term in text]
     has_secret_reference = "existingSecret:" in text and "createExample:" in text
