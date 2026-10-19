@@ -717,6 +717,48 @@
       "condition": "Model routing execution is enabled and a compatible endpoint is registered."
     },
     {
+      "id": "public-institutional-context",
+      "owner": "Optional public institutional context reader",
+      "components": [
+        "api"
+      ],
+      "purpose": "Read one public GovCore entity snapshot by canonical public ID for an authorized tenant, without ontology ingestion or tenant writes.",
+      "settings": [],
+      "connections": [
+        {
+          "direction": "outbound",
+          "protocol": "https",
+          "ports": [],
+          "detail": "Registered only by create_app(public_context=...) with a fixed operator-approved origin; HTTP is accepted only for loopback. No environment setting enables it."
+        }
+      ],
+      "local_service": "govcore",
+      "local_replacement": {
+        "status": "conditional",
+        "detail": "Run the separately licensed GovCore service inside the boundary on an approved loopback or internal HTTPS origin and install the optional reviewed client wheel."
+      },
+      "failure_behavior": "Without the opt-in the route and client import are absent. Unavailable, invalid, mismatched or retired responses return a closed 503 and never create associations or change tenant records.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/public_institutional_context.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/tests/test_public_institutional_context.py",
+          "kind": "test"
+        },
+        {
+          "path": "docs/adr/0020-public-institutional-context.md",
+          "kind": "documentation"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "conditional",
+      "condition": "An operator passes an enabled PublicContextConfig to create_app and installs the optional client."
+    },
+    {
       "id": "telemetry-export",
       "owner": "Observability runtime",
       "components": [

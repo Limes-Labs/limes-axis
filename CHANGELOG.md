@@ -7,6 +7,14 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- An optional authenticated public institutional context reader (GovCore),
+  absent unless `create_app(public_context=...)` opts in, with current
+  tenant/scope and separate fixed-origin policy checks before and after the
+  remote read. No ontology ingestion, tenant writes or execution authority.
+  See [ADR 0020](docs/adr/0020-public-institutional-context.md); production
+  installation remains unverified
+  ([#930](https://github.com/Limes-Labs/limes-axis/issues/930)).
+
 - Resumable restore runner for portability: persisted run/step state machine
   over versioned component restore ports, dependency-ordered sequencing with
   per-step digest evidence, worker fencing and idempotent retries, quarantine
