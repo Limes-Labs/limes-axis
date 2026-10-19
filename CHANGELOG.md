@@ -373,6 +373,29 @@ release-bound behavior, not the complete commit history.
 
 ### Changed
 
+- Console first impression and trust (#945): a new tenant now sees guided
+  setup instead of error panels when the API answers `TENANT_NOT_FOUND`; the
+  console refreshes once when the API comes back after an outage, and error
+  panels offer Retry ("Can't reach Axis"); pending-approval and open-workflow
+  counts share one source across hero, badge and cards; activity feeds, charts
+  and the audit page hide the console's own `*_read` events by default behind
+  a "Show reads" toggle (display only, audit writes unchanged); "Sign in with
+  SSO" is disabled with an explanation when `/identity/oidc/readiness` reports
+  OIDC is not configured.
+- Console accessibility (#945, WCAG 2.1 AA): light-theme muted, status and
+  Signal text tokens are deepened to at least 4.5:1 (Signal text and
+  `bg-signal` use `#2457EB` in light mode; the brand `--signal` is unchanged);
+  dark table headers reach 6.6:1 through the shared `DataTable`; dialogs
+  restore focus to their opener; accessible names contain the visible label;
+  the theme control offers System, Light and Dark with exposed state.
+- Console layout (#945): the sidebar cues hidden nav items and keeps its
+  footer pinned, Account/Help panels are no longer clipped, the mobile Demo
+  badge stays visible, readiness gates have human labels with failures first
+  and links to where they can be fixed, "Not configured" is no longer styled
+  healthy, the command menu is labelled "Go to…", the Workflows and Simulation
+  empty states link to a next step, and "Suspend tenant" uses the destructive
+  style with its impact stated.
+
 - The worker builds one SQLAlchemy engine and shares it across maintenance
   activities, scheduled live sync and both outbox dispatchers, so it opens at
   most `AXIS_POSTGRES_POOL_SIZE` + `AXIS_POSTGRES_MAX_OVERFLOW` Axis
