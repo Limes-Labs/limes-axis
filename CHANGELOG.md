@@ -9,10 +9,12 @@ release-bound behavior, not the complete commit history.
 
 - Index generation rebuild conformance (#875): a bounded-maintenance rebuild
   coordinator over the #873 projection — watermark-bound corpus reprojection
-  onto a fresh `index_generation`, atomic validated generation switch,
-  fail-closed validator (identity/revision/revoked-sentinel), rollback-safe
-  recovery, old-generation cursor rejection, and metadata-only rebuild
-  evidence (ready/rebuilding/unavailable) through the audit boundary.
+  onto a fresh `index_generation`, a watermark fence that refuses to
+  overwrite rows changed after the snapshot, an atomic validated generation
+  switch, a fail-closed validator (identity/revision/digest/revoked-sentinel),
+  rollback-safe recovery with durable failure evidence, old-generation cursor
+  rejection, and metadata-only rebuild evidence
+  (ready/rebuilding/unavailable) through the audit boundary.
 - Authorized full-text search over the #873 index projection: one bounded query
   service and `GET /operations/search` that re-evaluate current authorization
   before any representation, omit denied and non-evaluable records entirely,

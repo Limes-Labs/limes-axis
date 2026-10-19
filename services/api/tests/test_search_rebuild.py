@@ -15,7 +15,7 @@ from axis_api.db import session_scope
 from axis_api.models import Base
 from axis_api.persistence import AxisPersistenceRepository, TenantCreate
 from axis_api.search_index import SearchableDocument
-from axis_api.search_indexing import index_document_observation
+from axis_api.search_indexing import index_document_observation, tombstone_document
 from axis_api.search_queries import (
     SearcherAuthority,
     SearchQueryError,
@@ -410,3 +410,136 @@ def test_generation_switch_is_recorded_exactly_once(repository):
         context.commit()
     switched = repository.list_audit_events(TENANT, event_type=REBUILD_GENERATION_SWITCHED_EVENT)
     assert len(switched) == 1
+
+
+# --- Watermark fence: a stale snapshot never overwrites newer index state ---
+
+
+def _document(object_id, revision, text, locator="promotion://p1"):
+    return SearchableDocument(
+        kind="ontology_asset",
+        tenant_id=TENANT,
+        source_object_id=object_id,
+        content_revision=revision,
+        source_locator=locator,
+        searchable_text=text,
+        language="en",
+        analyzer_revision="axis-analyzer-v1",
+        policy_revision_ref=POLICY_REVISION,
+    )
+
+
+def test_snapshot_older_than_a_live_update_fails_closed(repository):
+    _seed_active_generation(repository)
+    source = _rebuild_source(repository)  # snapshot reflects rev-1 only
+    # A newer revision lands after the snapshot's watermark.
+    index_document_observation(
+        repository,
+        document=_document(f"{TENANT}::asset-1", "rev-2", "Pump A quarterly output revised"),
+        supersedes_current=True,
+    )
+    context = RebuildContext(repository=repository, source=source)
+    context.prepare()
+    with pytest.raises(SearchRebuildError) as error:
+        for item in source.items:
+            context.build(item)
+    assert error.value.code == SearchRebuildError.SOURCE_ADVANCED
+    record = repository.get_search_index_record_for_update(TENANT, f"{TENANT}::asset-1")
+    assert record.content_revision == "rev-2"
+    assert record.searchable_text == "Pump A quarterly output revised"
+
+
+def test_snapshot_never_resurrects_a_deletion_after_its_watermark(repository):
+    _seed_active_generation(repository)
+    source = _rebuild_source(repository)  # snapshot still contains the sentinel
+    tombstone_document(
+        repository, tenant_id=TENANT, source_object_id=SENTINEL, content_revision="rev-del"
+    )
+    context = RebuildContext(repository=repository, source=source)
+    context.prepare()
+    sentinel_item = next(item for item in source.items if item.source_object_id == SENTINEL)
+    with pytest.raises(SearchRebuildError) as error:
+        context.build(sentinel_item)
+    assert error.value.code == SearchRebuildError.SOURCE_ADVANCED
+    sentinel = repository.get_search_index_record_for_update(TENANT, SENTINEL)
+    assert sentinel.state == "tombstoned"
+    assert sentinel.searchable_text is None
+
+
+def test_prepare_requires_a_known_tenant_watermark(repository):
+    _seed_active_generation(repository)
+    from uuid import uuid4
+
+    unknown = RebuildSource(tenant_id=TENANT, watermark_event_id=uuid4(), items=_corpus_items())
+    with pytest.raises(SearchRebuildError) as error:
+        RebuildContext(repository=repository, source=unknown).prepare()
+    assert error.value.code == SearchRebuildError.SOURCE_WATERMARK_MISSING
+
+    repository.create_tenant(
+        TenantCreate(tenant_id="tenant_other", display_name="Other", description="", created_by="t")
+    )
+    foreign = repository.append_audit_event(
+        _audit_create("rebuild.fixture.watermark", {"reason": "fixture"}).model_copy(
+            update={"tenant_id": "tenant_other"}
+        )
+    )
+    borrowed = RebuildSource(
+        tenant_id=TENANT, watermark_event_id=foreign.id, items=_corpus_items()
+    )
+    with pytest.raises(SearchRebuildError) as error:
+        RebuildContext(repository=repository, source=borrowed).prepare()
+    assert error.value.code == SearchRebuildError.SOURCE_WATERMARK_MISSING
+
+
+def test_commit_rejects_digest_drift_at_the_declared_revision(repository):
+    _seed_active_generation(repository)
+    context = RebuildContext(repository=repository, source=_rebuild_source(repository))
+    context.prepare()
+    for item in _corpus_items():
+        context.build(item)
+    # Same identity and revision, different stored bytes: not the snapshot.
+    drifted = repository.get_search_index_record_for_update(TENANT, f"{TENANT}::doc-1")
+    drifted.searchable_text = "Shipping schedule overview (tampered)"
+    drifted.text_digest = "f" * 64
+    repository.session.flush()
+    with pytest.raises(SearchRebuildError) as error:
+        context.commit()
+    assert error.value.code == SearchRebuildError.CONTENT_MISMATCH
+
+
+def test_abort_after_rollback_leaves_durable_unavailable_evidence(repository, factory):
+    _seed_active_generation(repository)
+    source = _rebuild_source(repository, skip_revoked=True)
+    context = RebuildContext(repository=repository, source=source)
+    context.prepare()
+    for item in source.items:
+        context.build(item)
+    with pytest.raises(SearchRebuildError):
+        context.commit()
+    repository.session.rollback()  # discards the rebuild rows and started event
+    with session_scope(factory) as session:
+        context.abort(
+            SearchRebuildError.REVOKED_SENTINEL,
+            repository=AxisPersistenceRepository(session),
+        )
+    with session_scope(factory) as session:
+        evidence = report_search_rebuild_evidence(
+            AxisPersistenceRepository(session), tenant_id=TENANT
+        )
+    assert evidence["status"] == "unavailable"
+    assert evidence["index_generation"] == 2
+
+
+def test_failed_rebuild_after_a_switch_is_reported_without_fabrication(repository):
+    _seed_active_generation(repository)
+    _run_full_rebuild(repository, _rebuild_source(repository))
+    retry = RebuildContext(
+        repository=repository, source=_rebuild_source(repository, skip_revoked=True)
+    )
+    retry.prepare()
+    retry.abort(SearchRebuildError.REVOKED_SENTINEL)
+    evidence = report_search_rebuild_evidence(repository, tenant_id=TENANT)
+    assert evidence["status"] == "ready"
+    assert evidence["index_generation"] == 2
+    assert evidence["last_rebuild_failed"] == {"index_generation": 3}
+    assert "rebuild_in_progress" not in evidence

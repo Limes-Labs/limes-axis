@@ -14,19 +14,26 @@ Invariants (AC mapping in ``docs/search-rebuild-conformance.md``):
 * **Generation isolation**: everything a rebuild writes carries one fresh
   ``index_generation`` computed at prepare time; the active generation is
   never mutated in place before the switch.
-* **Watermark binding**: the rebuild refuses to switch without the declared
-  authoritative source watermark (last accepted source event) recorded on the
-  started event — no switch from an unbound fixture.
+* **Watermark binding and fencing**: the declared source watermark must be
+  an existing audit event of the tenant (the last source event the exported
+  snapshot reflects); it is recorded on the started and switched events. A
+  row that the active generation projected *after* the watermark reflects a
+  source change the snapshot cannot contain, so building or tombstoning it
+  fails closed (``source_advanced``) instead of regressing newer content or
+  resurrecting a deletion. Retry with a fresher snapshot.
 * **Atomic, validated switch**: ``commit`` re-reads the whole tenant inside
   the switch transaction and verifies every rebuild identity landed live at
-  its declared revision and that no *other* identity remains live. A revoked
+  its declared revision and text digest, and that no *other* identity
+  remains live. A revoked
   or missing sentinel fails the switch (fixed code, nothing partially
   published) — the caller rolls back and the previous generation keeps
   serving.
 * **Recovery is whole-transaction**: a killed rebuilder leaves either the
   fully valid prior generation or, after a retry from scratch, the fresh one.
   There is no mixed state because no rebuild transaction is ever partially
-  committed.
+  committed. The started event commits with the rebuild, so failure
+  evidence must be recorded by ``abort`` on a fresh transaction after the
+  rollback.
 * **Cursor honesty**: after a switch every record's ``index_generation``
   differs, so outstanding #874 continuation cursors bound to the old
   generation fail closed instead of paging stale privileged content.
@@ -37,12 +44,17 @@ Invariants (AC mapping in ``docs/search-rebuild-conformance.md``):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from uuid import UUID
 
 from axis_sdk.connector_authoring.contracts import ContractModel, Field, Identifier
 
 from axis_api.persistence import AxisPersistenceRepository
-from axis_api.search_index import MAX_SEARCHABLE_TEXT_CHARS, SearchableDocument
+from axis_api.search_index import (
+    MAX_SEARCHABLE_TEXT_CHARS,
+    SearchableDocument,
+    canonical_text_digest,
+)
 from axis_api.search_indexing import (
     index_document_observation,
     tombstone_document,
@@ -64,6 +76,7 @@ class SearchRebuildError(ValueError):
     IDENTITY_MISMATCH = "search_rebuild_identity_mismatch"
     CONTENT_MISMATCH = "search_rebuild_content_mismatch"
     REVOKED_SENTINEL = "search_rebuild_revoked_sentinel"
+    SOURCE_ADVANCED = "search_rebuild_source_advanced"
 
     def __init__(self, code: str) -> None:
         self.code = code
@@ -134,7 +147,10 @@ class RebuildContext:
     actor_id: str = SEARCH_REBUILD_AUDIT_ACTOR
     target_generation: int = field(default=0, init=False)
     _items: dict[str, RebuildItem] = field(default_factory=dict, init=False)
+    _digests: dict[str, str] = field(default_factory=dict, init=False)
     _watermark_event_id: UUID | None = field(default=None, init=False)
+    _started_event_id: UUID | None = field(default=None, init=False)
+    _watermark_at: datetime | None = field(default=None, init=False)
     _prepared: bool = field(default=False, init=False)
     _committed: bool = field(default=False, init=False)
 
@@ -143,6 +159,13 @@ class RebuildContext:
 
         if not self.source.items:
             raise SearchRebuildError(SearchRebuildError.EMPTY_SOURCE)
+        watermark = self.repository.get_audit_event(
+            self.source.tenant_id, self.source.watermark_event_id
+        )
+        if watermark is None:
+            # An unknown (or another tenant's) watermark cannot fence anything.
+            raise SearchRebuildError(SearchRebuildError.SOURCE_WATERMARK_MISSING)
+        self._watermark_at = _aware(watermark.created_at)
         self.target_generation = _current_generation(self.repository, self.source.tenant_id) + 1
         started = self.repository.append_audit_event(
             _audit_event(
@@ -157,7 +180,8 @@ class RebuildContext:
                 },
             )
         )
-        self._watermark_event_id = started.id
+        self._watermark_event_id = watermark.id
+        self._started_event_id = started.id
         self._prepared = True
         return self.target_generation
 
@@ -179,7 +203,9 @@ class RebuildContext:
             analyzer_revision=item.analyzer_revision,
             policy_revision_ref=item.policy_revision_ref,
         )
+        self._fence(item.source_object_id)
         self._items[item.source_object_id] = item
+        self._digests[item.source_object_id] = canonical_text_digest(document)
         return index_document_observation(
             self.repository,
             document=document,
@@ -196,7 +222,9 @@ class RebuildContext:
             raise SearchRebuildError(SearchRebuildError.NOT_STARTED)
         if self._committed:
             raise SearchRebuildError(SearchRebuildError.ALREADY_COMMITTED)
+        self._fence(source_object_id)
         self._items.pop(source_object_id, None)
+        self._digests.pop(source_object_id, None)
         return tombstone_document(
             self.repository,
             tenant_id=self.source.tenant_id,
@@ -204,6 +232,26 @@ class RebuildContext:
             content_revision=content_revision,
             index_generation=self.target_generation,
         )
+
+    def _fence(self, source_object_id: str) -> None:
+        """Refuse to overwrite active-generation state newer than the snapshot.
+
+        A row still below the target generation that was projected after the
+        watermark carries a source change the exported snapshot cannot
+        reflect (a newer revision or a deletion). Reprojecting the snapshot
+        over it would lose that change or re-expose deleted content.
+        """
+
+        current = self.repository.get_search_index_record_for_update(
+            self.source.tenant_id, source_object_id
+        )
+        if (
+            current is not None
+            and current.index_generation < self.target_generation
+            and self._watermark_at is not None
+            and _aware(current.updated_at) > self._watermark_at
+        ):
+            raise SearchRebuildError(SearchRebuildError.SOURCE_ADVANCED)
 
     def commit(self) -> RebuildOutcome:
         """Validate and record the atomic generation switch (same transaction).
@@ -225,7 +273,11 @@ class RebuildContext:
             state = states.get(object_id)
             if state is None:
                 raise SearchRebuildError(SearchRebuildError.IDENTITY_MISMATCH)
-            if state.state != "live" or state.content_revision != item.content_revision:
+            if (
+                state.state != "live"
+                or state.content_revision != item.content_revision
+                or state.text_digest != self._digests.get(object_id)
+            ):
                 raise SearchRebuildError(SearchRebuildError.CONTENT_MISMATCH)
         revoked = sorted(
             object_id
@@ -245,7 +297,7 @@ class RebuildContext:
                     "reason": "generation_switch_committed",
                     "index_generation": self.target_generation,
                     "source_watermark_event_id": str(self.source.watermark_event_id),
-                    "rebuild_started_event_id": str(self._watermark_event_id),
+                    "rebuild_started_event_id": str(self._started_event_id),
                     "identities": len(self._items),
                     "tombstoned": tombstoned,
                 },
@@ -260,10 +312,21 @@ class RebuildContext:
             tombstoned=tombstoned,
         )
 
-    def abort(self, reason: str) -> RebuildOutcome:
-        """Record the failed rebuild; the caller rolls back the transaction."""
+    def abort(
+        self,
+        reason: str,
+        *,
+        repository: AxisPersistenceRepository | None = None,
+    ) -> RebuildOutcome:
+        """Record the failed rebuild attempt as metadata-only evidence.
 
-        self.repository.append_audit_event(
+        The rebuild transaction (rows and its started event) must be rolled
+        back. Evidence written on that same transaction is rolled back with
+        it, so durable failure evidence is recorded by passing a
+        ``repository`` bound to a fresh transaction after the rollback.
+        """
+
+        (repository or self.repository).append_audit_event(
             _audit_event(
                 tenant_id=self.source.tenant_id,
                 actor_id=self.actor_id,
@@ -271,6 +334,7 @@ class RebuildContext:
                 payload={
                     "reason": reason,
                     "index_generation": self.target_generation,
+                    "source_watermark_event_id": str(self.source.watermark_event_id),
                 },
             )
         )
@@ -288,6 +352,13 @@ class RebuildContext:
 class _IndexState:
     state: str
     content_revision: str
+    text_digest: str | None
+
+
+def _aware(value: datetime) -> datetime:
+    """SQLite returns naive UTC timestamps; PostgreSQL returns aware ones."""
+
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def _tenant_index_state(
@@ -297,7 +368,9 @@ def _tenant_index_state(
 
     return {
         record.source_object_id: _IndexState(
-            state=record.state, content_revision=record.content_revision
+            state=record.state,
+            content_revision=record.content_revision,
+            text_digest=record.text_digest,
         )
         for record in repository.list_search_index_states(tenant_id=tenant_id)
     }
@@ -319,13 +392,11 @@ def report_search_rebuild_evidence(
     the supported generation's readiness.
     """
 
-    started_events = repository.list_audit_events(
-        tenant_id, event_type=REBUILD_STARTED_EVENT, limit=25
-    )
-    if not started_events:
-        return {"status": "not_applicable", "reason": "no_rebuild_started"}
     started_generations = {
-        int((event.payload or {}).get("index_generation", 0)) for event in started_events
+        int((event.payload or {}).get("index_generation", 0))
+        for event in repository.list_audit_events(
+            tenant_id, event_type=REBUILD_STARTED_EVENT, limit=25
+        )
     }
     switched: dict[int, dict] = {}
     for event in repository.list_audit_events(
@@ -339,7 +410,12 @@ def report_search_rebuild_evidence(
             tenant_id, event_type=REBUILD_FAILED_EVENT, limit=25
         )
     }
-    latest_started = max(started_generations)
+    # A rolled-back attempt leaves only its failure event (recorded on a fresh
+    # transaction), so failures count as attempts even without a started event.
+    attempted = started_generations | failed
+    if not attempted:
+        return {"status": "not_applicable", "reason": "no_rebuild_started"}
+    latest_started = max(attempted)
     if not switched:
         if latest_started in failed:
             return {
@@ -362,8 +438,11 @@ def report_search_rebuild_evidence(
         ),
         "identities": switched[supported_generation].get("identities"),
     }
-    if latest_started > supported_generation and latest_started not in failed:
-        evidence["rebuild_in_progress"] = {"index_generation": latest_started}
+    if latest_started > supported_generation:
+        if latest_started in failed:
+            evidence["last_rebuild_failed"] = {"index_generation": latest_started}
+        else:
+            evidence["rebuild_in_progress"] = {"index_generation": latest_started}
     return evidence
 
 
