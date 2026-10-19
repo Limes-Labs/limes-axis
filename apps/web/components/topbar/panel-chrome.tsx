@@ -11,9 +11,9 @@ export const popoverClass =
 
 /**
  * Surface for the sidebar footer's panels. The rail clips its overflow (it
- * scrolls its own nav list), so these panels are portalled to `<body>` inside
- * a fixed wrapper that `SidebarAccount` positions above the footer; the
- * wrapper sets `--sidebar-popover-max-h` to the room left above the anchor.
+ * scrolls its own nav list), so these panels render inside a `fixed` wrapper
+ * that `SidebarAccount` positions above the footer; the wrapper sets
+ * `--sidebar-popover-max-h` to the room left above the anchor.
  */
 export const sidebarPopoverClass =
   `max-h-(--sidebar-popover-max-h,calc(100vh-32px)) ${popoverSurfaceBaseClass}`;
