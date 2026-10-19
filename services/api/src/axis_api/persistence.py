@@ -4838,7 +4838,8 @@ class AxisPersistenceRepository:
             promotion.tenant_id == tenant_id,
             ranked.c.position <= 50,
         )
-        yield from self.session.execute(statement.execution_options(yield_per=100)).tuples()
+        # Rows unpack like tuples; SQLAlchemy 2.1 deprecates Result.tuples().
+        yield from self.session.execute(statement.execution_options(yield_per=100))
 
     def record_connector_ontology_proposal_promotion(
         self,
