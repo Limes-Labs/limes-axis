@@ -1220,7 +1220,9 @@ Configure non-sensitive client and endpoint values in the chart ConfigMap:
   so the browser binds them to the exact host and the `/` path.
 - `AXIS_OIDC_SESSION_IDLE_TIMEOUT_SECONDS` (default 1800): sessions with no
   authenticated request inside this window are revoked with
-  `idle_timeout` audit evidence.
+  `idle_timeout` audit evidence. Activity is recorded at most once per 60 s
+  (or a tenth of this timeout when shorter), so a session can be expired up to
+  that much earlier than its true last request.
 - `AXIS_OIDC_SESSION_ABSOLUTE_TIMEOUT_SECONDS` (default 28800): the hard cap
   on a login's total lifetime; refresh rotation extends sessions only inside
   this cap.

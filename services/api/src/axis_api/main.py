@@ -737,6 +737,7 @@ from axis_api.search_queries import (
 )
 from axis_api.session_lifecycle import (
     browser_session_lifecycle_failure,
+    browser_session_touch_due,
     ensure_aware_datetime,
 )
 from axis_api.session_metadata import extract_session_client_metadata
@@ -1117,7 +1118,9 @@ def _resolve_request_principal(
                         ):
                             cookie_failure_reason = "invalid_session_cookie"
                         else:
-                            repository.touch_oidc_browser_session(session_hash, datetime.now(UTC))
+                            seen_at = datetime.now(UTC)
+                            if browser_session_touch_due(stored_session, settings, seen_at):
+                                repository.touch_oidc_browser_session(session_hash, seen_at)
                             principal = OidcPrincipal(
                                 actor_id=stored_session.actor_id,
                                 tenant_id=stored_session.tenant_id,

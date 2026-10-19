@@ -373,6 +373,10 @@ release-bound behavior, not the complete commit history.
 
 ### Changed
 
+- Cookie-authenticated requests no longer rewrite the browser-session row on
+  every request. `last_seen_at` is updated at most once per 60 s per session,
+  or a tenth of `AXIS_OIDC_SESSION_IDLE_TIMEOUT_SECONDS` when that is shorter,
+  so idle expiry may fire up to that interval early.
 - `GET /operations/workflows/runs` and the connector credential-handle
   registry read their timelines and rotations in one batched query per page
   instead of one per row (1 + N statements before). Workflow timelines capped
