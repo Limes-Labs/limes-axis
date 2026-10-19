@@ -175,7 +175,12 @@ export function ApprovalQueue({
               <span className="text-xs break-words text-muted">{labelDomain(approval.domain)} · {approval.owner_role}</span>
               <span className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs text-muted">Due {approval.due}</span>
-                <span className={`status-pill ${approvalRiskClass(approval.risk_level)}`}>{approval.risk_level} risk</span>
+                <span className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1">
+                  <span className={`status-pill ${approvalRiskClass(approval.risk_level)}`}>{approval.risk_level} risk</span>
+                  <span className="min-w-0 text-xs break-words text-muted" data-approval-cost>
+                    {copy.cost}: {approval.estimated_cost}
+                  </span>
+                </span>
               </span>
             </button>
           );

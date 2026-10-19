@@ -130,8 +130,13 @@ test.describe("Axis live overview demo", () => {
       .first();
     await expect(optionButton).toBeVisible();
     await optionButton.click();
-    await expect(page.getByRole("button", { name: "Confirm decision" })).toBeVisible();
-    await page.getByRole("button", { name: "Confirm decision" }).click();
+    // The confirm button names the decision and the action; rejections and
+    // high-risk approvals require a rationale first.
+    const dialog = page.getByRole("dialog");
+    const confirmButton = dialog.getByRole("button", { name: /“.+”$/ });
+    await expect(confirmButton).toBeVisible();
+    await dialog.getByRole("textbox").fill("Recorded by the live overview e2e lane.");
+    await confirmButton.click();
 
     await expect(page.getByText("Recorded as evidence")).toBeVisible();
     // Scope to the decision card — the confirmation toast links to the same

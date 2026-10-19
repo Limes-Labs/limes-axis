@@ -155,6 +155,18 @@ export function approvalDecisionActorScopes(approval: ApprovalInboxItem): string
   return [approval.required_permission];
 }
 
+/**
+ * Rejections and every decision on a high-risk approval must carry a written
+ * rationale. The API accepts an optional `note` (up to 600 characters); the
+ * console enforces the requirement before submitting.
+ */
+export function decisionRequiresRationale(
+  approval: Pick<ApprovalInboxItem, "risk_level">,
+  decision: ApprovalDecision,
+): boolean {
+  return decision === "reject" || approval.risk_level === "high";
+}
+
 export function buildApprovalDecisionPayload(
   approval: ApprovalInboxItem,
   decision: ApprovalDecision,

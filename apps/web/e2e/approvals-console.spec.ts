@@ -139,7 +139,12 @@ test.describe("Axis live story: approval inbox console", () => {
     await page.keyboard.press("Enter");
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "Confirm decision" }).click();
+    // Seeded approvals are high risk, so the dialog requires a rationale;
+    // the confirm button names the decision and the action.
+    await dialog.getByRole("textbox").fill("Recorded by the live approvals e2e lane.");
+    await dialog
+      .getByRole("button", { name: new RegExp(`^Approve “${actionRegex(pending!.action).source}”$`) })
+      .click();
 
     // The decided approval leaves the actionable queue immediately...
     await expect(

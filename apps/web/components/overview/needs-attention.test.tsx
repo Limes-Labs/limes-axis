@@ -313,10 +313,13 @@ describe("NeedsAttention inline decision flow", () => {
 
     // Choosing an option opens the confirm dialog without persisting yet.
     await user.click(screen.getByRole("button", { name: /Approve & execute/ }));
-    expect(await screen.findByRole("button", { name: "Confirm decision" })).toBeVisible();
+    const confirm = await screen.findByRole("button", { name: /^Approve & execute “/ });
+    expect(confirm).toBeVisible();
     expect(mocks.axisFetchParsedJson).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "Confirm decision" }));
+    // High-risk approvals require a rationale before the confirm can submit.
+    await user.type(screen.getByLabelText("Rationale (required)"), "Supplier slot confirmed.");
+    await user.click(confirm);
     await waitFor(() => {
       expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(1);
     });

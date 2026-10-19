@@ -297,6 +297,7 @@ const approvals = {
     back: "Back to approval inbox",
     select: "Select an approval to review",
     selectDetail: "Choose a matching action from the queue to see its evidence and decision options.",
+    cost: "Cost",
   },
   history: {
     eyebrow: "History",
@@ -312,8 +313,21 @@ const approvals = {
     pending: "Pending review",
     confirmTitle: "Confirm decision",
     rationaleLabel: "Rationale (optional)",
+    rationaleRequiredLabel: "Rationale (required)",
     rationalePlaceholder: "Why you are deciding this way — recorded with the audit evidence.",
+    rationaleRequiredReject:
+      "Rejections need a rationale so the requester knows what to change. It is recorded with the audit evidence.",
+    rationaleRequiredHighRisk:
+      "High-risk decisions need a rationale. It is recorded with the audit evidence.",
+    rationaleMissing: "Enter a rationale before recording this decision.",
     confirm: "Confirm decision",
+    /** Confirm button: names the decision and the action it applies to. */
+    confirmAction: (decision: string, action: string) => `${decision} “${action}”`,
+    summaryLabel: "What you are deciding",
+    risk: "Risk",
+    riskLevel: (level: string) => `${level.charAt(0).toUpperCase()}${level.slice(1)} risk`,
+    cost: "Cost exposure",
+    due: "Due",
     cancel: "Cancel",
     persisting: "Recording decision…",
     persisted: "Recorded as evidence",

@@ -8,6 +8,7 @@ import {
   buildApprovalDecisionPayload,
   buildApprovalHref,
   countAwaitingDecision,
+  decisionRequiresRationale,
   findApprovalById,
   type ManufacturingApprovalInbox,
 } from "./approval-demo";
@@ -98,6 +99,14 @@ describe("approval inbox helpers", () => {
     expect(approvalRiskClass("medium")).toBe("signal-watch");
     expect(approvalRiskClass("low")).toBe("signal-ready");
     expect(approvalDecisionLabel("request_changes")).toBe("Changes Requested");
+  });
+
+  it("requires a rationale for rejections and for every high-risk decision", () => {
+    expect(decisionRequiresRationale({ risk_level: "low" }, "approve")).toBe(false);
+    expect(decisionRequiresRationale({ risk_level: "medium" }, "request_changes")).toBe(false);
+    expect(decisionRequiresRationale({ risk_level: "low" }, "reject")).toBe(true);
+    expect(decisionRequiresRationale({ risk_level: "high" }, "approve")).toBe(true);
+    expect(decisionRequiresRationale({ risk_level: "high" }, "request_changes")).toBe(true);
   });
 
   it("counts every approval that is not decided as awaiting a decision", () => {

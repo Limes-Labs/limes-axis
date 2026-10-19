@@ -295,21 +295,13 @@ function ApprovalDetail({
           <span className={`status-pill ${approvalRiskClass(approval.risk_level)}`}>
             {approval.risk_level} risk
           </span>
+          <span className="min-w-0 [overflow-wrap:anywhere]" data-approval-cost>
+            {strings.approvals.decision.cost}: {approval.estimated_cost}
+          </span>
           <span>Due {approval.due}</span>
           <span className="min-w-0 [overflow-wrap:anywhere]">Owner: {approval.owner_role}</span>
         </div>
       </div>
-
-      <ApprovalDecisionCard
-        actor={actor}
-        approval={approval}
-        decision={decision}
-        error={error}
-        identitySession={identitySession}
-        onDecisionChange={onDecisionChange}
-        onErrorChange={onErrorChange}
-        tenantId={tenantId}
-      />
 
       <div aria-hidden="true" className="rule-hairline" />
 
@@ -346,6 +338,18 @@ function ApprovalDetail({
           </div>
         </div>
       </CollapsibleSection>
+
+      {/* The decision follows the evidence and risks it is based on. */}
+      <ApprovalDecisionCard
+        actor={actor}
+        approval={approval}
+        decision={decision}
+        error={error}
+        identitySession={identitySession}
+        onDecisionChange={onDecisionChange}
+        onErrorChange={onErrorChange}
+        tenantId={tenantId}
+      />
 
       <div aria-hidden="true" className="rule-hairline" />
 
