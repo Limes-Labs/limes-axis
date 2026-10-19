@@ -103,6 +103,8 @@ def _manifest(**overrides: object) -> PackManifest:
         "context": _context(),
         "release_snapshot": _snapshot(),
         "entries": _entries(),
+        "unsupported_requirements": ("ent-fedramp",),
+        "issued_on": "2026-09-15",
         "valid_through": "2026-12-31",
     }
     values.update(overrides)
@@ -254,6 +256,7 @@ def test_unsafe_text_is_rejected() -> None:
 
 def test_preflight_blocks_pack_without_any_current_support() -> None:
     manifest = _manifest(
+        unsupported_requirements=("ent-only",),
         entries=(
             AnswerSelection(
                 entry_id="ent-only",
@@ -274,6 +277,45 @@ def test_preflight_blocks_pack_without_any_current_support() -> None:
 def test_preflight_passes_the_synthetic_pack() -> None:
     _, ready, blocking = pack_readiness(_manifest())
     assert ready and blocking == ()
+
+
+def test_unlisted_missing_required_support_blocks_issuance() -> None:
+    _, ready, blocking = pack_readiness(_manifest(unsupported_requirements=()))
+    assert not ready
+    assert blocking == ("ent-fedramp:required_support_missing",)
+
+
+def test_optional_unsupported_entry_does_not_block() -> None:
+    entries = _entries()[:3] + (
+        _entries()[3].model_copy(update={"required": False}),
+    )
+    _, ready, blocking = pack_readiness(
+        _manifest(entries=entries, unsupported_requirements=())
+    )
+    assert ready and blocking == ()
+
+
+def test_unsupported_requirements_must_name_real_unsupported_entries() -> None:
+    for listed in (("ent-soc2",), ("ent-missing",), ("ent-fedramp", "ent-fedramp")):
+        with pytest.raises(ValidationError):
+            _manifest(unsupported_requirements=listed)
+
+
+def test_disclosure_is_bound_to_the_pack_audience_class() -> None:
+    # A public pack cannot ship an NDA artifact ...
+    with pytest.raises(ValidationError, match="exceed the pack disclosure class"):
+        _manifest(context=_context(disclosure_class="public"))
+    # ... and internal-only entries never appear, not even as citations.
+    internal = _entries()[1].model_copy(update={"disclosure": "internal_only"})
+    with pytest.raises(ValidationError, match="Internal-only entries"):
+        _manifest(entries=(_entries()[0], internal, *_entries()[2:]))
+
+
+def test_dates_must_be_real_and_ordered() -> None:
+    with pytest.raises(ValidationError, match="real ISO calendar dates"):
+        _manifest(valid_through="2026-13-45")
+    with pytest.raises(ValidationError, match="cannot precede issued_on"):
+        _manifest(issued_on="2027-01-01")
 
 
 def test_changing_anything_after_approval_invalidates_the_digest() -> None:
