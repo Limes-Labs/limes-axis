@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, CircleX, MessageSquare, ShieldCheck } from "lucide-react";
 
@@ -147,6 +147,10 @@ export function ApprovalDecisionCard({
 }: ApprovalDecisionCardProps) {
   const [pendingOption, setPendingOption] = useState<ApprovalDecisionOption | null>(null);
   const [note, setNote] = useState("");
+  // Focus returns to the option that opened the confirmation; once a decision
+  // replaces the options, it falls back to the decision section itself.
+  const sectionRef = useRef<HTMLElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const { session } = useOidcConsoleSession();
   const { push } = useToast();
   const { labelDomain } = useTenantVocabulary();
@@ -159,10 +163,11 @@ export function ApprovalDecisionCard({
     approvalDecisionActorId(approval),
   );
 
-  function openConfirm(option: ApprovalDecisionOption) {
+  function openConfirm(option: ApprovalDecisionOption, opener: HTMLElement) {
     if (ssoBlocked) {
       return;
     }
+    returnFocusRef.current = opener;
     setNote("");
     setPendingOption(option);
   }
@@ -172,6 +177,7 @@ export function ApprovalDecisionCard({
     if (!option || ssoBlocked) {
       return;
     }
+    returnFocusRef.current = sectionRef.current;
     setPendingOption(null);
 
     const approvalId = approval.approval_id;
@@ -244,6 +250,8 @@ export function ApprovalDecisionCard({
   return (
     <section
       aria-label="Decision"
+      ref={sectionRef}
+      tabIndex={-1}
       className="grid content-start gap-3 rounded-2xl border border-signal/25 bg-tint-50 p-4 dark:border-signal/30 dark:bg-signal/8"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -295,7 +303,7 @@ export function ApprovalDecisionCard({
                 optionToneClasses[option.decision],
               )}
               key={option.decision}
-              onClick={() => openConfirm(option)}
+              onClick={(event) => openConfirm(option, event.currentTarget)}
               type="button"
             >
               <span className="decision-option-label flex items-center gap-1.5 text-sm font-medium">
@@ -325,7 +333,7 @@ export function ApprovalDecisionCard({
         }}
       >
         {pendingOption ? (
-          <DialogContent>
+          <DialogContent returnFocusRef={returnFocusRef}>
             <DialogHeader>
               <DialogTitle>
                 {copy.confirmTitle}: {pendingOption.label}

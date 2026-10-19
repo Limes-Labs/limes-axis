@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { Slot } from "radix-ui";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 
 import { cn } from "@/lib/cn";
 
@@ -18,6 +18,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
    * the API so a slow request cannot be submitted twice.
    */
   loading?: boolean;
+  ref?: Ref<HTMLButtonElement>;
   children: ReactNode;
 }
 

@@ -143,6 +143,36 @@ describe("ApprovalDecisionCard", () => {
     expect(mocks.axisFetchParsedJson).not.toHaveBeenCalled();
   });
 
+  it("returns focus to the option that opened the dialog when it is cancelled", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    const option = screen.getByRole("button", { name: /Approve & execute/ });
+    await user.click(option);
+    await screen.findByRole("dialog");
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(option).toHaveFocus());
+
+    await user.click(option);
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(option).toHaveFocus());
+  });
+
+  it("moves focus to the decision section once a confirmed decision replaces the options", async () => {
+    const user = userEvent.setup();
+    mocks.axisFetchParsedJson.mockResolvedValue(persistenceResultFixture);
+    render(<Harness />);
+
+    await user.click(screen.getByRole("button", { name: /Approve & execute/ }));
+    await user.click(await screen.findByRole("button", { name: "Confirm decision" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("region", { name: "Decision" })).toHaveFocus(),
+    );
+  });
+
   it("persists through the decision endpoint with the rationale note on confirm", async () => {
     const user = userEvent.setup();
     mocks.axisFetchParsedJson.mockResolvedValue(persistenceResultFixture);

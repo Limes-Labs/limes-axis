@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Cable, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -157,6 +157,9 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
   const { identity, tenantId, tenantQueriesEnabled } = scope;
   const [urlState, setUrlState] = useConsoleUrlState(connectorUrlSchema);
   const [wizardOpen, setWizardOpen] = useState(false);
+  // The header button outlives the empty-state action that may have opened
+  // the wizard, so it is where focus returns once a connector exists.
+  const addConnectorRef = useRef<HTMLButtonElement>(null);
   const requestedOffset = Number(urlState.offset);
   const offset = Number.isSafeInteger(requestedOffset)
     && requestedOffset >= 0 && requestedOffset <= 1_000_000 ? requestedOffset : 0;
@@ -266,6 +269,7 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
       open={wizardOpen}
       onCreated={triggerRefresh}
       onOpenChange={setWizardOpen}
+      returnFocusRef={addConnectorRef}
       tenantId={tenantId}
     />
   );
@@ -304,6 +308,7 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
           <Button
             className="px-4 py-2 text-sm"
             onClick={() => setWizardOpen(true)}
+            ref={addConnectorRef}
           >
             <Plus aria-hidden="true" size={15} />
             {strings.connectors.header.addConnector}
