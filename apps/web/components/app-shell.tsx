@@ -197,7 +197,7 @@ function ConsoleShell({ children }: { children: ReactNode }) {
                 <span className="font-display block text-base text-ink">
                   Limes Axis
                 </span>
-                <span className="mt-0.5 block font-mono text-[9px] font-medium tracking-[0.18em] text-muted uppercase">
+                <span className="mt-0.5 block font-mono text-[11px] font-medium tracking-[0.14em] text-muted uppercase">
                   Control plane
                 </span>
               </span>

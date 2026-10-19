@@ -60,7 +60,7 @@ export function MobileNavigation({
         </Link>
 
         <div className="grid min-w-0 flex-1 leading-tight">
-          <span className="truncate font-mono text-[9px] font-semibold tracking-[0.16em] text-muted uppercase">
+          <span className="truncate font-mono text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">
             {currentGroup?.label ?? "Limes Axis"}
           </span>
           <span
