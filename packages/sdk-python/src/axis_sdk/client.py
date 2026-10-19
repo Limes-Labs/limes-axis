@@ -460,7 +460,8 @@ class SearchResource:
                 kinds=kinds,
                 locator=locator,
                 page_size=page_size,
-                cursor=cursor,            )
+                cursor=cursor,
+            )
         )
 
 

@@ -20,16 +20,17 @@ governed API/SDK surface:
 - **Current authority, not index-time authority.** Index-time ACL references
   are optimization and audit evidence. A record captured under a policy
   revision that is no longer current (`policy_revision_ref` differs from the
-  searcher's current revision) cannot be re-evaluated and is served only as a
-  metadata-only hit (`withheld_reason: access_not_evaluable`) until it is
-  re-indexed. Explicit current denials are invisible: no hit, no facet, no
-  label.
+  searcher's current revision) cannot be re-evaluated and is omitted until it
+  is re-indexed. Explicit current denials are omitted the same way: no hit,
+  no identity, no facet, no count. A metadata-only hit would not be safe
+  here, because its presence alone proves the restricted text matched the
+  query.
 
 ## Guarantees
 
-1. **No leak paths.** Text requires the current evaluation outcome to be
-   positive and the record to be live. A record whose access cannot be
-   evaluated may appear as a metadata-only hit — never as text. Snippets are
+1. **No leak paths.** Any representation requires the current evaluation
+   outcome to be positive. A permitted record without searchable text is the
+   only metadata-only hit (`withheld_reason: not_textually_searchable`). Snippets are
    exact authorized spans of the stored plain text, never raw marked-up
    source. The sentinel matrix in `test_search_queries.py` asserts the
    restricted payload appears in no surface: hits, snippets, counts, facets,
@@ -41,16 +42,27 @@ governed API/SDK surface:
    page ≤ 25, locator filter ≤ 120, one opaque cursor ≤ 600 chars; every
    violation is a fixed public-safe code (`search_query_too_large`,
    `search_page_too_large`, …), never an echo of the request.
-4. **Continuations are re-authorized.** The cursor is an HMAC-bound opaque
-   token carrying the tenant, the presenting searcher reference, the
-   query/filter digest, the index generation and an expiry (≤ 15 minutes).
-   Another principal's cursor is rejected (`search_cursor_invalid`), a
-   changed query/filter invalidates it, an index rebuild invalidates it
-   (`search_cursor_expired` rather than silently shifting results), and the
-   scope gate re-runs on every continuation.
-5. **No skipped rows.** The cursor advances by hits actually emitted;
-   candidates withheld inside a window are re-fetched in the next window, so
-   a denial that arrives mid-pagination never silently skips a matching row.
+4. **Continuations are re-authorized.** The cursor carries the tenant, the
+   presenting searcher reference, the query/filter digest, the effective
+   policy revision, the index generation, the next candidate position
+   (≤ 1 000 000) and an expiry (≤ 15 minutes). Its MAC key is a published
+   constant, so the MAC detects corruption, not forgery, and the cursor is
+   never an authority: every bound field is compared with the presenting
+   request. Another principal's cursor or a changed query/filter is rejected
+   (`search_cursor_invalid`); a policy-revision change or an index rebuild
+   expires it (`search_cursor_expired`) instead of silently shifting
+   results; the scope gate and per-candidate authorization re-run on every
+   continuation.
+5. **No repeated or skipped rows.** Candidate positions do not depend on
+   authorization, and the cursor resumes at the next unexamined candidate.
+   Invisible candidates do not shorten a page: the service scans further
+   windows of `page_size + 1` candidates, at most four per request. A cursor
+   is issued only when a further visible hit was seen, or when that scan
+   budget ran out with candidates left. In that case the page is a bounded
+   partial page, possibly empty, and its cursor resumes after every examined
+   candidate. That budget case is the remaining existence signal about
+   invisible candidates: it shows that more than one budget of matching
+   candidates exist, and nothing about any one record.
 6. **Explicit freshness.** Every page carries the index generation and the
    policy revision it was served under. `index_stale` reports an empty
    generation; the service never falls back to unrestricted source queries.
@@ -75,3 +87,14 @@ fragments) into the same service. The PostgreSQL-backed authorization cases
 run in the opt-in integration module (`AXIS_RUN_SEARCH_POSTGRES=1`), which
 additionally proves wildcard-bearing terms cannot bypass the LIKE escape and
 that foreign tenants are rejected at both the service and storage layers.
+
+`search:read` is not yet one of the canonical realm roles in
+`axis_api.idp_bootstrap` or the local Keycloak realm. Until an operator
+provisions it, IdP-backed callers receive 403. The route fails closed.
+
+Query cost is not index-backed yet. Each candidate window is a case-folded
+`LIKE` containment scan over the tenant's live rows, ordered by
+`source_object_id` with `OFFSET`, plus one `max(index_generation)` aggregate.
+That cost grows linearly with the tenant's index size and is bounded per
+request only by the window budget above. Analyzer/`tsvector` or trigram
+indexing is future work, and no capacity figure is claimed.

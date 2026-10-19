@@ -21038,7 +21038,7 @@
       },
       "SearchHit": {
         "additionalProperties": false,
-        "description": "One user-visible hit; restricted records are metadata-only.",
+        "description": "One user-visible hit; permitted records without text are metadata-only.",
         "properties": {
           "kind": {
             "enum": [
@@ -21083,10 +21083,7 @@
           "withheld_reason": {
             "anyOf": [
               {
-                "enum": [
-                  "access_not_evaluable",
-                  "not_textually_searchable"
-                ],
+                "const": "not_textually_searchable",
                 "type": "string"
               },
               {
@@ -33038,7 +33035,7 @@
     "/demo/manufacturing/search": {
       "get": {
         "deprecated": true,
-        "description": "Authorized full-text search over the #873 index projection.\n\nCurrent authorization is re-evaluated for every candidate before any\nrepresentation exists; records whose access cannot be evaluated are\nwithheld as metadata-only hits; explicit denials are invisible.\nTotals and facets cover the emitted authorized subset only. The\ncontinuation cursor is opaque, binds the presenting principal and\nquery digest, and is re-authorized on every continuation.",
+        "description": "Authorized full-text search over the #873 index projection.\n\nCurrent authorization is re-evaluated for every candidate before any\nrepresentation exists; denied records and records whose access\ncannot be evaluated are omitted. Totals and facets cover the emitted\nauthorized subset only. The continuation cursor binds the presenting\nprincipal, query digest, policy revision and index generation, and\nis re-authorized on every continuation.",
         "operationId": "search_index_query_demo_manufacturing_search_get",
         "parameters": [
           {
@@ -42507,7 +42504,7 @@
     },
     "/operations/search": {
       "get": {
-        "description": "Authorized full-text search over the #873 index projection.\n\nCurrent authorization is re-evaluated for every candidate before any\nrepresentation exists; records whose access cannot be evaluated are\nwithheld as metadata-only hits; explicit denials are invisible.\nTotals and facets cover the emitted authorized subset only. The\ncontinuation cursor is opaque, binds the presenting principal and\nquery digest, and is re-authorized on every continuation.",
+        "description": "Authorized full-text search over the #873 index projection.\n\nCurrent authorization is re-evaluated for every candidate before any\nrepresentation exists; denied records and records whose access\ncannot be evaluated are omitted. Totals and facets cover the emitted\nauthorized subset only. The continuation cursor binds the presenting\nprincipal, query digest, policy revision and index generation, and\nis re-authorized on every continuation.",
         "operationId": "search_index_query_operations_search_get",
         "parameters": [
           {

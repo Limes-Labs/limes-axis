@@ -235,6 +235,32 @@ def test_out_of_order_delivery_does_not_regress_a_tombstone():
     assert (late.decision, late.next_state) == ("superseded", "tombstoned")
 
 
+@pytest.mark.parametrize(
+    ("incoming_state", "incoming_revision", "current_state"),
+    [
+        ("live", "rev-2", "live"),
+        ("tombstoned", "rev-del", "live"),
+        ("live", "rev-3", "tombstoned"),
+    ],
+)
+def test_applied_updates_never_demote_the_index_generation(
+    incoming_state, incoming_revision, current_state
+):
+    """An incremental writer unaware of a rebuild keeps the newer generation."""
+
+    projection = classify_index_update(
+        current_state=current_state,
+        current_content_revision="rev-1",
+        current_generation=3,
+        incoming_state=incoming_state,
+        incoming_content_revision=incoming_revision,
+        incoming_generation=1,
+        supersedes_current=True,
+    )
+    assert projection.decision == "applied"
+    assert projection.next_generation == 3
+
+
 # --- Repository-backed procedure: projection lifecycle ---
 
 
@@ -299,8 +325,53 @@ def test_uncommitted_mutation_yields_no_projection(repository):
         "tenant-search", "tenant-search::asset-2"
     )
     assert record is None
+    assert projection.reason == "uncommitted_source"
     events = repository.list_audit_events("tenant-search", limit=10)
-    assert any(event.event_type == "search.index.record_tombstoned" for event in events)
+    # A refused input is evidence of a rejection, never of a tombstone.
+    assert any(event.event_type == "search.index.record_rejected" for event in events)
+    assert not any(event.event_type == "search.index.record_tombstoned" for event in events)
+
+
+def test_unindexable_input_is_rejected_without_a_row(repository):
+    for overrides in (
+        {"field_summary": {}},
+        {"field_summary": {"asset_name": ""}},
+        {"field_summary": {"asset_name": "x" * MAX_SEARCHABLE_TEXT_CHARS}},
+        {"language": "klingon"},
+    ):
+        arguments = {
+            "tenant_id": "tenant-search",
+            "promotion_id": "promo-reject",
+            "proposal_id": "proposal-reject",
+            "node_id": "tenant-search::asset-reject",
+            "ontology_type": "axis_asset",
+            "graph_mutation_status": COMMITTED_MUTATION_STATUS,
+            "ontology_mutation_ref": None,
+            "field_summary": {"asset_name": "Rejected"},
+            "content_revision": "rev-1",
+            "policy_revision_ref": "policy-rev-1",
+        } | overrides
+        projection = index_ontology_promotion(repository, **arguments)
+        assert (projection.decision, projection.reason) == ("superseded", "rejected_input")
+    assert (
+        repository.get_search_index_record_for_update(
+            "tenant-search", "tenant-search::asset-reject"
+        )
+        is None
+    )
+    rejected = repository.list_audit_events(
+        "tenant-search", event_type="search.index.record_rejected", limit=100
+    )
+    assert sorted(
+        event.payload.get("error_code")
+        for event in rejected
+        if event.payload.get("promotion_id") == "promo-reject"
+    ) == [
+        "invalid_search_index_record",
+        "invalid_search_index_record",
+        "search_text_too_large",
+        "unsupported_search_language",
+    ]
 
 
 def test_replay_with_same_revision_is_idempotent(repository):
