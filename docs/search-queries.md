@@ -42,10 +42,10 @@ governed API/SDK surface:
    page ≤ 25, locator filter ≤ 120, one opaque cursor ≤ 600 chars; every
    violation is a fixed public-safe code (`search_query_too_large`,
    `search_page_too_large`, …), never an echo of the request.
-4. **Continuations are re-authorized.** The cursor carries the tenant, the
-   presenting searcher reference, the query/filter digest, the effective
-   policy revision, the index generation, the next candidate position
-   (≤ 1 000 000) and an expiry (≤ 15 minutes). Its MAC key is a published
+4. **Continuations are re-authorized.** The cursor binds the tenant, the
+   presenting searcher reference and the query/filter digest (as one digest),
+   the effective policy revision (as a digest), the index generation, a
+   resume position and an expiry (≤ 15 minutes). Its MAC key is a published
    constant, so the MAC detects corruption, not forgery, and the cursor is
    never an authority: every bound field is compared with the presenting
    request. Another principal's cursor or a changed query/filter is rejected
@@ -53,16 +53,25 @@ governed API/SDK surface:
    expires it (`search_cursor_expired`) instead of silently shifting
    results; the scope gate and per-candidate authorization re-run on every
    continuation.
-5. **No repeated or skipped rows.** Candidate positions do not depend on
-   authorization, and the cursor resumes at the next unexamined candidate.
-   Invisible candidates do not shorten a page: the service scans further
-   windows of `page_size + 1` candidates, at most four per request. A cursor
-   is issued only when a further visible hit was seen, or when that scan
-   budget ran out with candidates left. In that case the page is a bounded
-   partial page, possibly empty, and its cursor resumes after every examined
-   candidate. That budget case is the remaining existence signal about
-   invisible candidates: it shows that more than one budget of matching
-   candidates exist, and nothing about any one record.
+5. **No repeated or skipped rows, no hidden-row count in the cursor.**
+   Candidates are paged by keyset on the tenant-unique `source_object_id`,
+   whose order does not depend on authorization. The cursor is readable by
+   its holder, so its resume position is the last hit already emitted to
+   the searcher, never an invisible candidate and never a count of them;
+   the continuation re-examines (and again omits) invisible candidates
+   after that hit. Invisible candidates do not shorten a page: the service
+   scans further windows of `page_size + 1` candidates, at most four per
+   request. A cursor is issued only when a further visible hit was seen, or
+   when that scan budget ran out with candidates left. In that case the
+   page is a bounded partial page, possibly empty; an empty page's cursor
+   keeps its resume hit and adds one whole budget to a `skip` count
+   (≤ 1 000 000), so every request makes progress. That budget case is the
+   remaining existence signal about invisible candidates: it shows that a
+   run of at least one budget minus the page size of matching candidates is
+   invisible to the searcher, and nothing about any one record. Keyset
+   paging also keeps concurrent inserts and tombstones from shifting rows
+   between pages; only the `skip` part of a budget-exhausted cursor is
+   positional.
 6. **Explicit freshness.** Every page carries the index generation and the
    policy revision it was served under. `index_stale` reports an empty
    generation; the service never falls back to unrestricted source queries.
