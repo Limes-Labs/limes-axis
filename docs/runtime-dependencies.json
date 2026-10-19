@@ -1,0 +1,1170 @@
+{
+  "schema_version": 1,
+  "source_revision": "d09efeceb898d5eb3791eb827a6a0d27f7f7699e",
+  "components": [
+    {
+      "id": "api",
+      "owner": "Control API",
+      "packaged_in": [
+        "infra/helm/limes-axis/templates/api-deployment.yaml"
+      ]
+    },
+    {
+      "id": "web",
+      "owner": "Governance console",
+      "packaged_in": [
+        "infra/helm/limes-axis/templates/web-deployment.yaml"
+      ]
+    },
+    {
+      "id": "worker",
+      "owner": "Workflow runtime",
+      "packaged_in": [
+        "infra/helm/limes-axis/templates/worker-deployment.yaml",
+        "infra/docker/docker-compose.yml"
+      ]
+    },
+    {
+      "id": "postgres",
+      "owner": "Operational persistence",
+      "packaged_in": [
+        "infra/docker/docker-compose.yml"
+      ]
+    },
+    {
+      "id": "valkey",
+      "owner": "Rate-limit infrastructure",
+      "packaged_in": [
+        "infra/docker/docker-compose.yml"
+      ]
+    },
+    {
+      "id": "typedb",
+      "owner": "Ontology runtime",
+      "packaged_in": [
+        "infra/docker/docker-compose.yml"
+      ]
+    },
+    {
+      "id": "temporal",
+      "owner": "Workflow infrastructure",
+      "packaged_in": [
+        "infra/docker/docker-compose.yml"
+      ]
+    },
+    {
+      "id": "temporal-ui",
+      "owner": "Workflow operations",
+      "packaged_in": [
+        "infra/docker/docker-compose.yml"
+      ]
+    },
+    {
+      "id": "minio",
+      "owner": "Object storage",
+      "packaged_in": [
+        "infra/docker/docker-compose.yml"
+      ]
+    },
+    {
+      "id": "keycloak",
+      "owner": "Identity infrastructure",
+      "packaged_in": [
+        "infra/docker/docker-compose.yml"
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "id": "control-api",
+      "owner": "Console/API transport",
+      "components": [
+        "web",
+        "api"
+      ],
+      "purpose": "The console reads and mutates through the same tenant-bound control API, including liveness and readiness probes.",
+      "settings": [
+        "AXIS_API_BASE_URL",
+        "NEXT_PUBLIC_AXIS_API_BASE_URL"
+      ],
+      "connections": [
+        {
+          "direction": "browser",
+          "protocol": "https",
+          "ports": [
+            443
+          ],
+          "detail": "Browser-reachable API origin; local development uses port 8000."
+        }
+      ],
+      "local_service": "axis-api",
+      "local_replacement": {
+        "status": "supported",
+        "detail": "Serve the control API inside the deployment. The public web build embeds its API origin; changing only the container environment does not retarget that build."
+      },
+      "failure_behavior": "The console reports an unavailable or degraded API; a successful liveness probe alone is not readiness.",
+      "evidence": [
+        {
+          "path": "apps/web/lib/api-status.ts",
+          "kind": "source"
+        },
+        {
+          "path": "apps/web/lib/axis-api.ts",
+          "kind": "source"
+        },
+        {
+          "path": "docs/development.md",
+          "kind": "documentation"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "required",
+      "condition": ""
+    },
+    {
+      "id": "console-origin",
+      "owner": "Browser session boundary",
+      "components": [
+        "api",
+        "web"
+      ],
+      "purpose": "Public console origin and permitted browser origins constrain login navigation and cross-origin requests. These are not autonomous API dial targets. The host cookie prefix is cookie-scope metadata; AXIS_CSRF_HOST_COOKIE_NAME is a web source constant naming the API-issued readable CSRF cookie, not an environment setting or remote host.",
+      "settings": [
+        "AXIS_PUBLIC_BASE_URL",
+        "AXIS_CORS_ORIGINS",
+        "AXIS_OIDC_SESSION_COOKIE_HOST_PREFIX",
+        "AXIS_CSRF_HOST_COOKIE_NAME"
+      ],
+      "connections": [
+        {
+          "direction": "browser",
+          "protocol": "https",
+          "ports": [
+            443
+          ],
+          "detail": "Browser navigation to the same locally hosted console; development uses port 3000."
+        }
+      ],
+      "local_service": "axis-web",
+      "local_replacement": {
+        "status": "supported",
+        "detail": "Host the console within the boundary and use matching public origins and identity callbacks."
+      },
+      "failure_behavior": "A wrong origin can prevent cross-origin or browser authentication flows; no alternate origin is admitted by this inventory.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/settings/runtime.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/src/axis_api/oidc_code_flow.py",
+          "kind": "source"
+        },
+        {
+          "path": "apps/web/lib/session-csrf.ts",
+          "kind": "source"
+        },
+        {
+          "path": "apps/web/lib/session-csrf.test.ts",
+          "kind": "test"
+        },
+        {
+          "path": "docs/development.md",
+          "kind": "documentation"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "required",
+      "condition": ""
+    },
+    {
+      "id": "operational-database",
+      "owner": "Operational persistence",
+      "components": [
+        "api",
+        "worker",
+        "postgres",
+        "temporal"
+      ],
+      "purpose": "Persist tenant-owned operational state and audit evidence. The packaged Temporal service also uses PostgreSQL.",
+      "settings": [
+        "AXIS_POSTGRES_DSN"
+      ],
+      "connections": [
+        {
+          "direction": "outbound",
+          "protocol": "postgresql",
+          "ports": [
+            5432
+          ],
+          "detail": "Control-plane database and separately configured Temporal database schemas."
+        }
+      ],
+      "local_service": "postgres",
+      "local_replacement": {
+        "status": "supported",
+        "detail": "Use an operator-managed local PostgreSQL deployment. SQLite fixtures are not a production PostgreSQL substitute."
+      },
+      "failure_behavior": "Database-dependent requests, writes and workflow persistence cannot be assumed available. Backup and restore procedures remain separate evidence.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/db.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/src/axis_api/settings/persistence.py",
+          "kind": "source"
+        },
+        {
+          "path": "infra/docker/docker-compose.yml",
+          "kind": "source"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "required",
+      "condition": ""
+    },
+    {
+      "id": "distributed-rate-limit",
+      "owner": "Policy admission",
+      "components": [
+        "api",
+        "valkey"
+      ],
+      "purpose": "Share rate-limit admission across API processes through a Redis-compatible service.",
+      "settings": [
+        "AXIS_REDIS_URL"
+      ],
+      "connections": [
+        {
+          "direction": "outbound",
+          "protocol": "redis",
+          "ports": [
+            6379
+          ],
+          "detail": "TLS and service port follow the selected Redis-compatible deployment."
+        }
+      ],
+      "local_service": "valkey",
+      "local_replacement": {
+        "status": "supported",
+        "detail": "Use local Redis or the packaged Valkey service. Production validation requires the Redis backend and closed failure mode."
+      },
+      "failure_behavior": "With the required production closed failure mode, unavailable admission storage rejects requests rather than falling back to an uncoordinated counter.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/config.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/src/axis_api/settings/policy.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/tests/test_rate_limit.py",
+          "kind": "test"
+        },
+        {
+          "path": "infra/docker/docker-compose.yml",
+          "kind": "source"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "conditional",
+      "condition": "Required for production; optional only where the existing configuration permits an in-memory development backend."
+    },
+    {
+      "id": "ontology-store",
+      "owner": "Ontology ports",
+      "components": [
+        "api",
+        "typedb"
+      ],
+      "purpose": "Back separately enabled TypeDB ontology queries and mutations.",
+      "settings": [
+        "AXIS_TYPEDB_ADDRESS"
+      ],
+      "connections": [
+        {
+          "direction": "outbound",
+          "protocol": "grpc",
+          "ports": [
+            1729
+          ],
+          "detail": "The packaged service also exposes a separate HTTP interface on container port 8000."
+        }
+      ],
+      "local_service": "typedb",
+      "local_replacement": {
+        "status": "conditional",
+        "detail": "Use local TypeDB for live graph operations. The Postgres reference graph is a limited reference path, not feature parity."
+      },
+      "failure_behavior": "Live TypeDB-dependent operations cannot complete when unavailable. Disabling those features is an explicit capability omission.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/settings/persistence.py",
+          "kind": "source"
+        },
+        {
+          "path": "docs/architecture.md",
+          "kind": "documentation"
+        },
+        {
+          "path": "infra/docker/docker-compose.yml",
+          "kind": "source"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "conditional",
+      "condition": "Enabled ontology query or mutation runtime; omit only with both capabilities disabled."
+    },
+    {
+      "id": "workflow-engine",
+      "owner": "Temporal adapter",
+      "components": [
+        "api",
+        "worker",
+        "temporal",
+        "temporal-ui"
+      ],
+      "purpose": "Execute workflows, register schedules and deliver governed workflow signals.",
+      "settings": [
+        "AXIS_TEMPORAL_ADDRESS"
+      ],
+      "connections": [
+        {
+          "direction": "outbound",
+          "protocol": "grpc",
+          "ports": [
+            7233
+          ],
+          "detail": "API and worker connect through their existing Temporal ports."
+        }
+      ],
+      "local_service": "temporal",
+      "local_replacement": {
+        "status": "supported",
+        "detail": "Run Temporal locally. The worker connects even when maintenance schedules are paused."
+      },
+      "failure_behavior": "The worker cannot poll or register schedules without Temporal. Signal/outbox behavior follows the existing adapter and retry ownership.",
+      "evidence": [
+        {
+          "path": "services/worker/src/axis_worker/runtime.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/src/axis_api/workflow_runtime.py",
+          "kind": "source"
+        },
+        {
+          "path": "infra/docker/docker-compose.yml",
+          "kind": "source"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "required",
+      "condition": ""
+    },
+    {
+      "id": "identity-validation",
+      "owner": "Identity and token validation",
+      "components": [
+        "api",
+        "keycloak"
+      ],
+      "purpose": "Validate the configured issuer and obtain signing keys from the configured or derived JWKS endpoint.",
+      "settings": [
+        "AXIS_OIDC_ISSUER",
+        "AXIS_OIDC_JWKS_URL"
+      ],
+      "connections": [
+        {
+          "direction": "outbound",
+          "protocol": "https",
+          "ports": [
+            443
+          ],
+          "detail": "Issuer/JWKS service inside the deployment; the development Keycloak uses port 8080."
+        }
+      ],
+      "local_service": "identity",
+      "local_replacement": {
+        "status": "conditional",
+        "detail": "Use a local supported OIDC provider and its local JWKS endpoint. Cached keys do not remove future key refresh dependencies."
+      },
+      "failure_behavior": "Unknown or unverifiable signing keys cannot establish identity. Key cache lifetime and provider failure behavior need runtime acceptance tests.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/identity.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/src/axis_api/settings/identity.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/tests/test_identity.py",
+          "kind": "test"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "required",
+      "condition": ""
+    },
+    {
+      "id": "identity-token-exchange",
+      "owner": "OIDC authorization-code and refresh flow",
+      "components": [
+        "api",
+        "keycloak"
+      ],
+      "purpose": "Exchange authorization codes and refresh tokens through the configured identity token endpoint.",
+      "settings": [
+        "AXIS_OIDC_TOKEN_URL"
+      ],
+      "connections": [
+        {
+          "direction": "outbound",
+          "protocol": "https",
+          "ports": [
+            443
+          ],
+          "detail": "Back-channel token exchange; client credentials remain in existing secret handling."
+        }
+      ],
+      "local_service": "identity",
+      "local_replacement": {
+        "status": "conditional",
+        "detail": "Provide a local token endpoint. Moving only JWKS locally does not make login and refresh independent of the provider."
+      },
+      "failure_behavior": "Login or refresh fails when token exchange cannot complete. The inventory grants no cached-authentication bypass.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/oidc_code_flow.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/src/axis_api/identity_session.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/tests/test_oidc_session_lifecycle.py",
+          "kind": "test"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "conditional",
+      "condition": "Browser login or refresh flow is enabled."
+    },
+    {
+      "id": "identity-browser-navigation",
+      "owner": "OIDC browser flow",
+      "components": [
+        "web",
+        "api",
+        "keycloak"
+      ],
+      "purpose": "Record identity redirects separately from API-to-provider network calls.",
+      "settings": [
+        "AXIS_OIDC_AUTHORIZATION_URL",
+        "AXIS_OIDC_REDIRECT_URI",
+        "AXIS_OIDC_END_SESSION_URL",
+        "AXIS_OIDC_POST_LOGOUT_REDIRECT_URI"
+      ],
+      "connections": [
+        {
+          "direction": "browser",
+          "protocol": "https",
+          "ports": [
+            443
+          ],
+          "detail": "Authorization, callback and logout navigation must all remain browser-reachable inside the boundary."
+        }
+      ],
+      "local_service": "identity",
+      "local_replacement": {
+        "status": "conditional",
+        "detail": "Use local provider, API callback and console logout origins; keep the existing exact callback and cookie controls."
+      },
+      "failure_behavior": "A remote or unavailable navigation target interrupts browser login/logout even when the API is locally hosted.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/oidc_code_flow.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/src/axis_api/settings/identity.py",
+          "kind": "source"
+        },
+        {
+          "path": "docs/development.md",
+          "kind": "documentation"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "conditional",
+      "condition": "Browser authentication and provider logout paths are configured."
+    },
+    {
+      "id": "artifact-object-store",
+      "owner": "Canonical payload and artifact storage",
+      "components": [
+        "api",
+        "worker",
+        "minio"
+      ],
+      "purpose": "Store source envelopes and export artifacts behind the existing object-store adapter.",
+      "settings": [
+        "AXIS_CONNECTOR_EXPORT_S3_ENDPOINT"
+      ],
+      "connections": [
+        {
+          "direction": "outbound",
+          "protocol": "https",
+          "ports": [
+            443,
+            9000
+          ],
+          "detail": "A configured S3-compatible artifact endpoint; not the input source endpoint."
+        }
+      ],
+      "local_service": "object-store",
+      "local_replacement": {
+        "status": "supported",
+        "detail": "Use local MinIO for shared S3-compatible storage. Local filesystem mode is a distinct single-host option, not WORM or multi-node parity."
+      },
+      "failure_behavior": "Object-store-dependent extraction or export cannot complete if payload writes/reads fail. Durable acceptance remains with existing ingestion owners.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/object_storage.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/src/axis_api/settings/persistence.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/tests/test_object_storage.py",
+          "kind": "test"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "conditional",
+      "condition": "S3 artifact adapter selected; local filesystem does not require this network connection."
+    },
+    {
+      "id": "s3-input",
+      "owner": "S3 source ingestion",
+      "components": [
+        "api",
+        "worker"
+      ],
+      "purpose": "Read an approved input bucket through deployment-owned profiles and lease-scoped credentials.",
+      "settings": [
+        "AXIS_S3_SOURCE_PROFILES",
+        "model:S3SourceProfile.endpoint",
+        "model:S3SourceProfile.private_endpoint_ref",
+        "model:S3SourceProfile.credential_secret_ref"
+      ],
+      "connections": [
+        {
+          "direction": "outbound",
+          "protocol": "https",
+          "ports": [
+            443,
+            9000
+          ],
+          "detail": "Actual profile endpoint; private endpoint and credential fields are references, not extra dial permission."
+        }
+      ],
+      "local_service": "source-object-store",
+      "local_replacement": {
+        "status": "conditional",
+        "detail": "Use a local approved S3-compatible source. Only explicitly allowed loopback fixtures permit insecure HTTP; real profiles retain TLS."
+      },
+      "failure_behavior": "Unavailable or denied sources do not authorize checkpoint advancement. Lease, egress and ingestion dispatch gates remain authoritative.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/s3_source_profile.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/src/axis_api/connector_s3_ingestion.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/tests/test_connector_s3_source.py",
+          "kind": "test"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "conditional",
+      "condition": "S3 source ingestion explicitly enabled with approved source profiles."
+    },
+    {
+      "id": "external-database-source",
+      "owner": "Governed database connector",
+      "components": [
+        "api",
+        "worker"
+      ],
+      "purpose": "Read the selected external PostgreSQL source through the existing lease and runtime egress boundary.",
+      "settings": [
+        "AXIS_EXTERNAL_DB_LIVE_QUERY_DSN",
+        "AXIS_EXTERNAL_DB_LIVE_QUERY_PRIVATE_ENDPOINT_REF",
+        "AXIS_EXTERNAL_DB_LIVE_QUERY_ENDPOINT_TARGET_SHA256"
+      ],
+      "connections": [
+        {
+          "direction": "outbound",
+          "protocol": "postgresql",
+          "ports": [
+            5432
+          ],
+          "detail": "DSN identifies the source; endpoint reference and digest are evidence, not credentials or new targets."
+        }
+      ],
+      "local_service": "source-postgres",
+      "local_replacement": {
+        "status": "conditional",
+        "detail": "Use an approved local read-only source and existing supported material resolver. An unsupported secret provider is not silently replaced."
+      },
+      "failure_behavior": "Denied or unavailable source access cannot be treated as successful ingestion. Checkpoint and retry authority remain in the ingestion host.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/settings/connectors.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/src/axis_api/connector_source_extraction.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/tests/test_connector_source_extraction.py",
+          "kind": "test"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "conditional",
+      "condition": "Live discovery or extraction enabled with an approved source and execution context."
+    },
+    {
+      "id": "model-inference",
+      "owner": "Governed model routing",
+      "components": [
+        "api"
+      ],
+      "purpose": "Execute model requests using the registered endpoint and configured allowlist, not arbitrary URLs from prompts.",
+      "settings": [
+        "AXIS_MODEL_INVOCATION_ALLOWED_BASE_URLS"
+      ],
+      "connections": [
+        {
+          "direction": "outbound",
+          "protocol": "https",
+          "ports": [],
+          "detail": "Port is selected by the approved local model deployment. The allowlist is not the endpoint registry."
+        }
+      ],
+      "local_service": "model-inference",
+      "local_replacement": {
+        "status": "conditional",
+        "detail": "Serve a compatible model inside the boundary and preload weights before runtime. A local URL by itself is not provider conformance evidence."
+      },
+      "failure_behavior": "Disabled, denied, unsupported or unavailable providers cannot produce a verified model result. No automatic public-provider fallback is introduced.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/model_endpoints.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/src/axis_api/model_providers.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/src/axis_api/settings/models.py",
+          "kind": "source"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "conditional",
+      "condition": "Model routing execution is enabled and a compatible endpoint is registered."
+    },
+    {
+      "id": "telemetry-export",
+      "owner": "Observability runtime",
+      "components": [
+        "api",
+        "worker"
+      ],
+      "purpose": "Export optional OTLP HTTP traces and metrics.",
+      "settings": [
+        "AXIS_OTEL_EXPORTER_OTLP_ENDPOINT"
+      ],
+      "connections": [
+        {
+          "direction": "outbound",
+          "protocol": "http",
+          "ports": [
+            4318
+          ],
+          "detail": "Collector endpoint inside the deployment; downstream collector exporters require their own local configuration."
+        }
+      ],
+      "local_service": "otel-collector",
+      "local_replacement": {
+        "status": "supported",
+        "detail": "Disable export or use an operator-provided local collector. The Compose collector block is commented, not an active packaged service."
+      },
+      "failure_behavior": "Telemetry delivery can be lost or delayed when the collector is unavailable; application availability is not proof that export succeeded.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/telemetry.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/src/axis_api/settings/observability.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/worker/src/axis_worker/telemetry.py",
+          "kind": "source"
+        },
+        {
+          "path": "infra/docker/docker-compose.yml",
+          "kind": "source"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "optional",
+      "condition": ""
+    },
+    {
+      "id": "static-assets",
+      "owner": "Governance console build",
+      "components": [
+        "web"
+      ],
+      "purpose": "Serve application assets and package-supplied Geist fonts from the built console.",
+      "settings": [],
+      "connections": [],
+      "local_service": "web-assets",
+      "local_replacement": {
+        "status": "supported",
+        "detail": "Include static assets and font files in the web artifact. The inspected layout imports package fonts, not a remote font stylesheet."
+      },
+      "failure_behavior": "Missing build assets break rendering or typography. Layout inspection alone does not certify every browser request.",
+      "evidence": [
+        {
+          "path": "apps/web/app/layout.tsx",
+          "kind": "source"
+        },
+        {
+          "path": "docs/development.md",
+          "kind": "documentation"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "required",
+      "condition": ""
+    },
+    {
+      "id": "operator-diagnostics",
+      "owner": "Operational support",
+      "components": [
+        "api",
+        "web",
+        "temporal-ui",
+        "minio",
+        "keycloak"
+      ],
+      "purpose": "Keep operator runbooks, status links and infrastructure consoles distinct from automatic support uploads.",
+      "settings": [
+        "AXIS_SUPPORT_CUSTOMER_RUNBOOK_URL",
+        "AXIS_SUPPORT_STATUS_PAGE_URL"
+      ],
+      "connections": [
+        {
+          "direction": "browser",
+          "protocol": "https",
+          "ports": [
+            443,
+            8088,
+            9001,
+            8080
+          ],
+          "detail": "Operator navigation; development consoles use the listed non-production ports."
+        }
+      ],
+      "local_service": "operator-docs",
+      "local_replacement": {
+        "status": "supported",
+        "detail": "Publish local runbooks/status pages and restrict infrastructure consoles. No remote support upload is implied by a configured link."
+      },
+      "failure_behavior": "Unavailable links or consoles remove diagnostic visibility; they do not establish or revoke application authority.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/settings/runtime.py",
+          "kind": "source"
+        },
+        {
+          "path": "infra/docker/docker-compose.yml",
+          "kind": "source"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "optional",
+      "condition": ""
+    },
+    {
+      "id": "dns",
+      "owner": "Deployment network",
+      "components": [
+        "api",
+        "web",
+        "worker",
+        "postgres",
+        "valkey",
+        "typedb",
+        "temporal",
+        "temporal-ui",
+        "minio",
+        "keycloak"
+      ],
+      "purpose": "Resolve approved logical services inside the deployment.",
+      "settings": [],
+      "connections": [
+        {
+          "direction": "host",
+          "protocol": "dns",
+          "ports": [
+            53
+          ],
+          "detail": "Local resolver over UDP and TCP; external forwarding must be explicitly reviewed."
+        }
+      ],
+      "local_service": "local-dns",
+      "local_replacement": {
+        "status": "conditional",
+        "detail": "Provide local service discovery and review resolver forwarding. Network policy enforcement belongs to the later zero-egress slice."
+      },
+      "failure_behavior": "Name-based connections may fail or resolve incorrectly when service discovery is unavailable. Inventory checks never resolve names.",
+      "evidence": [
+        {
+          "path": "infra/helm/limes-axis/templates/networkpolicy.yaml",
+          "kind": "source"
+        },
+        {
+          "path": "infra/docker/docker-compose.yml",
+          "kind": "source"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "required",
+      "condition": ""
+    },
+    {
+      "id": "clock",
+      "owner": "Host operations",
+      "components": [
+        "api",
+        "worker",
+        "keycloak",
+        "temporal"
+      ],
+      "purpose": "Maintain time used for tokens, leases, certificate validity and workflow scheduling.",
+      "settings": [],
+      "connections": [
+        {
+          "direction": "host",
+          "protocol": "ntp",
+          "ports": [
+            123
+          ],
+          "detail": "Host-owned time source, not an Axis-created client. A trusted offline clock is also an operator option."
+        }
+      ],
+      "local_service": "local-time",
+      "local_replacement": {
+        "status": "conditional",
+        "detail": "Use a trusted local time source or controlled offline clock procedure. Axis has no separate time configuration authority."
+      },
+      "failure_behavior": "Clock drift can invalidate identity, lease and scheduling assumptions. No automatic public-time dependency is asserted from source inventory alone.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/identity.py",
+          "kind": "source"
+        },
+        {
+          "path": "services/api/src/axis_api/connector_credential_leases.py",
+          "kind": "source"
+        },
+        {
+          "path": "docs/development.md",
+          "kind": "documentation"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "required",
+      "condition": ""
+    },
+    {
+      "id": "pki",
+      "owner": "Deployment trust material",
+      "components": [
+        "api",
+        "web",
+        "worker",
+        "keycloak"
+      ],
+      "purpose": "Supply certificate trust and renewal material for local TLS endpoints.",
+      "settings": [],
+      "connections": [
+        {
+          "direction": "host",
+          "protocol": "tls",
+          "ports": [
+            443
+          ],
+          "detail": "Any certificate issuance, renewal or revocation traffic is deployment-owned and must be reviewed separately."
+        }
+      ],
+      "local_service": "local-pki",
+      "local_replacement": {
+        "status": "conditional",
+        "detail": "Distribute a local CA trust bundle and offline or local renewal procedure. The shipped development Keycloak is not a production TLS profile."
+      },
+      "failure_behavior": "Missing or expired trust material can prevent TLS communication. Disabling certificate verification is not a local replacement.",
+      "evidence": [
+        {
+          "path": "infra/helm/limes-axis/templates/ingress.yaml",
+          "kind": "source"
+        },
+        {
+          "path": "infra/docker/docker-compose.yml",
+          "kind": "source"
+        },
+        {
+          "path": "docs/development.md",
+          "kind": "documentation"
+        }
+      ],
+      "phases": [
+        "runtime"
+      ],
+      "requirement": "required",
+      "condition": ""
+    },
+    {
+      "id": "software-distribution",
+      "owner": "Release engineering",
+      "components": [
+        "api",
+        "web",
+        "worker",
+        "postgres",
+        "valkey",
+        "typedb",
+        "temporal",
+        "temporal-ui",
+        "minio",
+        "keycloak"
+      ],
+      "purpose": "Acquire locked packages, container images and tooling before runtime.",
+      "settings": [],
+      "connections": [
+        {
+          "direction": "outbound",
+          "protocol": "package-registry",
+          "ports": [
+            443
+          ],
+          "detail": "Package registry or reviewed mirror during build/install/upgrade."
+        },
+        {
+          "direction": "outbound",
+          "protocol": "oci",
+          "ports": [
+            443
+          ],
+          "detail": "Container registry or preloaded release artifacts, not normal application traffic."
+        }
+      ],
+      "local_service": "artifact-mirror",
+      "local_replacement": {
+        "status": "conditional",
+        "detail": "Prepare and verify artifacts before disconnecting. Production of the complete offline bundle belongs to issue 474."
+      },
+      "failure_behavior": "A disconnected installation or upgrade fails if an artifact is missing; successful runtime inventory does not prove installability.",
+      "evidence": [
+        {
+          "path": "services/api/pyproject.toml",
+          "kind": "source"
+        },
+        {
+          "path": "docs/development.md",
+          "kind": "documentation"
+        },
+        {
+          "path": "infra/docker/docker-compose.yml",
+          "kind": "source"
+        }
+      ],
+      "phases": [
+        "build",
+        "install",
+        "upgrade"
+      ],
+      "requirement": "required",
+      "condition": ""
+    },
+    {
+      "id": "model-artifacts",
+      "owner": "Model deployment owner",
+      "components": [
+        "api"
+      ],
+      "purpose": "Acquire compatible inference weights and provider dependencies before starting a local model service.",
+      "settings": [],
+      "connections": [
+        {
+          "direction": "outbound",
+          "protocol": "https",
+          "ports": [
+            443
+          ],
+          "detail": "Only build/install/upgrade acquisition; no runtime model download is authorized."
+        }
+      ],
+      "local_service": "model-artifact-mirror",
+      "local_replacement": {
+        "status": "unsupported",
+        "detail": "Preload reviewed model artifacts in the inference deployment. Axis does not ship a verified universal model bundle."
+      },
+      "failure_behavior": "A provider missing required weights cannot serve inference; inventory alone cannot mark it ready.",
+      "evidence": [
+        {
+          "path": "services/api/src/axis_api/model_providers.py",
+          "kind": "source"
+        },
+        {
+          "path": "docs/architecture.md",
+          "kind": "documentation"
+        }
+      ],
+      "phases": [
+        "build",
+        "install",
+        "upgrade"
+      ],
+      "requirement": "conditional",
+      "condition": "A local model provider is part of the selected capability profile."
+    }
+  ],
+  "baseline_topology": [
+    {
+      "path": "infra/docker/docker-compose.yml",
+      "git_blob": "066d34e76411c3f0dc0c9dc13249521b51dcc2bd"
+    },
+    {
+      "path": "infra/helm/limes-axis/Chart.yaml",
+      "git_blob": "6450c0e7c5695c4f378083e892134b58effa4585"
+    },
+    {
+      "path": "infra/helm/limes-axis/templates/_helpers.tpl",
+      "git_blob": "526397d3a5960a2312427e6e3761c52b20a29f83"
+    },
+    {
+      "path": "infra/helm/limes-axis/templates/api-deployment.yaml",
+      "git_blob": "3385ce302e45d7fc3f3368b9a1bbf17cea4e9fe7"
+    },
+    {
+      "path": "infra/helm/limes-axis/templates/api-service.yaml",
+      "git_blob": "70c5fb300f8b1489c51afb96e56c8cdb9dd9e0b3"
+    },
+    {
+      "path": "infra/helm/limes-axis/templates/configmap.yaml",
+      "git_blob": "b242953cf59c14de92cb9f26d5faf7a7e5b7b30e"
+    },
+    {
+      "path": "infra/helm/limes-axis/templates/externalsecret.yaml",
+      "git_blob": "09c60ad1cbd9fcc0afdfcac4912d0bcd90cb5136"
+    },
+    {
+      "path": "infra/helm/limes-axis/templates/hpa.yaml",
+      "git_blob": "3ffd02e33cbc0111d592d37075ddf117972dd4a2"
+    },
+    {
+      "path": "infra/helm/limes-axis/templates/ingress.yaml",
+      "git_blob": "e032e6ad4103f39e3ca09ef42d19472159168953"
+    },
+    {
+      "path": "infra/helm/limes-axis/templates/networkpolicy.yaml",
+      "git_blob": "c1f54fedeb1c7818f5d828fa959f713ce8f6d2c8"
+    },
+    {
+      "path": "infra/helm/limes-axis/templates/poddisruptionbudget.yaml",
+      "git_blob": "a95f7a191beb2bc4f23295cda2f46b6ecd343ae9"
+    },
+    {
+      "path": "infra/helm/limes-axis/templates/secret-example.yaml",
+      "git_blob": "3f7ef22a4797f4e7131d94f0102c9ef61c34d362"
+    },
+    {
+      "path": "infra/helm/limes-axis/templates/serviceaccount.yaml",
+      "git_blob": "840c07358a3cb37e981fd04322329da1546eab4a"
+    },
+    {
+      "path": "infra/helm/limes-axis/templates/tests/smoke-test.yaml",
+      "git_blob": "ee10754d59d3a63fe7364eaeb9210bf9f878abb2"
+    },
+    {
+      "path": "infra/helm/limes-axis/templates/web-deployment.yaml",
+      "git_blob": "aa3a536df5be2557cf6fe5114ab91091c85a9056"
+    },
+    {
+      "path": "infra/helm/limes-axis/templates/web-service.yaml",
+      "git_blob": "d39e38f066e8621189e4e8478ee6ae73d09c2f79"
+    },
+    {
+      "path": "infra/helm/limes-axis/templates/worker-deployment.yaml",
+      "git_blob": "1fa78dff7fe2176d2485ed77d22dda4c828a386f"
+    }
+  ]
+}

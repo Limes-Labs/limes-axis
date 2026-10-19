@@ -29,6 +29,17 @@ release-bound behavior, not the complete commit history.
   resolved egress target, readiness and request bounds before any I/O
   ([#510](https://github.com/Limes-Labs/limes-axis/issues/510)).
 
+- REST collection ingestion through the existing source-ingestion outbox: one
+  governed page per fenced attempt, protocol negotiation before any client,
+  per-attempt revalidation of the active binding, declared observation, lease
+  and egress policy, deterministic payload keys with a compare-and-swap
+  checkpoint commit, bounded `Retry-After` scheduling instead of in-worker
+  sleeps, and terminal handling of repeated cursors, truncated pages and
+  completed traversals. Default-off behind `AXIS_REST_SOURCE_INGESTION_ENABLED`
+  with profiles in `AXIS_REST_SOURCE_PROFILES`; no second outbox, scheduler,
+  checkpoint database or secret store
+  ([#861](https://github.com/Limes-Labs/limes-axis/issues/861)).
+
 - Bounded host-owned REST page reads over the approved source profiles: GET-only
   transport pinned to the egress-approved origin, no-follow redirects with
   same-origin pagination validation, streaming wire/decoded-byte caps and
@@ -43,6 +54,11 @@ release-bound behavior, not the complete commit history.
   permission evidence into the document observation contract with fixed safe setup
   states, shortcut pointers that are never fetched, and no content download
   ([#866](https://github.com/Limes-Labs/limes-axis/issues/866)).
+
+- Versioned static dependency inventory with local options, reasoned capability
+  omissions, configuration-reference checks and a generated operator matrix.
+  This does not enable adapters, enforce zero egress or certify an offline bundle
+  ([#869](https://github.com/Limes-Labs/limes-axis/issues/869)).
 
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
