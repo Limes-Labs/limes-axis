@@ -21,7 +21,6 @@ import { PolicyRevisionCompare } from "@/components/policy-revision-compare";
 import {
   buildPlatformPolicyDetailPath,
   fetchPlatformPolicyDetail,
-  platformPolicyPrecedenceSteps,
   policyEffectClass,
   policyEffectLabel,
   policyScopeLabel,
@@ -413,12 +412,15 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
           </section>
 
           <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-            <p className="eyebrow m-0">Evaluation Precedence</p>
+            <p className="eyebrow m-0">{strings.policyDetail.precedence.eyebrow}</p>
             <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
-              Deterministic decision order
+              {strings.policyDetail.precedence.title}
             </h2>
             <div className="grid min-w-0 gap-2.5">
-              {platformPolicyPrecedenceSteps.map((step) => (
+              {[
+                ...strings.policyDetail.precedence.steps,
+                strings.policyDetail.precedence.defaultAllowTitle,
+              ].map((step) => (
                 <p
                   className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words"
                   key={step}

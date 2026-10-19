@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { RotateCcw, ScrollText, ShieldCheck } from "lucide-react";
+import { RotateCcw, ScrollText, ShieldCheck, TriangleAlert } from "lucide-react";
 
 import { DataTable } from "@/components/ui/data-table";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -15,7 +15,6 @@ import {
   allPolicyFilter,
   buildPlatformPoliciesPath,
   countPoliciesByEffect,
-  platformPolicyPrecedenceSteps,
   platformPolicyScopes,
   platformPolicyStatuses,
   policyEffectClass,
@@ -350,14 +349,33 @@ export function PolicyRegistry() {
         </section>
       )}
 
+      {/* The default outcome is easy to miss and has the largest blast
+          radius, so it gets its own callout instead of a footnote. */}
+      <aside
+        aria-label={strings.policyDetail.precedence.defaultAllowTitle}
+        className="flex min-w-0 items-start gap-3 rounded-2xl border border-warning/40 bg-warning/8 p-4 dark:border-warning/40 dark:bg-warning/10"
+        data-default-allow-callout
+      >
+        <TriangleAlert aria-hidden="true" className="mt-0.5 shrink-0 text-warning" size={18} />
+        <div className="grid min-w-0 gap-1">
+          <p className="m-0 font-medium text-ink">{strings.policyDetail.precedence.defaultAllowTitle}</p>
+          <p className="m-0 text-sm leading-snug text-muted">
+            {strings.policyDetail.precedence.defaultAllowDetail}
+          </p>
+        </div>
+      </aside>
+
       <Disclosure title={strings.clarity.createPolicy}>
         <PolicyCreateForm tenantId={registry.tenant_id} />
       </Disclosure>
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-        <p className="eyebrow m-0">Evaluation Precedence</p>
+        <p className="eyebrow m-0">{strings.policyDetail.precedence.eyebrow}</p>
+        <h2 className="font-display mx-0 mt-1 mb-3 text-xl text-ink">
+          {strings.policyDetail.precedence.title}
+        </h2>
         <div className="grid min-w-0 gap-2.5">
-          {platformPolicyPrecedenceSteps.map((step) => (
+          {strings.policyDetail.precedence.steps.map((step) => (
             <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={step}>
               {step}
             </p>

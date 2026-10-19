@@ -126,7 +126,7 @@ test.describe("Axis live story: governed source ingestion", () => {
 
     const validationOnly = page.getByTestId("source-ingestion-validation-note");
     await expect(validationOnly).toContainText("Validation stage only.");
-    await expect(validationOnly).toContainText("No source is dialed and no rows are read");
+    await expect(validationOnly).toContainText("does not connect to the source and reads or stores no rows");
 
     // Honest eligibility: our freshly activated table is eligible; nothing
     // here is invented by the console.
@@ -258,7 +258,7 @@ test.describe("Axis live story: governed source ingestion", () => {
       name: new RegExp(resourceName.replace(/\./g, "\\.")),
     });
     await expect(staleRow).toBeVisible({ timeout: 15_000 });
-    await expect(staleRow.getByText("Stale fingerprint")).toBeVisible();
+    await expect(staleRow.getByText("Columns changed")).toBeVisible();
     // Stale rows offer no selection control to submit.
     await expect(
       page.getByRole("checkbox", { name: `Select: ${resourceName}` }),

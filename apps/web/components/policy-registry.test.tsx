@@ -58,6 +58,22 @@ describe("PolicyRegistry tenant scope", () => {
     expect(screen.getByRole("heading", { name: "No policies match the current filters" })).toBeInTheDocument();
   });
 
+  it("calls out the default-allow outcome and explains precedence in plain words", () => {
+    render(<PolicyRegistry />);
+
+    const callout = screen.getByRole("complementary", {
+      name: "If no policy matches, actions are allowed by default.",
+    });
+    expect(callout).toHaveAttribute("data-default-allow-callout");
+    expect(callout).toHaveTextContent(/blocks or requires approval/);
+    expect(screen.getByRole("heading", { name: "Which policy wins" })).toBeInTheDocument();
+    // Engineering wording stays out of the operator copy.
+    const text = document.body.textContent ?? "";
+    expect(text).not.toMatch(/lexicographically|require_approval|allow_with_evidence|default allow/);
+    // The tenant id stays in a tooltip rather than the sentence.
+    expect(screen.getByText("this tenant")).toHaveAttribute("title", "tenant_acme");
+  });
+
   it("fails closed when identity is unavailable", () => {
     mocks.tenantScope.identity.source = "unavailable";
     mocks.tenantScope.tenantId = null;

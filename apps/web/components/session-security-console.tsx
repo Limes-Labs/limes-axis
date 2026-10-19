@@ -44,7 +44,7 @@ function revokeOperatorError(caught: unknown): AxisOperatorError {
   if (failure.status === 403) {
     return {
       ...failure,
-      message: "Axis denied the revocation. Managing other actors' sessions requires identity:sessions:admin.",
+      message: strings.settings.revokeDenied,
     };
   }
   if (failure.status === 404) {

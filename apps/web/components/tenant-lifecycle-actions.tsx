@@ -184,9 +184,11 @@ export function TenantLifecycleActions({ tenant }: { tenant: TenantRecord }) {
           <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
             {isActive ? suspendCopy.title : isSuspended ? "Reactivate tenant" : "No actions available"}
           </h2>
-          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            Lifecycle transitions require the {platformTenantSuspendScope} scope and append audit
-            evidence. Operators without the scope receive an inline 403.
+          <p
+            className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words"
+            title={platformTenantSuspendScope}
+          >
+            {strings.tenantLifecycle.permissionNote}
           </p>
         </div>
         {isActive ? <PauseCircle size={18} /> : <PlayCircle size={18} />}

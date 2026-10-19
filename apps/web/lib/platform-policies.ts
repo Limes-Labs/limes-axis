@@ -145,12 +145,6 @@ export const platformPoliciesPath = "/platform/policies";
 
 export const platformPolicyEvaluatePath = "/platform/policies/evaluate";
 
-export const platformPolicyPrecedenceSteps = [
-  "deny beats require_approval, which beats allow_with_evidence.",
-  "Ties on effect are broken by the lexicographically smallest policy id.",
-  "When no active policy matches the context, the decision is default allow.",
-];
-
 export function buildPlatformPoliciesPath(
   filters: PlatformPolicyRegistryFilters,
   tenantId?: string,
