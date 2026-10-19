@@ -6,6 +6,7 @@ import { Database } from "lucide-react";
 
 import { ConsolePage } from "@/components/console-page";
 import { InspectDrawer } from "@/components/ui/inspect-drawer";
+import { Disclosure } from "@/components/ui/disclosure";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { enumUrlField, useConsoleUrlState } from "@/lib/console-url-state";
@@ -158,10 +159,9 @@ function CheckList({
                   {action.label}
                 </Link>
               ) : null}
-              <details className="text-xs text-muted">
-                <summary className="min-h-6 w-fit cursor-pointer">{strings.states.technicalDetails}</summary>
-                <p className="mt-2 font-mono leading-snug break-words">{check.detail}</p>
-              </details>
+              <Disclosure className="text-xs text-muted" size="sm" title={strings.states.technicalDetails} variant="plain">
+                <p className="m-0 font-mono leading-snug break-words">{check.detail}</p>
+              </Disclosure>
             </div>
             <SettingsStatusPill status={check.status} />
           </div>

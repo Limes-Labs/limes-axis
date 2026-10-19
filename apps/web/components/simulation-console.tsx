@@ -4,6 +4,7 @@ import { FileText, GitBranch, History, ShieldCheck } from "lucide-react";
 
 import { RunReplayForm } from "@/components/simulation/run-replay-form";
 import { SourcePill } from "@/components/ui/source-pill";
+import { StatCard } from "@/components/ui/stat-card";
 import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import {
   formatContextPath,
@@ -157,18 +158,19 @@ export function SimulationConsole() {
         </div>
       </div>
 
-      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0" role="list">
         {simulationData.metrics.map((metric) => (
-          <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]" key={metric.label}>
-            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
-              <p className="eyebrow m-0">{metric.label}</p>
+          <StatCard
+            aside={
               <span className={`status-pill ${platformStatusClass(metric.status)}`}>
                 {platformStatusLabel(metric.status)}
               </span>
-            </div>
-            <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{metric.value}</p>
-            <p className="m-0 text-xs leading-relaxed text-muted break-words">{metric.detail}</p>
-          </article>
+            }
+            detail={metric.detail}
+            key={metric.label}
+            label={metric.label}
+            value={metric.value}
+          />
         ))}
       </div>
 

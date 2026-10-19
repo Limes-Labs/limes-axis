@@ -42,9 +42,11 @@ import {
   resolveConsoleTenantScope,
   OPERATIONS_API_PREFIX,
 } from "@/lib/tenant-scope";
+import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { SourcePill } from "@/components/ui/source-pill";
+import { StatCard } from "@/components/ui/stat-card";
 import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import { strings } from "@/lib/strings";
 
@@ -312,18 +314,19 @@ export function ActionRegistry() {
         </div>
       </div>
 
-      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0" role="list">
         {registry.metrics.map((metric) => (
-          <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]" key={metric.label}>
-            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
-              <p className="eyebrow m-0">{metric.label}</p>
+          <StatCard
+            aside={
               <span className={`status-pill ${platformStatusClass(metric.status)}`}>
                 {platformStatusLabel(metric.status)}
               </span>
-            </div>
-            <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{metric.value}</p>
-            <p className="m-0 text-xs leading-relaxed text-muted break-words">{metric.detail}</p>
-          </article>
+            }
+            detail={metric.detail}
+            key={metric.label}
+            label={metric.label}
+            value={metric.value}
+          />
         ))}
       </div>
 
@@ -605,8 +608,8 @@ export function ActionRegistry() {
                     Sign in with SSO to request governed action runs.
                   </p>
                 ) : (
-                  <button
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
+                  <Button
+                    variant="secondary"
                     disabled={submittingActionId === selectedAction.definition.action_id}
                     onClick={() => void requestActionRun(selectedAction)}
                     type="button"
@@ -615,7 +618,7 @@ export function ActionRegistry() {
                     {submittingActionId === selectedAction.definition.action_id
                       ? "Requesting"
                       : "Request dry-run"}
-                  </button>
+                  </Button>
                 )}
                 {!ssoBlocked ? <ShieldCheck size={18} /> : null}
               </div>

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { GitBranchPlus } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { PolicyConditionFields } from "@/components/policy-condition-fields";
 import { Field } from "@/components/ui/field";
 import { InlineOperatorError } from "@/components/ui/inline-operator-error";
@@ -267,14 +268,13 @@ export function PolicyReviseForm({
             {strings.policyDetail.reviseAccess.ssoGate}
           </p>
         ) : (
-          <button
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
+          <Button
             disabled={submission.phase === "saving"}
             type="submit"
           >
             <GitBranchPlus size={15} />
             {submission.phase === "saving" ? "Appending" : "Append revision"}
-          </button>
+          </Button>
         )}
       </form>
 

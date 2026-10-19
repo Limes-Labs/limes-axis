@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { Activity } from "lucide-react";
 
+import { Disclosure } from "@/components/ui/disclosure";
+import { StatCard } from "@/components/ui/stat-card";
+
 import {
   buildPlatformTenantUsagePath,
   defaultUsageWindowDays,
@@ -95,22 +98,24 @@ export function TenantUsagePanel({ tenantId }: { tenantId: string }) {
           No metered consumption in this window.
         </p>
       ) : (
-        <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0" aria-label="Per-metric consumption">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0" aria-label="Per-metric consumption" role="list">
           {rows.map((row) => (
-            <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]" key={row.metricKey}>
-              <p className="eyebrow m-0">{row.label}</p>
-              <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{row.total.toLocaleString()}</p>
-              <p className="m-0 text-xs leading-relaxed text-muted break-words">
-                {row.periodCount} {row.periodCount === 1 ? "period" : "periods"} in window
-              </p>
-            </article>
+            <StatCard
+              detail={`${row.periodCount} ${row.periodCount === 1 ? "period" : "periods"} in window`}
+              key={row.metricKey}
+              label={row.label}
+              value={row.total.toLocaleString()}
+            />
           ))}
         </div>
       )}
 
-      <details className="mt-4 border-t border-line/60 pt-3 text-sm text-muted dark:border-white/10">
-        <summary className="cursor-pointer font-medium text-ink">Usage methodology and access</summary>
-        <div className="mt-3 grid min-w-0 grid-cols-1 gap-2.5 [&>p]:min-w-0 [&>p]:[overflow-wrap:anywhere]">
+      <Disclosure
+        className="mt-4 border-t border-line/60 pt-3 text-sm text-muted dark:border-white/10"
+        title="Usage methodology and access"
+        variant="plain"
+      >
+        <div className="grid min-w-0 grid-cols-1 gap-2.5 [&>p]:min-w-0 [&>p]:[overflow-wrap:anywhere]">
           <p className="m-0 leading-snug">Metering is cumulative consumption accounting; quotas remain the enforcement ceilings.</p>
           <p className="m-0 leading-snug break-words">Required permission: {platformTenantUsageScope}.</p>
           <p className="m-0 break-words font-mono text-[13px]">GET {buildPlatformTenantUsagePath(tenantId)}</p>
@@ -120,7 +125,7 @@ export function TenantUsagePanel({ tenantId }: { tenantId: string }) {
             </p>
           ))}
         </div>
-      </details>
+      </Disclosure>
     </section>
   );
 }

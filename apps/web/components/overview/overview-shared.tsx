@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, CircleAlert, CircleCheck, Clock3 } from "lucide-react";
 
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { platformStatusLabel, type PlatformStatus } from "@/lib/platform-overview";
 import type { AxisQuerySource } from "@/lib/use-axis-query";
@@ -71,7 +72,7 @@ export function StatusDot({ status }: { status: PlatformStatus }) {
 export function PanelLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
-      className="mt-auto inline-flex min-h-6 items-center gap-1.5 pt-1 font-mono text-xs tracking-[0.12em] text-signal uppercase hover:underline"
+      className={buttonVariants({ size: "sm", variant: "link", className: "mt-auto w-fit" })}
       href={href}
     >
       {children}

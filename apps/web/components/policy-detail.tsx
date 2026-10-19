@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import { buttonVariants } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import { toAxisOperatorError } from "@/lib/axis-api";
@@ -44,6 +45,7 @@ import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
+import { StatCard } from "@/components/ui/stat-card";
 import {
   IDENTITY_SESSION_ENDPOINT,
   useConsoleTenantScope,
@@ -269,7 +271,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
             <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Policy not found</h2>
             <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{policyId}</p>
           </div>
-          <Link className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href="/policies">
+          <Link className={buttonVariants({ variant: "secondary" })} href="/policies">
             <ArrowLeft size={17} />
             Policies
           </Link>
@@ -312,34 +314,37 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
             <ShieldCheck size={15} />
             {policyEffectLabel(current.effect)}
           </span>
-          <Link className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href="/policies">
+          <Link className={buttonVariants({ variant: "secondary" })} href="/policies">
             <ArrowLeft size={17} />
             Policies
           </Link>
         </div>
       </section>
 
-      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4 [&>*]:min-w-0">
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Current Revision</p>
-          <p className="mx-0 mt-2 mb-0 font-mono text-[13px] break-words text-ink">r{current.revision_number}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">{current.policy_version}</p>
-        </article>
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Status</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{policyStatusLabel(current.status)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Only the active revision is evaluated</p>
-        </article>
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Authored By</p>
-          <p className="mx-0 mt-3 mb-1.5 font-mono text-sm leading-relaxed break-words text-ink">{current.created_by}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">{formatTimestamp(current.created_at)}</p>
-        </article>
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Authoring Scope</p>
-          <p className="mx-0 mt-2 mb-0 font-mono text-[13px] break-words text-ink">{current.required_authoring_scope}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">{current.audit_event_type}</p>
-        </article>
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 [&>*]:min-w-0" role="list">
+        <StatCard
+          detail={current.policy_version}
+          label="Current Revision"
+          value={<>r{current.revision_number}</>}
+          valueVariant="mono"
+        />
+        <StatCard
+          detail="Only the active revision is evaluated"
+          label="Status"
+          value={policyStatusLabel(current.status)}
+        />
+        <StatCard
+          detail={formatTimestamp(current.created_at)}
+          label="Authored By"
+          value={current.created_by}
+          valueVariant="mono"
+        />
+        <StatCard
+          detail={current.audit_event_type}
+          label="Authoring Scope"
+          value={current.required_authoring_scope}
+          valueVariant="mono"
+        />
       </div>
 
       <Tabs

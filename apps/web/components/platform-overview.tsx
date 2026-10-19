@@ -13,6 +13,7 @@ import { type OverviewQuery } from "@/components/overview/overview-shared";
 import { PostureCards } from "@/components/overview/posture-cards";
 import { SideRail } from "@/components/overview/side-rail";
 import { SourcePill } from "@/components/ui/source-pill";
+import { StatCard } from "@/components/ui/stat-card";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import {
   countAwaitingDecision,
@@ -147,16 +148,11 @@ function OverviewHero({
         <h2 className="m-0 text-sm font-medium text-ink">{strings.clarity.recordedActivity}</h2>
         <span className="text-xs text-muted">{data.plant_name} · {formatTimestamp(asOf)}</span>
       </div>
-      <dl className="m-0 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4" role="list">
         {facts.map((fact) => (
-          <div className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10" key={fact.label}>
-            <dt className="text-xs text-muted">{fact.label}</dt>
-            <dd className="m-0 mt-1 font-display text-2xl tabular-nums text-ink" data-testid={fact.testId}>
-              {fact.value}
-            </dd>
-          </div>
+          <StatCard key={fact.label} label={fact.label} value={fact.value} valueTestId={fact.testId} />
         ))}
-      </dl>
+      </div>
       <div aria-label="Overview data sources" className="flex min-w-0 flex-wrap gap-1.5">
         <SourcePill compact state={deriveSourceState(overview.source, true, data.provenance)} subject="Context" />
         <SourcePill compact state={deriveSourceState(snapshot.source, Boolean(snapshot.data), snapshot.data?.provenance)} subject="Operations" />

@@ -36,6 +36,7 @@ import { useAxisQuery } from "@/lib/use-axis-query";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { SourcePill } from "@/components/ui/source-pill";
+import { StatCard } from "@/components/ui/stat-card";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import {
   missingRequiredScopePermission,
@@ -222,27 +223,27 @@ export function PolicyRegistry() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4 [&>*]:min-w-0">
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Policies</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(registry.policy_count)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Tenant-scoped rules matching the current filters</p>
-        </article>
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Deny</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(denyCount)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Hard blocks that reject matching action runs</p>
-        </article>
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Require Approval</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(requireApprovalCount)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Rules that force the human approval gate</p>
-        </article>
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Allow With Evidence</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(evidenceCount)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Rules that record decision evidence on execution</p>
-        </article>
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 [&>*]:min-w-0" role="list">
+        <StatCard
+          detail="Tenant-scoped rules matching the current filters"
+          label="Policies"
+          value={formatNumber(registry.policy_count)}
+        />
+        <StatCard
+          detail="Hard blocks that reject matching action runs"
+          label="Deny"
+          value={formatNumber(denyCount)}
+        />
+        <StatCard
+          detail="Rules that force the human approval gate"
+          label="Require Approval"
+          value={formatNumber(requireApprovalCount)}
+        />
+        <StatCard
+          detail="Rules that record decision evidence on execution"
+          label="Allow With Evidence"
+          value={formatNumber(evidenceCount)}
+        />
       </div>
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-end justify-between gap-4">

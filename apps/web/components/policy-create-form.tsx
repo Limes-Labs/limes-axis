@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { FilePlus2, FlaskConical } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { PolicyConditionFields } from "@/components/policy-condition-fields";
 import { PolicyEvaluationPanel } from "@/components/policy-evaluation-panel";
 import { Field } from "@/components/ui/field";
@@ -282,14 +283,13 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
             {strings.policyDetail.authorAccess.ssoGate}
           </p>
         ) : (
-          <button
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
+          <Button
             disabled={submission.phase === "saving"}
             type="submit"
           >
             <FilePlus2 size={15} />
             {submission.phase === "saving" ? "Authoring" : "Author policy"}
-          </button>
+          </Button>
         )}
       </form>
 

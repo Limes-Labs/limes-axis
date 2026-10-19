@@ -3,6 +3,7 @@
 import { LogOut, MonitorSmartphone, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
+import { Button, buttonVariants } from "@/components/ui/button";
 import { ErrorPanel } from "@/components/ui/states";
 import { SsoSignInLink } from "@/components/sso-sign-in-link";
 import { ConsolePage } from "@/components/console-page";
@@ -118,7 +119,7 @@ function SessionRow({
         {revocable ? (
           record.current ? (
             <a
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
+              className={buttonVariants({ variant: "secondary" })}
               href={logoutUrl}
               title="Revoking this browser's session signs you out through the identity provider"
             >
@@ -126,14 +127,14 @@ function SessionRow({
               Sign out
             </a>
           ) : (
-            <button
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
+            <Button
+              variant="secondary"
               disabled={pending}
               onClick={() => onRevoke(record)}
               type="button"
             >
               {pending ? "Revoking" : "Revoke"}
-            </button>
+            </Button>
           )
         ) : null}
       </div>
@@ -153,7 +154,7 @@ function SignedOutPanel({ signInUrl }: { signInUrl: string }) {
           sessions.
         </p>
       </div>
-      <SsoSignInLink className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href={signInUrl}>
+      <SsoSignInLink className={buttonVariants({ variant: "secondary" })} href={signInUrl}>
         <ShieldCheck size={16} />
         {strings.identityGate.signIn}
       </SsoSignInLink>
@@ -227,13 +228,13 @@ function SessionListPanel({
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {adminCapable ? (
-            <button
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
+            <Button
+              variant="secondary"
               onClick={() => setTenantWide((value) => !value)}
               type="button"
             >
               {listTenantWide ? "Show my sessions" : "Show tenant sessions"}
-            </button>
+            </Button>
           ) : null}
           <span className={`status-pill ${list ? "signal-ready" : "signal-watch"}`}>
             {list ? `${formatNumber(list.sessions.length)} recorded` : "Loading sessions"}
@@ -311,7 +312,7 @@ export function SessionSecurityConsole() {
     <ConsolePage
       controls={
         identitySession?.authenticated && identitySession.mode === "secure_oidc_cookie" ? (
-          <a className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href={logoutUrl}>
+          <a className={buttonVariants({ variant: "secondary" })} href={logoutUrl}>
             <LogOut size={16} />
             Sign out
           </a>

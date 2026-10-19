@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DetailGrid, KeyValueRow } from "@/components/ui/detail-grid";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Field } from "@/components/ui/field";
 import { InlineOperatorError } from "@/components/ui/inline-operator-error";
@@ -520,14 +521,13 @@ export function ResourcesSection({
             </div>
           )}
           {resourcesQuery.data.notes.length > 0 ? (
-            <details className="text-xs text-muted">
-              <summary className="cursor-pointer">{copy.notesTitle}</summary>
-              <ul className="m-0 mt-1 grid list-disc gap-1 pl-4">
+            <Disclosure className="text-xs text-muted" size="sm" title={copy.notesTitle} variant="plain">
+              <ul className="m-0 grid list-disc gap-1 pl-4">
                 {resourcesQuery.data.notes.map((note) => (
                   <li key={note}>{note}</li>
                 ))}
               </ul>
-            </details>
+            </Disclosure>
           ) : null}
         </>
       )}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FileClock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { InlineOperatorError } from "@/components/ui/inline-operator-error";
 import { Input } from "@/components/ui/input";
@@ -703,11 +704,10 @@ export function ConnectorSourceIngestionSection({
                 </table>
               </div>
               {requests.map((request) => (
-                <details
+                <Disclosure
                   className="rounded-xl border border-line/60 px-3 py-2 dark:border-white/10"
                   key={`${request.request_id}-detail`}
-                  onToggle={(event) => {
-                    const open = (event.target as HTMLDetailsElement).open;
+                  onOpenChange={(open) => {
                     setOpenRequestIds((current) => {
                       const next = new Set(current);
                       if (open) {
@@ -718,13 +718,16 @@ export function ConnectorSourceIngestionSection({
                       return next;
                     });
                   }}
+                  title={
+                    <>
+                      {copy.requestColumn}:{" "}
+                      <span className="font-mono text-xs break-all">{request.request_id}</span>
+                    </>
+                  }
+                  variant="plain"
                 >
-                  <summary className="cursor-pointer text-sm font-medium">
-                    {copy.requestColumn}:{" "}
-                    <span className="font-mono text-xs break-all">{request.request_id}</span>
-                  </summary>
                   <dl
-                    className="mt-2 grid gap-1.5 text-xs leading-snug"
+                    className="m-0 grid gap-1.5 text-xs leading-snug"
                     data-request-detail={request.request_id}
                   >
                     <div className="flex min-w-0 flex-wrap gap-x-2">
@@ -905,7 +908,7 @@ export function ConnectorSourceIngestionSection({
                       </div>
                     </form>
                   ) : null}
-                </details>
+                </Disclosure>
               ))}
             </>
           )}

@@ -12,11 +12,7 @@ import {
   popoverRowClass,
   tagClass,
 } from "@/components/topbar/panel-chrome";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Disclosure } from "@/components/ui/disclosure";
 import { SsoSignInLink } from "@/components/sso-sign-in-link";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
@@ -216,47 +212,47 @@ export function AccountPanel({
             <CircleHelp size={16} />
             Open SSO setup
           </a>
-          <Collapsible onOpenChange={setDeveloperBridgeOpen} open={developerBridgeOpen}>
-            <CollapsibleTrigger
-              className="inline-flex min-h-6 cursor-pointer items-center justify-self-start text-xs text-muted underline underline-offset-2 transition-colors hover:text-ink"
-              type="button"
-            >
-              Developer access
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="mt-2 grid gap-2">
-                <p className="m-0 text-xs leading-snug text-muted">
-                  For local development against a non-SSO API.
-                </p>
-                {!authenticatedSession ? (
-                  <form className="grid gap-2" onSubmit={connectSession}>
-                    <label className="grid gap-1.5 text-xs font-semibold text-muted">
-                      Developer bearer bridge
-                      <Input
-                        aria-invalid={Boolean(error)}
-                        onChange={(event) => {
-                          setAccessToken(event.target.value);
-                          setError(null);
-                        }}
-                        placeholder="Paste JWT access token"
-                        type="password"
-                        value={accessToken}
-                      />
-                    </label>
-                    {error ? (
-                      <span className="text-xs font-semibold text-danger" role="alert">
-                        {error}
-                      </span>
-                    ) : null}
-                    <button className={commandClass} type="submit">
-                      <KeyRound size={16} />
-                      Attach bearer bridge
-                    </button>
-                  </form>
-                ) : null}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
+          <Disclosure
+            className="justify-self-start"
+            keepMounted={false}
+            onOpenChange={setDeveloperBridgeOpen}
+            open={developerBridgeOpen}
+            size="sm"
+            title="Developer access"
+            variant="plain"
+          >
+            <div className="grid gap-2">
+              <p className="m-0 text-xs leading-snug text-muted">
+                For local development against a non-SSO API.
+              </p>
+              {!authenticatedSession ? (
+                <form className="grid gap-2" onSubmit={connectSession}>
+                  <label className="grid gap-1.5 text-xs font-semibold text-muted">
+                    Developer bearer bridge
+                    <Input
+                      aria-invalid={Boolean(error)}
+                      onChange={(event) => {
+                        setAccessToken(event.target.value);
+                        setError(null);
+                      }}
+                      placeholder="Paste JWT access token"
+                      type="password"
+                      value={accessToken}
+                    />
+                  </label>
+                  {error ? (
+                    <span className="text-xs font-semibold text-danger" role="alert">
+                      {error}
+                    </span>
+                  ) : null}
+                  <button className={commandClass} type="submit">
+                    <KeyRound size={16} />
+                    Attach bearer bridge
+                  </button>
+                </form>
+              ) : null}
+            </div>
+          </Disclosure>
         </div>
       )}
     </section>

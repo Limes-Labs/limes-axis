@@ -8,6 +8,7 @@ import {
   ApprovalDecisionCard,
   useApprovalDecisionState,
 } from "@/components/approvals/approval-decision-card";
+import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
@@ -131,10 +132,7 @@ function AttentionRow({
 }
 
 function rowLinkClass(): string {
-  return cn(
-    "inline-flex items-center rounded-full border border-line px-3.5 py-1.5 text-xs font-medium",
-    "text-ink transition-colors hover:border-signal/50 hover:text-signal dark:border-white/15",
-  );
+  return buttonVariants({ size: "sm", variant: "secondary" });
 }
 
 function ApprovalAttentionRow({
