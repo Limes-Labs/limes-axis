@@ -2530,6 +2530,9 @@ def create_app(
                 address=resolved_settings.temporal_address,
                 namespace=resolved_settings.temporal_namespace,
                 signal_timeout_seconds=resolved_settings.temporal_signal_timeout_seconds,
+                connect_backoff_max_seconds=(
+                    resolved_settings.temporal_connect_backoff_max_seconds
+                ),
             )
         )
         if resolved_settings.workflow_signals_enabled

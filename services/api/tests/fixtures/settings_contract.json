@@ -48,6 +48,7 @@
   "temporal_address": {"alias": "AXIS_TEMPORAL_ADDRESS", "default": "localhost:7233", "probe": "settings-contract-probe"},
   "temporal_namespace": {"alias": "AXIS_TEMPORAL_NAMESPACE", "default": "default", "probe": "settings-contract-probe"},
   "temporal_signal_timeout_seconds": {"alias": "AXIS_TEMPORAL_SIGNAL_TIMEOUT_SECONDS", "default": 2.0, "probe": 3.0},
+  "temporal_connect_backoff_max_seconds": {"alias": "AXIS_TEMPORAL_CONNECT_BACKOFF_MAX_SECONDS", "default": 30.0, "probe": 45.0},
   "workflow_signals_enabled": {"alias": "AXIS_WORKFLOW_SIGNALS_ENABLED", "default": true, "probe": false},
   "approval_decision_outbox_enabled": {"alias": "AXIS_APPROVAL_DECISION_OUTBOX_ENABLED", "default": false, "probe": true},
   "approval_decision_outbox_dispatch_enabled": {"alias": "AXIS_APPROVAL_DECISION_OUTBOX_DISPATCH_ENABLED", "default": false, "probe": true},

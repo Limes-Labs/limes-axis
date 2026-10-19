@@ -373,6 +373,16 @@ release-bound behavior, not the complete commit history.
 
 ### Changed
 
+- Temporal signalling is bounded end to end. `Client.connect` previously had
+  no deadline (a blackholed frontend hung requests for 135 s with their
+  transaction open, exhausting the database pool); connect and signal now share
+  one `AXIS_TEMPORAL_SIGNAL_TIMEOUT_SECONDS` deadline, client creation is
+  serialized so concurrent requests share one connect attempt, and a failed
+  connect is negatively cached with exponential backoff capped by the new
+  `AXIS_TEMPORAL_CONNECT_BACKOFF_MAX_SECONDS` (default `30`). The approval
+  outbox dispatcher bounds each delivery's signal and reconciliation by the same
+  deadline, so the validated claim-lease > signal-timeout invariant holds.
+  `AXIS_TEMPORAL_SIGNAL_TIMEOUT_SECONDS` must now be positive.
 - Closing ontology entity details returns keyboard focus to the opening graph
   node or list control, with the explorer heading as a fallback for direct links,
   removed nodes or responsive hidden controls. Peer navigation, browser history,

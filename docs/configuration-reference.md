@@ -212,7 +212,8 @@ operational profiles and secret injection.
 | `AXIS_SCHEDULED_TENANT_RECONCILIATION_INTERVAL_SECONDS` | `scheduled_tenant_reconciliation_interval_seconds` | integer | `3600` | minimum: 60 |
 | `AXIS_TEMPORAL_ADDRESS` | `temporal_address` | string | `"localhost:7233"` |  |
 | `AXIS_TEMPORAL_NAMESPACE` | `temporal_namespace` | string | `"default"` |  |
-| `AXIS_TEMPORAL_SIGNAL_TIMEOUT_SECONDS` | `temporal_signal_timeout_seconds` | number | `2.0` |  |
+| `AXIS_TEMPORAL_SIGNAL_TIMEOUT_SECONDS` | `temporal_signal_timeout_seconds` | number | `2.0` | exclusiveMinimum: 0 |
+| `AXIS_TEMPORAL_CONNECT_BACKOFF_MAX_SECONDS` | `temporal_connect_backoff_max_seconds` | number | `30.0` | maximum: 600; minimum: 1 |
 | `AXIS_WORKFLOW_SIGNALS_ENABLED` | `workflow_signals_enabled` | boolean | `true` |  |
 | `AXIS_APPROVAL_DECISION_OUTBOX_ENABLED` | `approval_decision_outbox_enabled` | boolean | `false` |  |
 | `AXIS_APPROVAL_DECISION_OUTBOX_DISPATCH_ENABLED` | `approval_decision_outbox_dispatch_enabled` | boolean | `false` |  |

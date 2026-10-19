@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -302,3 +303,36 @@ async def test_closed_workflow_with_conflicting_event_is_permanently_dead_letter
     assert persisted.status == "dead_letter"
     assert persisted.last_error == "completed_workflow_conflict"
     assert persisted.attempt_count == 1
+
+
+class HangingRuntime:
+    def __init__(self) -> None:
+        self.signal_calls = 0
+
+    async def signal_approval_decision(self, request: WorkflowSignalRequest) -> None:
+        self.signal_calls += 1
+        await asyncio.Event().wait()
+
+
+async def test_hanging_runtime_cannot_outlive_the_claim_lease(
+    session_factory: sessionmaker[Session],
+) -> None:
+    event_id = _enqueue(session_factory)
+    runtime = HangingRuntime()
+    settings = _settings()
+    settings.temporal_signal_timeout_seconds = 0.05
+    dispatcher = ApprovalDecisionOutboxDispatcher(
+        settings=settings,
+        session_factory=session_factory,
+        workflow_runtime=runtime,
+        clock=lambda: NOW,
+        random_uniform=lambda _low, maximum: maximum,
+    )
+
+    result = await asyncio.wait_for(dispatcher.run_once(), 2.0)
+
+    assert result.retried == 1
+    assert runtime.signal_calls == 1
+    persisted = _row(session_factory, event_id)
+    assert persisted.status == "pending"
+    assert persisted.last_error == "TimeoutError"

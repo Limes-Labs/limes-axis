@@ -33,7 +33,9 @@ _SAFE_WORKFLOW_ERROR_CODES = frozenset(
         "OSError",
         "RPCError",
         "RuntimeError",
+        "TemporalConnectBackoffError",
         "TemporalError",
+        "TimeoutError",
         "WorkflowFailureError",
     }
 )
@@ -194,19 +196,35 @@ class ApprovalDecisionOutboxDispatcher:
             request = self._request(row)
         except (ValidationError, ValueError) as exc:
             return await self._finalize_failure(row, self._error_code(exc), permanent=True)
+        # The whole external phase (connect, signal and any reconciliation read)
+        # shares one deadline. The settings require the claim lease to exceed
+        # this deadline, so a delivery cannot outlive its own fenced claim even
+        # when a runtime ignores its RPC timeout.
+        try:
+            async with asyncio.timeout(self.settings.temporal_signal_timeout_seconds):
+                reconciliation = await self._signal_or_reconcile(row, request)
+        except TimeoutError:
+            return await self._finalize_failure(row, "TimeoutError", permanent=False)
+        except WorkflowSignalError as exc:
+            return await self._finalize_failure(row, self._error_code(exc), permanent=False)
+        if reconciliation == "conflicting":
+            return await self._finalize_failure(
+                row, "completed_workflow_conflict", permanent=True
+            )
+        return await self._finalize_success(row)
+
+    async def _signal_or_reconcile(
+        self, row: _ClaimedDecision, request: WorkflowSignalRequest
+    ) -> str:
         try:
             await self._workflow_runtime.signal_approval_decision(request)
         except WorkflowSignalError as exc:
             if exc.may_be_closed:
                 reconciliation = await self._reconcile(row)
-                if reconciliation == "matching":
-                    return await self._finalize_success(row)
-                if reconciliation == "conflicting":
-                    return await self._finalize_failure(
-                        row, "completed_workflow_conflict", permanent=True
-                    )
-            return await self._finalize_failure(row, self._error_code(exc), permanent=False)
-        return await self._finalize_success(row)
+                if reconciliation in {"matching", "conflicting"}:
+                    return reconciliation
+            raise
+        return "delivered"
 
     async def _reconcile(self, row: _ClaimedDecision) -> str:
         reader = getattr(self._workflow_runtime, "get_approval_decision_result", None)
