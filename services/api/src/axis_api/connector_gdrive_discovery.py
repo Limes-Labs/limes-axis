@@ -57,7 +57,7 @@ from axis_sdk.connector_authoring.contracts import (
     OperationContext,
     SecretStr,
 )
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from axis_api.document_source_contracts import (
     DocumentACLObservation,
@@ -85,13 +85,25 @@ _SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 _DRIVE_ITEM_PATTERN = re.compile(r"^[A-Za-z0-9_-]{10,64}$")
 _ACCOUNT_PATTERN = re.compile(r"^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{3,189}$")
-_PAGE_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_.~-]{1,512}$")
+# Drive page tokens are opaque and commonly ``~!!~``-prefixed; they are
+# percent-encoded into a query value, so ``:`` and ``/`` stay refused only
+# to keep URL-shaped tokens a fixed error.
+_PAGE_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_.~!=-]{1,1024}$")
 _FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 _SHORTCUT_MIME_TYPE = "application/vnd.google-apps.shortcut"
-_FILES_FIELDS = "id,name,mimeType,parentReference,version,shortcutDetails"
-_PERMISSION_FIELDS = "id,type,emailAddress,domain"
+# Drive v3 field names: files carry ``parents`` (not Graph-style
+# ``parentReference``), and list responses wrap permissions; an unknown
+# field selection is rejected by Drive with HTTP 400.
+_FILES_FIELDS = "id,name,mimeType,parents,version,shortcutDetails"
+_PERMISSION_FIELDS = "nextPageToken,permissions(id,type,emailAddress,domain)"
 _MAX_DISPLAY_NAME = 512
 _MAX_MEDIA_TYPE = 128
+# Quota/throttling 403s are transient source conditions, not grant or
+# consent evidence, and must not degrade an item to unavailable evidence.
+_RATE_LIMIT_REASONS = frozenset(
+    {"rateLimitExceeded", "userRateLimitExceeded", "dailyLimitExceeded",
+     "sharingRateLimitExceeded", "RESOURCE_EXHAUSTED"}
+)
 
 DriveKind = Literal["my_drive", "shared_drive"]
 
@@ -243,6 +255,8 @@ def _setup_state_for(failure: _DriveFailure, credential_mode: str) -> GDriveSetu
     interpretation.
     """
 
+    if _is_rate_limited(failure):
+        return GDriveSetupState.SOURCE_UNREACHABLE
     if failure.surface == "permissions" and failure.status in {400, 405, 501}:
         return GDriveSetupState.UNSUPPORTED_PERMISSION_MODE
     if failure.status == 401:
@@ -256,6 +270,12 @@ def _setup_state_for(failure: _DriveFailure, credential_mode: str) -> GDriveSetu
     if failure.status == 404:
         return GDriveSetupState.SELECTED_RESOURCE_NOT_FOUND
     return GDriveSetupState.SOURCE_UNREACHABLE
+
+
+def _is_rate_limited(failure: _DriveFailure) -> bool:
+    return failure.status == 429 or (
+        failure.status == 403 and failure.reason in _RATE_LIMIT_REASONS
+    )
 
 
 def _setup_outcome(
@@ -310,8 +330,10 @@ class _PinnedDriveTransport:
             if response.status != 200:
                 # The machine-readable Drive reason is safe evidence; the human
                 # message and any payload are consumed and discarded here.
-                raise _DriveFailure(response.status, _drive_error_reason(response), "list")
-            return _bounded_json(response)
+                raise _DriveFailure(
+                    response.status, _drive_error_reason(response, deadline), "list"
+                )
+            return _bounded_json(response, deadline)
         finally:
             response.close()
             response.release_conn()
@@ -326,9 +348,9 @@ def _target(url: str) -> tuple[str, str, int]:
     )
 
 
-def _drive_error_reason(response) -> str | None:
+def _drive_error_reason(response, deadline: float) -> str | None:
     try:
-        payload = _bounded_json(response)
+        payload = _bounded_json(response, deadline)
     except (ConnectorError, zlib.error):
         return None
     if not isinstance(payload, dict) or not isinstance(payload.get("error"), dict):
@@ -345,7 +367,7 @@ def _drive_error_reason(response) -> str | None:
     return None
 
 
-def _bounded_json(response) -> object:
+def _bounded_json(response, deadline: float) -> object:
     content_type = (response.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
     if not (content_type == "application/json" or content_type.endswith("+json")):
         raise ConnectorError(ErrorCode.RESOURCE_MISMATCH)
@@ -359,6 +381,10 @@ def _bounded_json(response) -> object:
         remaining_wire = _MAX_WIRE_BYTES - wire
         if remaining_wire <= 0:
             raise ConnectorError(ErrorCode.LIMIT_EXCEEDED)
+        # Socket timeouts bound each read, not the body: a slow-drip source
+        # must not outlive the shared discovery deadline.
+        if time.monotonic() >= deadline:
+            raise ConnectorError(ErrorCode.TIME_BUDGET_EXCEEDED)
         chunk = response.read(min(_STREAM_CHUNK_BYTES, remaining_wire), decode_content=False)
         if not chunk:
             break
@@ -485,6 +511,10 @@ class GDriveCorpusDiscovery:
         deadline = self.clock() + _DISCOVERY_TIME_BUDGET_SECONDS
         try:
             return self._enumerate(context, deadline)
+        except ValidationError:
+            # Source values that do not fit the #863 contract are a fixed
+            # mismatch, never a raw validation error carrying source shape.
+            raise ConnectorError(ErrorCode.RESOURCE_MISMATCH) from None
         except _DriveFailure as failure:
             state = _setup_state_for(failure, self.selection.credential_mode)
             return _setup_outcome(state, self.authority)
@@ -609,8 +639,13 @@ class GDriveCorpusDiscovery:
             or not revision
         ):
             raise ConnectorError(ErrorCode.RESOURCE_MISMATCH)
-        parent = raw.get("parentReference")
-        parent_id = parent.get("id") if isinstance(parent, dict) else None
+        parents = raw.get("parents")
+        # Drive items have a single parent; anything else is not pinned.
+        parent_id = (
+            parents[0]
+            if isinstance(parents, list) and len(parents) == 1 and isinstance(parents[0], str)
+            else None
+        )
         identity = DocumentIdentity(
             tenant_id=context.tenant_id,
             connector_id=context.connector_id,
@@ -636,7 +671,7 @@ class GDriveCorpusDiscovery:
                     self._permissions_url(item_id, page_token), deadline, "permissions"
                 )
             except _DriveFailure as failure:
-                if failure.status in {403, 404}:
+                if failure.status in {403, 404} and not _is_rate_limited(failure):
                     # The permission surface is blocked for this credential mode
                     # or the item vanished mid-enumeration; the item stays
                     # observable but its evidence is unreadable. Only an

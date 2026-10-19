@@ -62,12 +62,14 @@ claims nothing it cannot demonstrate through the fake provider:
 | `Files.Read.Selected` user-delegated scopes against arbitrary folders | Narrower delegated mode | Not supported | Not supported | Never requested: the adapter does not silently ask for broader scopes when a narrower mode is unsupported |
 
 Enumeration requests a bounded field projection
-(`id,name,mimeType,parentReference,version,shortcutDetails`) with `pageSize`
+(`nextPageToken,files(id,name,mimeType,parents,version,shortcutDetails)`) with `pageSize`
 capped at 200 per page; shared-drive selections additionally send
 `corpora=drive&driveId=<registered drive>` so the walk is pinned to the
 registered drive identity. Permission observations request
-`id,type,emailAddress,domain` with `pageSize` capped at 100 (the Drive
-maximum). Both surfaces honor the operator caps (`max_items`, `max_pages`)
+`nextPageToken,permissions(id,type,emailAddress,domain)` with `pageSize`
+capped at 100 (the Drive maximum). Drive rejects unknown field selections
+with HTTP 400, so the projections use Drive v3 names (`parents`, not a
+Graph-style `parentReference`). Both surfaces honor the operator caps (`max_items`, `max_pages`)
 and report explicit truncation when a cap stops the walk while a
 `nextPageToken` is still pending — a truncated enumeration is never
 presented as complete, and truncation never implies deletion: the outcome
@@ -85,6 +87,7 @@ Setup outcomes are fixed safe states, never raw Drive errors:
 | 403 under `selected_resource_grant` (the selected scope is not on this lease) | `setup_missing_selected_resource_grant` |
 | HTTP 404 on the enumeration surface (the configured root or drive is gone) | `setup_selected_resource_not_found` |
 | Permission surface rejects the request shape (400/405/501) | `setup_unsupported_permission_mode` |
+| HTTP 429, or 403 with a quota/throttling reason (`rateLimitExceeded`, `userRateLimitExceeded`, `dailyLimitExceeded`, `sharingRateLimitExceeded`) on either surface | `setup_source_unreachable` |
 | Transport failure, non-2xx with no mapped reason, TLS or DNS failure | `setup_source_unreachable` |
 
 Unsupported credential modes (any mode outside `selected_resource_grant` /
@@ -93,8 +96,8 @@ before any I/O. None of these states escalates anything: no broader scope is
 requested, no re-consent flow is triggered, and the host decides the next
 operator step.
 
-A 403/404 on a single item's permission surface is *not* a setup failure:
-the item stays observable with `completeness="unavailable"` evidence, so a
+A non-throttling 403/404 on a single item's permission surface is *not* a
+setup failure: the item stays observable with `completeness="unavailable"` evidence, so a
 file deleted or locked mid-enumeration cannot abort the walk of the
 remaining corpus.
 

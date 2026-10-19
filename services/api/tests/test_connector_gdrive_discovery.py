@@ -5,6 +5,7 @@ import gzip
 import hashlib
 import json
 import threading
+import time
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlsplit
@@ -37,21 +38,21 @@ FILE_IN_SCOPE = {
     "mimeType": (
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     ),
-    "parentReference": {"id": ROOT, "driveId": DRIVE},
+    "parents": [ROOT],
     "version": "17",
 }
 FOLDER_IN_SCOPE = {
     "id": "1FoldBBbbBBbbBBbbBBbbBB",
     "name": "shared-folder",
     "mimeType": "application/vnd.google-apps.folder",
-    "parentReference": {"id": ROOT, "driveId": DRIVE},
+    "parents": [ROOT],
     "version": "3",
 }
 SHORTCUT_IN_SCOPE = {
     "id": "1ShrtCCccCCccCCccCCccCC",
     "name": "pointer-to-folder",
     "mimeType": "application/vnd.google-apps.shortcut",
-    "parentReference": {"id": ROOT, "driveId": DRIVE},
+    "parents": [ROOT],
     "version": "1",
     "shortcutDetails": {"targetId": FOLDER_IN_SCOPE["id"], "targetMimeType": "folder"},
 }
@@ -59,7 +60,7 @@ SHORTCUT_OUT_OF_SCOPE = {
     "id": "1ShrtDDddDDddDDddDDddDD",
     "name": "pointer-elsewhere",
     "mimeType": "application/vnd.google-apps.shortcut",
-    "parentReference": {"id": ROOT, "driveId": DRIVE},
+    "parents": [ROOT],
     "version": "1",
     "shortcutDetails": {"targetId": "1TgtEEEEEEEEEEEEEEEEEEEE", "targetMimeType": "folder"},
 }
@@ -69,7 +70,7 @@ SAME_ID_IN_MY_DRIVE = {
     "id": FILE_IN_SCOPE["id"],
     "name": "my-drive-twin.txt",
     "mimeType": "text/plain",
-    "parentReference": {"id": ROOT},
+    "parents": [ROOT],
     "version": "2",
 }
 
@@ -358,7 +359,7 @@ def test_operator_item_cap_reports_explicit_truncation(server):
             "id": f"1Cap{i:016d}xxxxxx",
             "name": f"doc-{i}.txt",
             "mimeType": "text/plain",
-            "parentReference": {"id": ROOT, "driveId": DRIVE},
+            "parents": [ROOT],
             "version": str(i),
         }
         for i in range(6)
@@ -432,7 +433,7 @@ def test_truncation_never_implies_deletion(server):
             "id": f"1Tru{i:016d}xxxxxx",
             "name": f"doc-{i}.txt",
             "mimeType": "text/plain",
-            "parentReference": {"id": ROOT, "driveId": DRIVE},
+            "parents": [ROOT],
             "version": str(i),
         }
         for i in range(3)
@@ -555,10 +556,8 @@ def test_source_metadata_cannot_override_the_registered_binding(server):
     # vector is data: foreign drive/parent metadata on items must not change
     # the registered identity, and a URL-shaped item ID is rejected outright.
     foreign = dict(FILE_IN_SCOPE)
-    foreign["parentReference"] = {
-        "id": "1FgnYYYYYYYYYYYYYYYYYYYY",
-        "driveId": "1FgnDriveXXXXXXXXXXXXXX",
-    }
+    foreign["parents"] = ["1FgnYYYYYYYYYYYYYYYYYYYY"]
+    foreign["driveId"] = "1FgnDriveXXXXXXXXXXXXXX"
     server.routes.clear()
     _install_drive(server, (foreign,))
     with build_discovery(server) as discovery:
@@ -864,3 +863,87 @@ def test_item_names_never_reach_evidence(server):
     assert "pointer-elsewhere" not in serialized
     assert outcome.evidence()["item_count"] == 4
     assert outcome.evidence()["shortcut_count"] == 2
+
+
+# --- Drive v3 request shape, throttling and contract fit ---
+
+
+def test_requested_field_projections_use_drive_v3_names(server):
+    # Drive rejects unknown field selections with HTTP 400, which a fake that
+    # ignores ``fields`` would never surface.
+    with build_discovery(server) as discovery:
+        outcome = discovery.discover(context())
+    queries = [urlsplit(path) for path in server.requests]
+    listing = [parse_qs(q.query)["fields"] for q in queries if q.path == "/drive/v3/files"]
+    permissions = [
+        parse_qs(q.query)["fields"] for q in queries if q.path.endswith("/permissions")
+    ]
+    assert listing == [["nextPageToken,files(id,name,mimeType,parents,version,shortcutDetails)"]]
+    assert permissions
+    assert all(
+        value == ["nextPageToken,permissions(id,type,emailAddress,domain)"]
+        for value in permissions
+    )
+    item = item_by_id(outcome, FILE_IN_SCOPE["id"])
+    assert item.snapshot.parent_item_id == ROOT
+
+
+def test_drive_shaped_page_tokens_are_followed(server):
+    token = "~!!~AI9FV7Q3xYz-_k=="
+    server.routes.clear()
+    _install_drive(server, (FILE_IN_SCOPE, FOLDER_IN_SCOPE))
+
+    def listing(query):
+        if parse_qs(query).get("pageToken") == [token]:
+            return 200, _files_payload(FOLDER_IN_SCOPE)
+        return 200, _files_payload(FILE_IN_SCOPE, next_token=token)
+
+    server.routes["/drive/v3/files"] = listing
+    with build_discovery(server) as discovery:
+        outcome = discovery.discover(context())
+    assert outcome.setup_state == GDriveSetupState.READY
+    assert outcome.evidence()["item_count"] == 2
+
+
+@pytest.mark.parametrize("reason", ["userRateLimitExceeded", "rateLimitExceeded"])
+def test_throttling_is_never_reported_as_a_grant_or_consent_gap(server, reason):
+    throttled = {"error": {"code": 403, "message": "internal", "errors": [{"reason": reason}]}}
+    server.routes["/drive/v3/files"] = lambda q: (403, throttled)
+    with build_discovery(server) as discovery:
+        assert discovery.discover(context()).setup_state == GDriveSetupState.SOURCE_UNREACHABLE
+
+
+def test_throttled_permission_surface_does_not_degrade_items_to_unavailable(server):
+    throttled = {
+        "error": {"code": 403, "message": "internal", "errors": [{"reason": "rateLimitExceeded"}]}
+    }
+    server.routes[f"/drive/v3/files/{FILE_IN_SCOPE['id']}/permissions"] = lambda q: (
+        403,
+        throttled,
+    )
+    with build_discovery(server) as discovery:
+        outcome = discovery.discover(context())
+    assert outcome.setup_state == GDriveSetupState.SOURCE_UNREACHABLE
+    assert outcome.items == ()
+
+
+def test_source_values_outside_the_contract_are_a_fixed_error(server):
+    server.routes.clear()
+    _install_drive(server, (FILE_IN_SCOPE | {"version": "9" * 500},))
+    with build_discovery(server) as discovery, pytest.raises(ConnectorError) as error:
+        discovery.discover(context())
+    assert error.value.code == ErrorCode.RESOURCE_MISMATCH
+
+
+def test_body_reads_stop_at_the_shared_deadline():
+    from axis_api.connector_gdrive_discovery import _bounded_json
+
+    class ExpiredBody:
+        headers = {"Content-Type": "application/json"}
+
+        def read(self, *args, **kwargs):
+            raise AssertionError("read after the deadline")
+
+    with pytest.raises(ConnectorError) as error:
+        _bounded_json(ExpiredBody(), time.monotonic() - 1)
+    assert error.value.code == ErrorCode.TIME_BUDGET_EXCEEDED
