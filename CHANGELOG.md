@@ -11,8 +11,9 @@ release-bound behavior, not the complete commit history.
   over versioned component restore ports, dependency-ordered sequencing with
   per-step digest evidence, worker fencing and idempotent retries, quarantine
   and resume of interrupted runs (only identical bundle/plan digests are
-  resumed), targets gated on the persisted suspended tenant row and bound to
-  one bundle, unsupported plans refused, fail-closed operator authorization, missing handlers recorded as
+  resumed), targets gated on the persisted suspended tenant row (never a
+  tenant with lifecycle history) and bound to one bundle, steps settled only
+  by their fencing worker, unsupported plans refused, fail-closed operator authorization, missing handlers recorded as
   blocked instead of fabricated completion, and activation blockers surfaced
   for the later verification slice
   ([#878](https://github.com/Limes-Labs/limes-axis/issues/878)).
