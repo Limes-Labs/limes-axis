@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field
 
 from axis_api.config import Settings
 from axis_api.object_storage import ObjectLockCapability, build_object_store_readiness
+from axis_api.offline_readiness import OfflineReadinessSection, evaluate_offline_readiness
 from axis_api.oidc_code_flow import post_logout_redirect_uri, redirect_uri
 from axis_api.telemetry import observability_posture
 from axis_api.tenant_admission import TENANT_ADMISSION_REGISTERED_ONLY
@@ -89,6 +91,11 @@ class DeploymentReadinessReport(BaseModel):
     production_blockers: list[str]
     checks: list[DeploymentReadinessCheck]
     notes: list[str] = Field(default_factory=list)
+    # Additive offline-readiness section. It reports the declared posture, the
+    # configuration validation result and the freshness/scope of observed
+    # rehearsal evidence separately from the production-required checks above,
+    # so it never turns an unverified zero-egress claim into a passing check.
+    offline_readiness: OfflineReadinessSection
 
 
 def _deployment_profile(environment: str) -> str:
@@ -152,6 +159,7 @@ def build_deployment_readiness_report(
     *,
     oidc_readiness_report: dict[str, object],
     object_lock_capability: ObjectLockCapability | None = None,
+    now: datetime | None = None,
 ) -> DeploymentReadinessReport:
     profile = _deployment_profile(settings.environment)
     live_connector_execution_enabled = any(
@@ -171,12 +179,14 @@ def build_deployment_readiness_report(
         and bool(settings.api_rate_limit_paths)
     )
     network_egress_mode = _network_egress_mode(settings)
-    network_egress_restricted_ready = settings.deployment_network_policy_enabled and (
-        network_egress_mode == "offline"
-        or (
-            network_egress_mode == "restricted"
-            and settings.deployment_network_egress_allowlist_configured
-        )
+    # offline and local_only render no unrestricted external egress rule; the
+    # local-only profile additionally scopes DNS and declares its destinations.
+    network_egress_bounded = network_egress_mode in {"offline", "local_only"} or (
+        network_egress_mode == "restricted"
+        and settings.deployment_network_egress_allowlist_configured
+    )
+    network_egress_restricted_ready = (
+        settings.deployment_network_policy_enabled and network_egress_bounded
     )
     audit_signing_configured = bool(settings.audit_ledger_signing_secret)
     deployment_tenancy_mode = _deployment_tenancy_mode(settings)
@@ -352,10 +362,14 @@ def build_deployment_readiness_report(
         _check(
             "network_egress_restricted",
             network_egress_restricted_ready,
-            "Network egress is restricted by NetworkPolicy in restricted or offline mode.",
+            (
+                "Network egress is restricted by NetworkPolicy in restricted, "
+                "offline or local-only mode."
+            ),
             (
                 "Network egress is not production-restricted; enable NetworkPolicy "
-                "and use offline mode or restricted mode with an explicit destination allowlist."
+                "and use local-only mode or restricted mode with an explicit destination "
+                "allowlist (offline mode keeps DNS unrestricted)."
             ),
         ),
         _check(
@@ -470,4 +484,9 @@ def build_deployment_readiness_report(
                 "production blockers are resolved."
             ),
         ],
+        offline_readiness=evaluate_offline_readiness(
+            settings,
+            egress_mode=network_egress_mode,
+            now=now or datetime.now(UTC),
+        ),
     )
