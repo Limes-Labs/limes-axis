@@ -18,6 +18,7 @@ collaborations, not permission to import a vertical into shared core.
 | public-json-schemas | operational-model | trust | [`packages/schemas`](../packages/schemas) |
 | local-topology | deployment | trust, data, operational-model, workflow | [`infra/docker`](../infra/docker) |
 | deployment-profiles | deployment | trust, data, operational-model, workflow | [`infra/helm/limes-axis`](../infra/helm/limes-axis) |
+| offline-readiness | deployment | trust, data, operational-model, workflow | [`services/api/src/axis_api/offline_readiness.py`](../services/api/src/axis_api/offline_readiness.py) |
 | identity | trust | None | [`services/api/src/axis_api/identity.py`](../services/api/src/axis_api/identity.py) |
 | tenant-admission | trust | None | [`services/api/src/axis_api/tenant_admission.py`](../services/api/src/axis_api/tenant_admission.py) |
 | permission-authority | trust | None | [`services/api/src/axis_api/permissions.py`](../services/api/src/axis_api/permissions.py) |
@@ -25,12 +26,16 @@ collaborations, not permission to import a vertical into shared core.
 | credential-leases | trust | data | [`services/api/src/axis_api/connector_credential_leases.py`](../services/api/src/axis_api/connector_credential_leases.py) |
 | source-execution | data | trust | [`services/api/src/axis_api/connector_execution.py`](../services/api/src/axis_api/connector_execution.py) |
 | source-ingestion | data | trust, workflow | [`services/api/src/axis_api/connector_source_ingestion.py`](../services/api/src/axis_api/connector_source_ingestion.py) |
+| writeback-contracts | data | trust, operational-model | [`services/api/src/axis_api/writeback_contracts.py`](../services/api/src/axis_api/writeback_contracts.py) |
 | object-storage | data | deployment, trust | [`services/api/src/axis_api/object_storage.py`](../services/api/src/axis_api/object_storage.py) |
 | data-catalog | data | trust, operational-model, experience | [`services/api/src/axis_api/data_assets.py`](../services/api/src/axis_api/data_assets.py) |
 | data-quality-contracts | data | trust | [`services/api/src/axis_api/data_asset_contracts.py`](../services/api/src/axis_api/data_asset_contracts.py) |
 | data-provenance | data | trust, operational-model | [`services/api/src/axis_api/data_asset_lineage.py`](../services/api/src/axis_api/data_asset_lineage.py) |
 | connector-authoring-contracts | data | trust | [`packages/sdk-python/src/axis_sdk/connector_authoring`](../packages/sdk-python/src/axis_sdk/connector_authoring) |
 | operational-persistence | operational-model | trust, data, workflow, intelligence | [`services/api/src/axis_api/persistence.py`](../services/api/src/axis_api/persistence.py) |
+| portability-manifest | deployment | trust | [`services/api/src/axis_api/portability_manifest.py`](../services/api/src/axis_api/portability_manifest.py) |
+| portability-validator | deployment | trust | [`services/api/src/axis_api/portability_validator.py`](../services/api/src/axis_api/portability_validator.py) |
+| portability-restore-runner | deployment | trust, operational-model | [`services/api/src/axis_api/portability_restore_runner.py`](../services/api/src/axis_api/portability_restore_runner.py) |
 | ontology-ports | operational-model | trust, data, experience | [`services/api/src/axis_api/ontology`](../services/api/src/axis_api/ontology) |
 | action-definitions | operational-model | trust, workflow | [`services/api/src/axis_api/actions.py`](../services/api/src/axis_api/actions.py) |
 | workflow-api-port | workflow | trust, experience | [`services/api/src/axis_api/workflow_runtime.py`](../services/api/src/axis_api/workflow_runtime.py) |
