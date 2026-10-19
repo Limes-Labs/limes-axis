@@ -15,6 +15,15 @@ release-bound behavior, not the complete commit history.
   only; no storage, editor runtime, rendering or embed resolution
   ([#829](https://github.com/Limes-Labs/limes-axis/issues/829)).
 
+- Versioned Workbook Studio contract separating workbook structure, source
+  bindings and cell provenance: stable identities disjoint from source
+  storage IDs, opaque resource-prefix bindings without credentials or rows,
+  explicit local-only value labeling, frozen bind-time mapping whose schema
+  drift surfaces as compatibility state instead of silent column remap, and
+  shareable definitions that strip viewer-local values. Contract slice
+  only; no grid UI, source access, formula evaluation or writeback
+  ([#848](https://github.com/Limes-Labs/limes-axis/issues/848)).
+
 - An optional authenticated public institutional context reader (GovCore),
   absent unless `create_app(public_context=...)` opts in, with current
   tenant/scope and separate fixed-origin policy checks before and after the
