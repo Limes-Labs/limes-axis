@@ -373,6 +373,14 @@ release-bound behavior, not the complete commit history.
 
 ### Changed
 
+- Migration `0069_tenant_created_at_list_indexes` adds composite
+  `(tenant_id, created_at, id)` indexes on `audit_events`, `action_runs` and
+  `connector_runs`, `(tenant_id, event_type, created_at, id)` on
+  `audit_events` and `(tenant_id, created_at)` on `approval_records`, so
+  newest-first tenant list reads stop scanning and sorting the tenant's whole
+  history. PostgreSQL builds them with `CREATE INDEX CONCURRENTLY` (no write
+  lock, but a full scan of each table); an interrupted build leaves an invalid
+  index to drop before rerunning.
 - Temporal signalling is bounded end to end. `Client.connect` previously had
   no deadline (a blackholed frontend hung requests for 135 s with their
   transaction open, exhausting the database pool); connect and signal now share

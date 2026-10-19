@@ -125,6 +125,42 @@ concurrently and retains observation data. See the
 No data ever crossed a tenant boundary in either form; every variant filters on
 `tenant_id`. The defect was cost coupling between tenants, not visibility.
 
+## Tenant List Indexes
+
+The tenant-scoped list reads behind the audit, action-run, connector-run and
+approval routes all filter on `tenant_id` and return the newest rows first with
+a `LIMIT`. Each table had only single-column indexes, so the planner walked the
+tenant's whole history and sorted it — or walked `created_at` across every
+tenant — to return the first page. The 2026-10-19 audit
+([issue #942](https://github.com/Limes-Labs/limes-axis/issues/942)) measured the
+`audit_events` read on PostgreSQL 16 with 2M synthetic rows: 350 ms and 64.6k
+shared buffers without a composite index, 0.15 ms and 19 buffers with one.
+
+Migration `0069_tenant_created_at_list_indexes` adds:
+
+| Table | Index | Read |
+| --- | --- | --- |
+| `audit_events` | `(tenant_id, created_at, id)` | `list_audit_events` |
+| `audit_events` | `(tenant_id, event_type, created_at, id)` | `list_audit_events` with an event type |
+| `action_runs` | `(tenant_id, created_at, id)` | `list_action_runs` |
+| `connector_runs` | `(tenant_id, created_at, id)` | `list_connector_runs` |
+| `approval_records` | `(tenant_id, created_at)` | `list_approval_records` |
+
+`approval_records` orders by `created_at` alone, so its index has no `id`
+column. The migration follows 0065: PostgreSQL builds each index with
+`CREATE INDEX CONCURRENTLY` outside the transaction and SQLite builds a plain
+index. `audit_events` is append-only and usually the largest table, so expect
+the build to take I/O for the scan; an interrupted concurrent build leaves an
+invalid index that must be dropped before the migration is rerun. Downgrade
+drops only these indexes concurrently.
+
+`test_tenant_audit_list_reads_the_composite_index_without_a_sort` in
+`services/api/tests/test_tenant_created_at_index_migration.py` asserts the
+SQLite plan: before the index it was
+`SEARCH audit_events USING INDEX ix_audit_events_tenant_id | USE TEMP B-TREE FOR ORDER BY`;
+after it reads the composite index with no sort. `NOT RUN` here: the PostgreSQL
+`EXPLAIN (ANALYZE, BUFFERS)` reproduction for the three run/approval tables.
+
 ## Verification
 
 | Property | Test |
