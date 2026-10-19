@@ -7,6 +7,60 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Versioned Document Studio contract for durable documents and reusable
+  templates: section/block schema with stable IDs, typed template parameters
+  and fixed/editable/required regions, digest-bound template provenance that
+  survives template deletion, published-revision immutability, bounded
+  design tokens, and accessibility outline as contract data. Contract slice
+  only; no storage, editor runtime, rendering or embed resolution
+  ([#829](https://github.com/Limes-Labs/limes-axis/issues/829)).
+
+- Versioned Workbook Studio contract separating workbook structure, source
+  bindings and cell provenance: stable identities disjoint from source
+  storage IDs, opaque resource-prefix bindings without credentials or rows,
+  explicit local-only value labeling, frozen bind-time mapping whose schema
+  drift surfaces as compatibility state instead of silent column remap, and
+  shareable definitions that strip viewer-local values. Contract slice
+  only; no grid UI, source access, formula evaluation or writeback
+  ([#848](https://github.com/Limes-Labs/limes-axis/issues/848)).
+
+- Versioned clean-room agreement contract modeling multi-party collaboration
+  as a time-bounded agreement: typed purpose/input/output classes as
+  enforcement inputs, bounded isolation profiles, provably independent
+  per-party approvals, material amendments that invalidate prior approvals,
+  authoritative suspension/expiry execution gates, and party removal that
+  preserves historical digests while pruning its inputs. Contract slice
+  only; no dataset binding, query engine or compute
+  ([#855](https://github.com/Limes-Labs/limes-axis/issues/855)).
+
+- Versioned public dataset release manifest contract: sealed immutable release
+  revisions with opaque public IDs, closed frozen-source modes (no live query),
+  deterministic digests with tamper-checked withdrawal evidence, private
+  internal-lineage ledger kept structurally out of public manifests, and a
+  deterministic readiness classifier over disclosure/license review evidence.
+  Contract slice only; no distribution, API or storage is enabled
+  ([#838](https://github.com/Limes-Labs/limes-axis/issues/838)).
+
+- Index generation rebuild conformance (#875): a bounded-maintenance rebuild
+  coordinator over the #873 projection — watermark-bound corpus reprojection
+  onto a fresh `index_generation`, a watermark fence that refuses to
+  overwrite rows changed after the snapshot, one rebuild per tenant at a
+  time under an advisory lock, an atomic validated generation
+  switch, a fail-closed validator (identity/revision/digest/revoked-sentinel),
+  rollback-safe recovery with durable failure evidence, old-generation cursor
+  rejection, and metadata-only rebuild evidence
+  (ready/rebuilding/unavailable) through the audit boundary.
+- Authorized full-text search over the #873 index projection: one bounded query
+  service and `GET /operations/search` that re-evaluate current authorization
+  before any representation, omit denied and non-evaluable records entirely,
+  paginate by keyset with re-authorized cursors that never count hidden
+  candidates and are bound to the principal, query, policy revision and
+  index generation, and report authorized-subset counts/facets plus explicit
+  index freshness. Python SDK
+  `search.query(...)` and a public `search-result-page` JSON Schema contract
+  are included
+  ([#874](https://github.com/Limes-Labs/limes-axis/issues/874)).
+
 - An optional authenticated public institutional context reader (GovCore),
   absent unless `create_app(public_context=...)` opts in, with current
   tenant/scope and separate fixed-origin policy checks before and after the
@@ -159,6 +213,12 @@ release-bound behavior, not the complete commit history.
   changes invalidate resume; no HTTP transport or source execution is enabled
   ([#859](https://github.com/Limes-Labs/limes-axis/issues/859)).
 
+- Tenant-scoped full-text search index projection (#873): bounded approved text
+  from committed ontology promotions and normalized document observations,
+  monotonic revision fencing with durable tombstones, row-locked concurrent
+  writer serialization, metadata-only audit evidence and a disposable,
+  rebuildable index table. No query surface or retrieval authorization in this
+  slice.
 - Restore-capable tenant portability manifest contract
   ([#876](https://github.com/Limes-Labs/limes-axis/issues/876)): versioned
   component inventory with owner/consistency/restore decisions, typed rebinding
