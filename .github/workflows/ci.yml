@@ -127,19 +127,22 @@ jobs:
           AXIS_MODEL_CONTRACT_POSTGRES_DSN: postgresql+psycopg://axis:axis@localhost:5432/axis
         run: make test-model-persistence-postgres
 
-      - name: Start MinIO source fixture
+      # MinIO no longer publishes anonymously pullable images (quay.io and
+      # Docker Hub both answer 401), so the S3 protocol fixture is the
+      # pinned moto server from PyPI. Any S3-compatible endpoint satisfies
+      # these tests; they only create and remove unique fixture buckets.
+      - name: Start S3-compatible source fixture
         run: |
-          docker run -d --name axis-ci-s3-input -p 127.0.0.1:19335:9000 \
-            -e MINIO_ROOT_USER=axis335fixture \
-            -e MINIO_ROOT_PASSWORD=axis335fixturepassword \
-            quay.io/minio/minio:RELEASE.2024-10-13T13-34-11Z@sha256:9535594ad4122b7a78c6632788a989b96d9199b483d3bd71a5ceae73a922cdfa server /data
+          uvx --from "moto[server]==5.2.4" moto_server -H 127.0.0.1 -p 19335 \
+            > "${RUNNER_TEMP}/s3-fixture.log" 2>&1 &
+          echo "$!" > "${RUNNER_TEMP}/s3-fixture.pid"
           for _ in $(seq 1 60); do
-            if curl -fsS --max-time 1 http://127.0.0.1:19335/minio/health/ready > /dev/null; then
+            if curl -fsS --max-time 1 http://127.0.0.1:19335/moto-api/ > /dev/null; then
               exit 0
             fi
             sleep 1
           done
-          docker logs axis-ci-s3-input
+          cat "${RUNNER_TEMP}/s3-fixture.log"
           exit 1
 
       - name: Test S3 input and checkpoint contracts
@@ -151,9 +154,9 @@ jobs:
           AXIS_MODEL_CONTRACT_POSTGRES_DSN: postgresql+psycopg://axis:axis@localhost:5432/axis
         run: uv run pytest tests/integration/test_s3_source_minio.py tests/integration/test_s3_checkpoint_postgres.py -q
 
-      - name: Stop MinIO source fixture
+      - name: Stop S3-compatible source fixture
         if: always()
-        run: docker rm -f axis-ci-s3-input > /dev/null 2>&1 || true
+        run: kill "$(cat "${RUNNER_TEMP}/s3-fixture.pid")" > /dev/null 2>&1 || true
 
       # Migrations are Postgres-only (JSONB columns), which is why this job cannot
       # fall back to SQLite the way local development can.
@@ -266,7 +269,7 @@ jobs:
 
       - name: Lint API
         working-directory: services/api
-        run: uv run ruff check .
+        run: uv run ruff check --config pyproject.toml . ../../scripts/check_runtime_dependencies.py
 
       - name: Test API
         working-directory: services/api
