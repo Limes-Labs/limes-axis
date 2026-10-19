@@ -87,8 +87,23 @@ indistinguishable from an allow-all policy.
 */}}
 {{- define "limes-axis.assertBoundedCidr" -}}
 {{- $cidr := .cidr | default "" | toString | trim -}}
-{{- if or (eq $cidr "") (eq $cidr "0.0.0.0/0") (eq $cidr "::/0") -}}
-{{- fail (printf "%s must declare a bounded CIDR; empty and all-address allow rules are not permitted in the local-only profile (got %q)" .context $cidr) -}}
+{{- $message := printf "%s must declare a bounded CIDR (IPv4 prefix /8 or longer, IPv6 prefix /7 or longer); empty, malformed and all-address allow rules are not permitted in the local-only profile (got %q)" .context $cidr -}}
+{{- $parts := splitList "/" $cidr -}}
+{{- if ne (len $parts) 2 -}}
+{{- fail $message -}}
+{{- end -}}
+{{- $address := index $parts 0 -}}
+{{- $bits := index $parts 1 -}}
+{{- if not (regexMatch "^[0-9]{1,3}$" $bits) -}}
+{{- fail $message -}}
+{{- end -}}
+{{- $prefix := atoi $bits -}}
+{{- if contains ":" $address -}}
+{{- if or (not (regexMatch "^[0-9A-Fa-f:.]+$" $address)) (lt $prefix 7) (gt $prefix 128) -}}
+{{- fail $message -}}
+{{- end -}}
+{{- else if or (not (regexMatch "^[0-9]{1,3}([.][0-9]{1,3}){3}$" $address)) (lt $prefix 8) (gt $prefix 32) -}}
+{{- fail $message -}}
 {{- end -}}
 {{- end -}}
 
@@ -126,31 +141,34 @@ rendered so a missing or unbounded binding never silently widens egress.
 {{- if not $name -}}
 {{- fail "networkPolicy.localOnly.services entries require a name" -}}
 {{- end -}}
+{{- if hasKey $declared $name -}}
+{{- fail (printf "networkPolicy.localOnly.services declares %q more than once; each local service needs exactly one reviewed entry" $name) -}}
+{{- end -}}
 {{- $_ := set $declared $name $service -}}
+{{- /* Every entry is validated, not only the required names: an optional entry is rendered too. */ -}}
+{{- $state := $service.state | default "local" -}}
+{{- if not (has $state (list "local" "omitted")) -}}
+{{- fail (printf "networkPolicy.localOnly.services[%s].state %q is not supported; use local or omitted" $name $state) -}}
+{{- end -}}
+{{- if eq $state "omitted" -}}
+{{- if not ($service.reason | default "") -}}
+{{- fail (printf "networkPolicy.localOnly.services[%s] is omitted without a reason; an omission needs an explicit, reviewable rationale" $name) -}}
+{{- end -}}
+{{- else -}}
+{{- if not (or $service.namespace $service.podSelector $service.ipBlock) -}}
+{{- fail (printf "networkPolicy.localOnly.services[%s] needs a namespace, a podSelector (release namespace) or an ipBlock destination" $name) -}}
+{{- end -}}
+{{- if not $service.ports -}}
+{{- fail (printf "networkPolicy.localOnly.services[%s] needs at least one port" $name) -}}
+{{- end -}}
+{{- if $service.ipBlock -}}
+{{- include "limes-axis.assertBoundedCidr" (dict "cidr" $service.ipBlock.cidr "context" (printf "networkPolicy.localOnly.services[%s].ipBlock" $name)) -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- range $required := (splitList "," (include "limes-axis.requiredLocalOnlyServices" .)) -}}
 {{- if not (hasKey $declared $required) -}}
 {{- fail (printf "networkPolicy.localOnly.services is missing required local service %q; declare it with state: local (namespace or ipBlock plus ports) or state: omitted with a reason. See docs/zero-egress-local-only-profile.md" $required) -}}
-{{- end -}}
-{{- $service := index $declared $required -}}
-{{- $state := $service.state | default "local" -}}
-{{- if not (has $state (list "local" "omitted")) -}}
-{{- fail (printf "networkPolicy.localOnly.services[%s].state %q is not supported; use local or omitted" $required $state) -}}
-{{- end -}}
-{{- if eq $state "omitted" -}}
-{{- if not ($service.reason | default "") -}}
-{{- fail (printf "networkPolicy.localOnly.services[%s] is omitted without a reason; an omission needs an explicit, reviewable rationale" $required) -}}
-{{- end -}}
-{{- else -}}
-{{- if not (or $service.namespace $service.podSelector $service.ipBlock) -}}
-{{- fail (printf "networkPolicy.localOnly.services[%s] needs a namespace, a podSelector (release namespace) or an ipBlock destination" $required) -}}
-{{- end -}}
-{{- if not $service.ports -}}
-{{- fail (printf "networkPolicy.localOnly.services[%s] needs at least one port" $required) -}}
-{{- end -}}
-{{- if $service.ipBlock -}}
-{{- include "limes-axis.assertBoundedCidr" (dict "cidr" $service.ipBlock.cidr "context" (printf "networkPolicy.localOnly.services[%s].ipBlock" $required)) -}}
-{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

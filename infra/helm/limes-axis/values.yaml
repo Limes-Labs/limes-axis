@@ -450,8 +450,9 @@ networkPolicy:
     # DNS is always scoped in this mode: there is no unrestricted DNS rule.
     dns:
       # cluster:    cluster DNS pods (default).
-      # node_local: node-local DNS pods plus the documented link-local
-      #             resolver address; requires CNI/node-network support.
+      # node_local: the DNS pods selected by `namespace`/`podSelector` below
+      #             plus the documented link-local resolver address;
+      #             requires CNI/node-network support.
       # explicit:   only `resolvers` below.
       mode: cluster
       namespace: kube-system
@@ -459,8 +460,9 @@ networkPolicy:
         k8s-app: kube-dns
       # Bounded link-local resolver address used by node_local mode.
       nodeLocalCidr: 169.254.20.10/32
-      # Extra or explicit resolver destinations. Each entry declares a
-      # `namespace` (with an optional `podSelector`) or an `ipBlock`.
+      # Resolver destinations rendered only in explicit mode (ignored by
+      # cluster and node_local). Each entry declares a `namespace` (with an
+      # optional `podSelector`) or a bounded `ipBlock`.
       resolvers: []
     # Required local services are identity-validation, operational-database,
     # workflow-engine, artifact-object-store and model-inference. Each must be

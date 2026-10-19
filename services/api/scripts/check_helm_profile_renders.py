@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import subprocess
 from pathlib import Path
@@ -52,8 +53,24 @@ FORBIDDEN_RENDER_SECRET_TERMS = (
 )
 
 # An allow rule covering every address would make the profile indistinguishable
-# from an allow-all policy, so rendering it must fail the check.
-ALL_ADDRESS_CIDRS = ("0.0.0.0/0", "::/0")
+# from an allow-all policy, so rendering it must fail the check. Any spelling of
+# a /0 prefix, and prefixes broader than the largest private ranges (which can be
+# combined into an all-address allow), are rejected; the chart's
+# "limes-axis.assertBoundedCidr" helper enforces the same bounds at render time.
+MIN_IPV4_PREFIX = 8
+MIN_IPV6_PREFIX = 7
+
+
+def unbounded_cidr(cidr: object) -> bool:
+    """True when a rendered ipBlock CIDR is malformed or too broad for local-only."""
+    if not isinstance(cidr, str):
+        return True
+    try:
+        network = ipaddress.ip_network(cidr.strip(), strict=False)
+    except ValueError:
+        return True
+    minimum = MIN_IPV4_PREFIX if network.version == 4 else MIN_IPV6_PREFIX
+    return network.prefixlen < minimum
 
 # Mirrors "limes-axis.requiredLocalOnlyServices" in templates/_helpers.tpl. The
 # names follow issue #869 dependency ids so the rendered graph stays traceable
@@ -99,7 +116,7 @@ def _missing_terms(text: str, terms: tuple[str, ...]) -> list[str]:
 
 
 def _forbidden_secret_terms(text: str) -> list[str]:
-    normalized = f"\n{text.replace('\\r\\n', '\\n')}\n"
+    normalized = f"\n{text.replace('\r\n', '\n')}\n"
     forbidden = [term for term in FORBIDDEN_RENDER_SECRET_TERMS if term in text]
     if "\nkind: Secret\n" in normalized:
         forbidden.append("kind: Secret")
@@ -220,10 +237,14 @@ def local_only_egress_problems(values: dict, policy: dict) -> list[str]:
         for target in targets or []:
             if not isinstance(target, dict):
                 continue
-            cidr = (target.get("ipBlock") or {}).get("cidr")
-            if cidr in ALL_ADDRESS_CIDRS:
+            if "ipBlock" not in target:
+                continue
+            ip_block = target["ipBlock"]
+            cidr = ip_block.get("cidr") if isinstance(ip_block, dict) else None
+            if unbounded_cidr(cidr):
                 problems.append(
-                    f"rendered local-only egress contains an all-address CIDR allow rule: {cidr}"
+                    "rendered local-only egress contains an all-address CIDR allow rule "
+                    f"or an unbounded CIDR: {cidr}"
                 )
 
     # Acceptance criterion 1: DNS must be scoped to the configured resolvers.

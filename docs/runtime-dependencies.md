@@ -442,7 +442,7 @@ Git blob digests bind the review baseline to packaging, not live traffic.
 | --- | --- |
 | `infra/docker/docker-compose.yml` | `066d34e76411c3f0dc0c9dc13249521b51dcc2bd` |
 | `infra/helm/limes-axis/Chart.yaml` | `6450c0e7c5695c4f378083e892134b58effa4585` |
-| `infra/helm/limes-axis/templates/_helpers.tpl` | `fd9afc2734bdefd3e9b67abde18309510e901688` |
+| `infra/helm/limes-axis/templates/_helpers.tpl` | `2359b38547b282ca38968f9951e603a4e18d0080` |
 | `infra/helm/limes-axis/templates/api-deployment.yaml` | `3385ce302e45d7fc3f3368b9a1bbf17cea4e9fe7` |
 | `infra/helm/limes-axis/templates/api-service.yaml` | `70c5fb300f8b1489c51afb96e56c8cdb9dd9e0b3` |
 | `infra/helm/limes-axis/templates/configmap.yaml` | `d5b470b74e26685090b1fb87acb5af9d3f80518c` |
