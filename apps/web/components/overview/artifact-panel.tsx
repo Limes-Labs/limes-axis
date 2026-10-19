@@ -202,7 +202,7 @@ export function ArtifactPanel({
             <p className="m-0 text-xs text-muted">{operationsArtifactHeadline(artifact.response)}</p>
             <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-muted">
               <span>{artifact.response.idempotent_replay ? strings.ui.overviewArtifactPanel.idempotentReplay : strings.ui.overviewArtifactPanel.created}</span>
-              <span>{artifact.response.source_record_ids.length} source records</span>
+              <span>{strings.ui.overviewArtifactPanel.sourceRecords(artifact.response.source_record_ids.length)}</span>
               <span>{artifact.response.audit_event_type}</span>
             </div>
           </div>

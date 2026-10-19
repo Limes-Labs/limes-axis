@@ -105,7 +105,7 @@ export function SignInGate({
         </div>
         <p className="mt-3 mb-0 text-xs leading-snug text-muted">
           {strings.identityGate.returnHint}
-          {host ? ` Identity provider: ${host}.` : ""}
+          {host ? ` ${strings.ui.signInGate.identityProvider(host)}` : ""}
         </p>
       </div>
     </section>

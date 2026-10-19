@@ -60,9 +60,14 @@ export function PolicyRevisionCompare({
   return (
     <div className="grid min-w-0 gap-2.5">
       <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-        Comparing r{base.revision_number} / {base.policy_version} against the current r
-        {target.revision_number} / {target.policy_version}: {changedCount} of {diffs.length}{" "}
-        {strings.ui.policyRevisionCompare.fieldsChangedRemovedValuesWere}
+        {strings.ui.policyRevisionCompare.comparing(
+          base.revision_number,
+          base.policy_version,
+          target.revision_number,
+          target.policy_version,
+          changedCount,
+          diffs.length,
+        )}
       </p>
       <div className="grid min-w-0 gap-2">
         {diffs.map((diff) => (

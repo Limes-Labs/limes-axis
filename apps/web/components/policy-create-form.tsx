@@ -295,14 +295,16 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
       </form>
 
       {submission.phase === "failed" ? (
-        <InlineOperatorError error={submission.error} prefix="Policy authoring failed" />
+        <InlineOperatorError error={submission.error} prefix={strings.ui.policyCreateForm.policyAuthoringFailed} />
       ) : null}
       {submission.phase === "created" ? (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
-          Policy created as r{submission.record.revision_number} /{" "}
-          {submission.record.policy_version}.{" "}
+          {strings.ui.policyCreateForm.policyCreated(
+            submission.record.revision_number,
+            submission.record.policy_version,
+          )}{" "}
           <Link className="inline-flex min-h-6 items-center font-medium text-signal underline decoration-1 underline-offset-2" href={`/policies/${submission.record.policy_id}`}>
-            Open {submission.record.policy_id}
+            {strings.ui.common.openRecord(submission.record.policy_id)}
           </Link>
         </p>
       ) : null}
@@ -312,10 +314,7 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
           <p className="eyebrow m-0">{strings.ui.policyCreateForm.previewEvaluation}</p>
           <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">{strings.ui.policyCreateForm.advisoryDryRunForThe}</h3>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            Runs POST /platform/policies/evaluate against the policies already persisted for
-            this tenant, plus a client-side check of whether the drafted conditions would match
-            the sample context. Advisory only: the draft is not evaluated by the API until it
-            is authored.
+            {strings.ui.policyCreateForm.previewEvaluationDetail}
           </p>
         </div>
         <FlaskConical size={18} />

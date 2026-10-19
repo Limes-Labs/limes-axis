@@ -1606,6 +1606,8 @@ const simulation = {
         detail:
           "La finestra di replay non ha restituito decisioni di policy. Ampli la finestra della cronologia o cancelli il filtro sul workflow.",
       },
+      decisionsCompared: (total: number, changed: number) =>
+        `${total} ${total === 1 ? "decisione confrontata" : "decisioni confrontate"} — ${changed} ${changed === 1 ? "modificata" : "modificate"}`,
     },
   },
   error: {
@@ -1628,7 +1630,6 @@ const onboarding = {
   description:
     "Cinque passaggi portano da un tenant vuoto a un workflow governato con evidenze di audit registrate.",
   progressLabel: "Avanzamento della configurazione",
-  stepsComplete: "passaggi di configurazione completati",
   exploreDemo: {
     label: "Esplorare con dati dimostrativi",
     comingSoon: "Disponibile con il provisioning dimostrativo",
@@ -1669,6 +1670,8 @@ const onboarding = {
       cta: "Aprire i workflow",
     },
   },
+  stepsProgress: (complete: number, total: number) =>
+    `${complete} di ${total} passaggi di configurazione completati`,
 } as const;
 
 const settingsPanelUnavailable = "I record di impostazione locali di riserva sono disattivati.";
@@ -2077,6 +2080,12 @@ const ui = {
     workflowSignal: "Segnale del workflow",
     actionRunPersistenceError: "Errore di persistenza dell'esecuzione dell'azione",
     actionRunPersistenceUnavailable: "Persistenza dell'esecuzione dell'azione non disponibile",
+    gatedCount: (value: number) => (value === 1 ? "1 vincolata" : `${count(value)} vincolate`),
+    ceilingForAgentDraft: "Limite per bozza ed esecuzione dell'agente",
+    idempotencyRequirement: (required: boolean) =>
+      required ? "idempotenza obbligatoria" : "idempotenza facoltativa",
+    dryRunSupport: (supported: boolean) => (supported ? "dry-run supportato" : "dry-run bloccato"),
+    noApprovalRefs: "non_richiesta",
   },
   agentRegistry: {
     theAgentRegistryIsNot:
@@ -2090,6 +2099,15 @@ const ui = {
     agentRunStepTimeline: "Cronologia dei passaggi dell'esecuzione dell'agente",
     loadingAgentRunSteps: "Caricamento dei passaggi dell'esecuzione",
     loadingAgentRuns: "Caricamento delle esecuzioni degli agenti",
+    errorReason: (reason: string) => `Motivo dell'errore: ${reason}`,
+    invocationUsage: (input: number, output: number, cost: string, latency: number, egress: string) =>
+      `token: ${input} in ingresso / ${output} in uscita / ${cost} / ${latency} ms / ${egress}`,
+    invocationDetailUnavailable: (invocationId: string) =>
+      `Dettaglio dell'invocazione ${invocationId} non disponibile (/platform/models/invocations).`,
+    deferredRuns: (value: number) =>
+      `${value} ${value === 1 ? "esecuzione differita" : "esecuzioni differite"} — l'esecuzione del model routing è subordinata a un flag; le esecuzioni differite terminano senza una proposta.`,
+    runStarted: (autonomy: string, started: string, requestedBy: string) =>
+      `${autonomy} / avviata il ${started} da ${requestedBy}`,
   },
   apiStatusPanel: {
     apiStatus: "Stato dell'API",
@@ -2129,6 +2147,7 @@ const ui = {
     highRisk: "Rischio elevato",
     mediumRisk: "Rischio medio",
     lowRisk: "Rischio basso",
+    pendingOf: (shown: number, total: number) => `${shown} di ${total} in attesa`,
   },
   auditActivityHeatmap: {
     activityByTime: "Attività per fascia oraria",
@@ -2138,6 +2157,20 @@ const ui = {
     auditEventsByZonedDate: (zone: string) =>
       `Eventi di audit per data e fascia di sei ore, ora ${zone}`,
     clearTimeFilter: "Cancellare il filtro temporale",
+    eventCount: (value: number) => `${value} ${value === 1 ? "evento" : "eventi"}`,
+    filteredInRange: (inRange: number, filtered: number) => `${inRange} di ${filtered} eventi filtrati`,
+    inRangeReturned: (returned: number, range: string) =>
+      `nell'intervallo · ${returned} restituiti · ${range}`,
+    noValidDatedEvents: "Nessun evento con data valida da rappresentare",
+    cellLabel: (cell: string, value: number) =>
+      `${cell}: ${value} ${value === 1 ? "evento" : "eventi"} nella finestra restituita`,
+    colorScale: (maximum: number) => `Scala cromatica: da zero a ${maximum} eventi per cella`,
+    maximumCount: (maximum: number) => `massimo ${maximum}`,
+    timeFilter: (label: string) => `Filtro temporale: ${label}`,
+    footnote: (selectable: boolean, outside: number, invalid: number) =>
+      `I conteggi coprono solo la finestra restituita.${selectable ? " Selezioni una cella per filtrare gli eventi sottostanti." : ""}${
+        outside > 0 ? ` ${outside} fuori da queste sette date.` : ""
+      }${invalid > 0 ? ` ${invalid} esclusi per timestamp non validi o privi di fuso orario.` : ""}`,
   },
   auditExplorer: {
     theConsoleCouldNotVerify:
@@ -2165,6 +2198,9 @@ const ui = {
     redactedFields: "Campi oscurati",
     connectorSnapshot: "Snapshot del connettore",
     retentionNotes: "Note sulla conservazione",
+    exportReady: (records: number, format: string) =>
+      `${count(records)} record, pronti per il download in formato ${format}.`,
+    returnedCount: (value: number) => (value === 1 ? "1 restituito" : `${count(value)} restituiti`),
   },
   common: {
     theAuthenticatedIdentityResponseDoes:
@@ -2228,6 +2264,16 @@ const ui = {
     tenants: "Tenant",
     saving: "Salvataggio in corso",
     close: "Chiudere",
+    visibleCount: (value: number) => (value === 1 ? "1 visibile" : `${count(value)} visibili`),
+    revisionNumber: (revision: number | string) => `r${revision}`,
+    revisionVersion: (revision: number | string, version: string) => `r${revision} / ${version}`,
+    requiredPermission: (scope: string) => `Autorizzazione richiesta: ${scope}.`,
+    idempotencyKey: (key: string) => `Chiave di idempotenza ${key}`,
+    openRecord: (name: string) => `Aprire ${name}`,
+    unrouted: "non instradato",
+    pendingValue: "in attesa",
+    riskLevel: (level: string) => `rischio ${level}`,
+    dueDate: (due: string) => `Scadenza ${due}`,
   },
   connectorConsole: {
     loadingConnectorIdentity: "Caricamento dell'identità per i connettori",
@@ -2248,6 +2294,9 @@ const ui = {
     ontologyTarget: "Destinazione nell'ontologia",
     column: "Colonna",
     target: "Destinazione",
+    rowsFromFile: (rows: number, fileName: string) =>
+      `${count(rows)} ${rows === 1 ? "riga" : "righe"} da ${fileName}`,
+    tableMetadata: (schema: string, table: string) => `metadati di ${schema}.${table}`,
   },
   connectorConsoleGovernance: {
     liveRefreshFailedShowingThe:
@@ -2258,6 +2307,7 @@ const ui = {
     window: "Finestra",
     boundary: "Perimetro",
     profile: "Profilo",
+    rotationEvery: (status: string, days: number) => `${status} / ogni ${days} giorni`,
   },
   connectorConsoleList: {
     connectorPages: "Pagine dei connettori",
@@ -2265,6 +2315,10 @@ const ui = {
     previous: "Precedente",
     nextConnectors: "Connettori successivi",
     next: "Successiva",
+    pageRange: (range: string, total: number) => `${range} di ${total}`,
+    connectorCount: (value: number) => `${count(value)} ${value === 1 ? "connettore" : "connettori"}`,
+    sampleRows: (value: number) =>
+      `${count(value)} ${value === 1 ? "riga di esempio" : "righe di esempio"}`,
   },
   connectorConsoleRuns: {
     liveRefreshFailedShowingThe:
@@ -2339,6 +2393,12 @@ const ui = {
     egressPolicyAttached: "Policy di egress associata",
     noEgressPolicy: "Nessuna policy di egress",
     telemetryNotes: "Note sulla telemetria",
+    blockedCount: (value: number) => (value === 1 ? "1 bloccata" : `${count(value)} bloccate`),
+    estimatedCost: (cost: string) => `${cost} stimati`,
+    recordedCount: (value: number) => (value === 1 ? "1 registrata" : `${count(value)} registrate`),
+    deferredFlagGated: (value: number) =>
+      value === 1 ? "1 differita (subordinata a flag)" : `${count(value)} differite (subordinate a flag)`,
+    enabledOf: (enabled: number, total: number) => `${count(enabled)} di ${count(total)} abilitati`,
   },
   modelRoutingFlow: {
     routingDependencies: "Dipendenze del routing",
@@ -2352,6 +2412,13 @@ const ui = {
     noConfiguredRoutesToCompare: "Nessuna route configurata da confrontare.",
     providerToModelDiagram: "Diagramma da provider a modello",
     routesByProviderAndModel: "Route per provider e modello",
+    routeCount: (value: number) => `${count(value)} ${value === 1 ? "rotta" : "rotte"}`,
+    configuredSummary: (routes: number, providers: number) =>
+      `${count(routes)} ${routes === 1 ? "rotta configurata" : "rotte configurate"} · ${providers} provider`,
+    activeSummary: (path: string, routes: number) =>
+      `${path} · ${count(routes)} ${routes === 1 ? "rotta configurata" : "rotte configurate"}`,
+    routesFrom: (model: string, routes: number, provider: string) =>
+      `${model}, ${count(routes)} ${routes === 1 ? "rotta" : "rotte"} da ${provider}`,
   },
   oidcSessionBridge: {
     oidcSession: "Sessione OIDC",
@@ -2398,6 +2465,7 @@ const ui = {
     dataAccess: "Accesso ai dati",
     publicDemoSummaryOnly: "Solo riepilogo della demo pubblica",
     detailNotes: "Note di dettaglio",
+    connectedCount: (value: number) => (value === 1 ? "1 collegata" : `${value} collegate`),
   },
   ontologyEntitySheet: {
     liveRefreshFailedShowingThe:
@@ -2427,6 +2495,13 @@ const ui = {
     ontologyGraphQueryMetadata: "Metadati della query sul grafo dell'ontologia",
     permissionNotes: "Note sulle autorizzazioni",
     readBoundaries: "Perimetri di lettura",
+    nodeCount: (value: number) => `${count(value)} nodi`,
+    relationshipCount: (value: number) => `${count(value)} relazioni`,
+    confidence: (percent: number) => `confidenza ${percent}%`,
+    deniedRelationships: (value: number) => `${count(value)} relazioni negate`,
+    graphQueryReturned: (nodes: number, relationships: number, actor: string) =>
+      `${count(nodes)} nodi / ${count(relationships)} relazioni restituiti per ${actor}`,
+    permissionDecision: (reason: string) => `Decisione di autorizzazione: ${reason}`,
   },
   overviewActivityTimeline: {
     returnedWindow: "Finestra restituita",
@@ -2445,6 +2520,20 @@ const ui = {
     attentionWatchActionRequiredShare:
       "Da attenzionare = Da monitorare + Intervento necessario; quota sugli eventi restituiti di quella data. Non sono totali giornalieri completi.",
     dailyActivityValues: "Valori giornalieri dell'attività",
+    dateInZone: (date: string, zone: string) => `${date} ${zone}`,
+    eventCount: (value: number) => `${value} ${value === 1 ? "evento" : "eventi"}`,
+    returnedSummary: (events: number, dates: number, zone: string) =>
+      `${events} ${events === 1 ? "evento restituito" : "eventi restituiti"} · ${dates} ${dates === 1 ? "data" : "date"} ${zone}`,
+    attentionValue: (share: string, attention: number, total: number) =>
+      `${share} da attenzionare · ${attention}/${total}`,
+    attentionUnavailable: (unknown: number) =>
+      `Quota da attenzionare non disponibile · ${unknown} con gravità sconosciuta`,
+    attentionDaily: (attention: number, total: number, share: string) =>
+      `${attention}/${total} da attenzionare · ${share}`,
+    attentionShareUnavailable: (unknown: number) =>
+      `Quota di attenzione non disponibile · ${unknown} con gravità sconosciuta`,
+    invalidTimestamps: (value: number) =>
+      `${value} ${value === 1 ? "evento ha un timestamp non valido e non può essere collocato" : "eventi hanno un timestamp non valido e non possono essere collocati"} per data.`,
   },
   overviewArtifactPanel: {
     governedArtifactActions: "Azioni sugli artefatti governati",
@@ -2452,6 +2541,7 @@ const ui = {
     idempotentReplay: "Ripetizione idempotente",
     created: "Creato",
     artifactPersistenceFailed: "Persistenza dell'artefatto non riuscita",
+    sourceRecords: (value: number) => `${value} record di origine`,
   },
   overviewNeedsAttention: {
     openTheFullApprovalInbox: "Aprire l'elenco completo delle approvazioni",
@@ -2459,6 +2549,8 @@ const ui = {
   },
   overviewPostureCards: {
     platformPosture: "Stato della piattaforma",
+    blockedRoutes: (value: number) =>
+      `${count(value)} ${value === 1 ? "rotta bloccata" : "rotte bloccate"}`,
   },
   overviewSideRail: {
     activityByDate: "Attività per data",
@@ -2498,6 +2590,10 @@ const ui = {
     authorPolicy2: "Creare la policy",
     previewEvaluation: "Anteprima della valutazione",
     advisoryDryRunForThe: "Esecuzione di prova consultiva per l'ambito in bozza",
+    policyAuthoringFailed: "Creazione della policy non riuscita",
+    policyCreated: (revision: number, version: string) => `Policy creata come r${revision} / ${version}.`,
+    previewEvaluationDetail:
+      "Esegue POST /platform/policies/evaluate sulle policy già persistite per questo tenant, oltre a una verifica lato client che le condizioni redatte corrispondano al contesto di esempio. Solo indicativo: l'API valuta la bozza solo dopo la sua creazione.",
   },
   policyDetail: {
     policyRevisionHistory: "Cronologia delle revisioni della policy",
@@ -2533,6 +2629,12 @@ const ui = {
     evaluateAContextAgainstTenant: "Valutare un contesto rispetto alle policy del tenant",
     dryRunOnlyEvaluationIs:
       "Solo esecuzione di prova: la valutazione è deterministica, non registra eventi di audit e non modifica mai lo stato.",
+    revisesRevision: (revision: number) => `Rivede r${revision}`,
+    supersededBy: (revision: number) => `Sostituita da r${revision}`,
+    revisionRecorded: (recorded: number | string, active: number, version: string) =>
+      `Revisione registrata: r${recorded}. La revisione attiva è r${active} / ${version}.`,
+    appendOnlyRevisions: (value: number) =>
+      value === 1 ? "1 revisione in sola aggiunta" : `${count(value)} revisioni in sola aggiunta`,
   },
   policyEvaluationPanel: {
     noActivePolicyMatchedThis: "Nessuna policy attiva corrisponde a questo contesto",
@@ -2551,6 +2653,11 @@ const ui = {
     requestedAmount2: "Importo richiesto",
     evaluating: "Valutazione in corso",
     runDryRunEvaluation: "Eseguire la valutazione di prova",
+    dryRunEvaluationFailed: "Valutazione dry-run non riuscita",
+    matchedPolicy: (policyId: string, revision: number | null | undefined, version: string | null | undefined) =>
+      `Corrispondenza: ${policyId} r${revision} / ${version}`,
+    draftCheck: (matches: boolean) =>
+      `Verifica indicativa della bozza: le condizioni redatte ${matches ? "corrisponderebbero" : "non corrisponderebbero"} a questo contesto di esempio. La decisione sottostante valuta solo le policy già persistite per il tenant.`,
   },
   policyRegistry: {
     policyAuthoringResult: "Risultato della creazione della policy",
@@ -2568,6 +2675,12 @@ const ui = {
     noPoliciesMatchTheCurrent: "Nessuna policy corrisponde ai filtri correnti",
     thePolicyApiRespondedWithout:
       "L'API delle policy ha risposto senza record per la selezione di tenant, ambito e stato. Crei la prima policy del tenant con il modulo seguente.",
+    policyAuthored: (revision: number, version: string, name: string) =>
+      `Policy creata come r${revision} / ${version}: ${name}`,
+    authoredNotInView: (policyId: string) =>
+      `La policy creata ${policyId} non è presente nella vista corrente del registro.`,
+    versionedRulesFor: "Regole di governance con versioni per {tenant}",
+    activeCount: (value: number) => (value === 1 ? "1 attiva" : `${count(value)} attive`),
   },
   policyReviseForm: {
     revisePolicy: "Revisione della policy",
@@ -2579,12 +2692,28 @@ const ui = {
     revisionNotes: "Note della revisione",
     appending: "Aggiunta in corso",
     appendRevision: "Aggiungere la revisione",
+    appendRevisionTo: (revision: number) => `Aggiungere una revisione a r${revision}`,
+    prefilledScope: (scope: string) =>
+      `Precompilata dalla revisione corrente; l'ambito resta ${scope}.`,
+    revisionCreated: (revision: number, version: string) =>
+      `Revisione creata: r${revision} / ${version} è ora la revisione attiva.`,
+    revisionReplayed: (revision: number, version: string) =>
+      `Revisione già applicata: l'API ha riprodotto r${revision} / ${version} per questa chiave di idempotenza senza scrivere una nuova revisione.`,
+    revisionConflict: "Conflitto di revisione",
+    policyRevisionFailed: "Revisione della policy non riuscita",
   },
   policyRevisionCompare: {
-    fieldsChangedRemovedValuesWere:
-      "campi modificati. I valori rimossi (−) sono stati eliminati dalla revisione corrente; i valori aggiunti (+) sono nuovi in essa.",
     changed: "Modificato",
     unchanged: "Invariato",
+    comparing: (
+      base: number,
+      baseVersion: string,
+      target: number,
+      targetVersion: string,
+      changed: number,
+      total: number,
+    ) =>
+      `Confronto di r${base} / ${baseVersion} con la revisione corrente r${target} / ${targetVersion}: ${changed} campi modificati su ${total}. I valori rimossi (−) sono stati eliminati dalla revisione corrente; i valori aggiunti (+) sono nuovi in essa.`,
   },
   sessionSecurityConsole: {
     browserSession: (ref: string) => `Sessione del browser ${ref}`,
@@ -2631,6 +2760,11 @@ const ui = {
     scopes: "Ambiti",
     thisConsoleIsAttachedThrough:
       "Questa console è collegata tramite il bearer bridge per sviluppatori. La revoca seguente si applica alle sessioni del browser con cookie persistite; per scollegare questa console, cancelli il bearer bridge dal pannello dell'account.",
+    thisBrowser: (name: string) => `${name} (questo browser)`,
+    sessionTimes: (created: string, lastSeen: string, expires: string, refreshes: string) =>
+      `Creata ${created} · Ultimo accesso ${lastSeen} · Scade ${expires} · Rinnovi ${refreshes}`,
+    revokedAt: (at: string) => `Revocata ${at}`,
+    recordedCount: (value: number) => (value === 1 ? "1 registrata" : `${count(value)} registrate`),
   },
   sidebarAccount: {
     openPlatformHelp: "Aprire l'assistenza della piattaforma",
@@ -2668,6 +2802,27 @@ const ui = {
     retention: "Conservazione",
     requestedBy: "Richiesto da",
     simulationNotes: "Note sulla simulazione",
+    retentionDays: (days: number) =>
+      `conservazione di ${count(days)} ${days === 1 ? "giorno" : "giorni"}`,
+    legalHold: "blocco legale",
+    enforced: "applicata",
+    retentionActive: "attiva",
+    retentionHeld: "sospesa",
+    excludedCount: (value: number) => (value === 1 ? "1 escluso" : `${count(value)} esclusi`),
+    totalExcluded: (value: number) =>
+      value === 1 ? "1 escluso in totale" : `${count(value)} esclusi in totale`,
+    replayPreviews: (value: number) =>
+      `${count(value)} ${value === 1 ? "anteprima di replay" : "anteprime di replay"}`,
+    changedCount: (value: number) => (value === 1 ? "1 modificata" : `${count(value)} modificate`),
+    evidenceEvents: (value: number) =>
+      `${count(value)} ${value === 1 ? "evento di evidenza" : "eventi di evidenza"}`,
+    eventCount: (value: number) => `${count(value)} ${value === 1 ? "evento" : "eventi"}`,
+    governedOutputs: (value: number) =>
+      `${count(value)} ${value === 1 ? "output governato" : "output governati"}`,
+    dayCount: (value: number) => `${count(value)} ${value === 1 ? "giorno" : "giorni"}`,
+    outcomeChanged: (changed: boolean) => (changed ? "sì" : "no"),
+    auditBacked: "basato su audit",
+    previewOnly: "solo anteprima",
   },
   tenantDetail: {
     axisDidNotReceiveAn:
@@ -2707,6 +2862,9 @@ const ui = {
     reactivationReason: "Motivo della riattivazione",
     optionalReasonForReactivating: "Motivo facoltativo della riattivazione",
     reactivating: "Riattivazione in corso",
+    lifecycleActionFailed: "Azione sul ciclo di vita non riuscita",
+    actionsUnavailable: (status: string, terminal: boolean) =>
+      `Lo stato di questo tenant è ${status}. Le azioni sul ciclo di vita non sono disponibili${terminal ? "; i tenant in attesa di eliminazione non possono essere riattivati in questa versione." : "."}`,
   },
   tenantProvisionForm: {
     provisionTenant: "Provisioning del tenant",
@@ -2735,6 +2893,13 @@ const ui = {
     signInWithSsoTo: "Acceda con SSO per eseguire il provisioning dei tenant.",
     provisioning: "Provisioning in corso",
     provisionTenant2: "Eseguire il provisioning del tenant",
+    createsActiveTenant: (scope: string) =>
+      `Crea un tenant attivo tramite POST /platform/tenants. L'API applica l'ambito ${scope} e registra l'evidenza di audit della creazione.`,
+    tenantProvisioningFailed: "Creazione del tenant non riuscita",
+    tenantProvisioningConflict: "Conflitto nella creazione del tenant",
+    tenantProvisioned: "Tenant creato.",
+    idempotentReplay:
+      "Replay idempotente: l'API ha restituito il tenant esistente per questa chiave senza crearne un duplicato.",
   },
   tenantQuotaEditor: {
     perTenantQuotas: "Quote per tenant",
@@ -2749,6 +2914,9 @@ const ui = {
     cancel: "Annullare",
     reviewQuotaUpdate: "Esaminare l'aggiornamento delle quote",
     quotaTechnicalDetails: "Dettagli tecnici delle quote",
+    quotaUpdateFailed: "Aggiornamento della quota non riuscito",
+    quotaApplied: (changes: number) =>
+      `Aggiornamento della quota applicato con ${count(changes)} ${changes === 1 ? "modifica" : "modifiche"}. Le chiavi invariate non scrivono eventi di audit.`,
   },
   tenantRegistry: {
     showingTenants: (count: string) => `Sono mostrati ${count} tenant. Altri tenant corrispondono a questo filtro.`,
@@ -2776,6 +2944,10 @@ const ui = {
     noTenantsMatchTheCurrent: "Nessun tenant corrisponde al filtro corrente",
     theTenantApiRespondedWithout:
       "L'API dei tenant ha risposto senza record per questa selezione di stato. Esegua il provisioning del primo tenant con il modulo seguente.",
+    activeCount: (value: number) => (value === 1 ? "1 attivo" : `${count(value)} attivi`),
+    suspendedBy: (actor: string) => `Sospeso da ${actor}`,
+    reactivatedBy: (actor: string) => `Riattivato da ${actor}`,
+    unknownActor: "sconosciuto",
   },
   tenantUsagePanel: {
     usageMetering: "Misurazione dei consumi",
@@ -2784,6 +2956,7 @@ const ui = {
     usageMethodologyAndAccess: "Metodologia di misurazione e accesso",
     meteringIsCumulativeConsumptionAccounting:
       "La misurazione è una contabilizzazione cumulativa dei consumi; le quote restano i limiti applicati.",
+    consumptionOverDays: (days: number) => `Consumi degli ultimi ${days} giorni`,
   },
   tenantVocabularyEditor: {
     vocabularyTechnicalDetails: "Dettagli tecnici del vocabolario",
@@ -2837,6 +3010,10 @@ const ui = {
     axisDidNotDerivePending:
       "Axis non ha ricavato avvisi in sospeso dallo stato persistito della piattaforma.",
     openAuditEvidence: "Aprire le evidenze di audit",
+    requiresEndpoint: (prefix: string) =>
+      `I dati delle notifiche richiedono ${prefix}/notifications.`,
+    unreadCount: (value: number) => (value === 1 ? "1 non letta" : `${count(value)} non lette`),
+    reference: (requestId: string) => `Rif. ${requestId}`,
   },
   uiInspectDrawer: {
     inspect: "Esaminare",
@@ -2848,6 +3025,8 @@ const ui = {
   uiStates: {
     loadingContent: "Caricamento del contenuto",
     apiBaseUrl: "URL di base dell'API",
+    defaultApiBaseUrlHint:
+      "La console usa l'indirizzo predefinito http://localhost:8000: imposti NEXT_PUBLIC_AXIS_API_BASE_URL se l'API è in esecuzione altrove.",
   },
   uiToast: {
     viewDetails: "Visualizzare i dettagli",
@@ -2883,6 +3062,19 @@ const ui = {
     title: "Axis Console",
     titleTemplate: "%s · Axis Console",
     description: "Il piano di controllo AI sovrano per le operazioni europee.",
+  },
+  uiInlineOperatorError: {
+    requestReference: "Riferimento della richiesta:",
+  },
+  uiSourcePill: {
+    dataSource: "Origine dei dati:",
+    example: (subject: string) => `${subject}: esempio`,
+  },
+  platformSettings: {
+    requestId: (requestId: string) => `Richiesta ${requestId}.`,
+  },
+  signInGate: {
+    identityProvider: (host: string) => `Provider di identità: ${host}.`,
   },
 } as const;
 
@@ -3123,6 +3315,8 @@ export const stringsIt: ConsoleStrings = {
           "L'ID asset richiesto non fa parte del catalogo di questo tenant. Axis non sostituisce un asset diverso a un link diretto sconosciuto.",
       },
     },
+    assetCount: (value: number) => `${count(value)} asset di dati`,
+    recordsAt: (records: number, at: string) => `${records} record · ${at}`,
   },
   connectors,
   models,

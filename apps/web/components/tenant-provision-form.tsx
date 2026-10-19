@@ -160,10 +160,9 @@ export function TenantProvisionForm() {
           <p className="eyebrow m-0">{strings.ui.tenantProvisionForm.provisionTenant}</p>
           <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.tenantProvisionForm.newTenant}</h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            Creates an active tenant through POST /platform/tenants. The API enforces the{" "}
-            {platformTenantProvisionScope} scope and records provisioning audit evidence.
+            {strings.ui.tenantProvisionForm.createsActiveTenant(platformTenantProvisionScope)}
           </p>
-          <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">Idempotency key {idempotencyKey}</p>
+          <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{strings.ui.common.idempotencyKey(idempotencyKey)}</p>
         </div>
         <Building2 size={18} />
       </div>
@@ -298,25 +297,24 @@ export function TenantProvisionForm() {
       </form>
 
       {submission.phase === "failed" ? (
-        <InlineOperatorError error={submission.error} prefix="Tenant provisioning failed" />
+        <InlineOperatorError error={submission.error} prefix={strings.ui.tenantProvisionForm.tenantProvisioningFailed} />
       ) : null}
       {submission.phase === "conflict" ? (
-        <InlineOperatorError error={submission.error} prefix="Tenant provisioning conflict" />
+        <InlineOperatorError error={submission.error} prefix={strings.ui.tenantProvisionForm.tenantProvisioningConflict} />
       ) : null}
       {submission.phase === "created" ? (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
-          Tenant provisioned.{" "}
+          {strings.ui.tenantProvisionForm.tenantProvisioned}{" "}
           <Link className="inline-flex min-h-6 items-center font-medium text-signal underline decoration-1 underline-offset-2" href={`/tenants/${submission.record.tenant_id}`}>
-            Open {displayName(submission.record.display_name, submission.record.tenant_id, submission.record.tenant_id)}
+            {strings.ui.common.openRecord(displayName(submission.record.display_name, submission.record.tenant_id, submission.record.tenant_id))}
           </Link>
         </p>
       ) : null}
       {submission.phase === "replayed" ? (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
-          Idempotent replay: the API returned the existing tenant for this key without creating a
-          duplicate.{" "}
+          {strings.ui.tenantProvisionForm.idempotentReplay}{" "}
           <Link className="inline-flex min-h-6 items-center font-medium text-signal underline decoration-1 underline-offset-2" href={`/tenants/${submission.record.tenant_id}`}>
-            Open {displayName(submission.record.display_name, submission.record.tenant_id, submission.record.tenant_id)}
+            {strings.ui.common.openRecord(displayName(submission.record.display_name, submission.record.tenant_id, submission.record.tenant_id))}
           </Link>
         </p>
       ) : null}

@@ -298,12 +298,12 @@ function ApprovalDetail({
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted">
           <span className={`status-pill ${approvalRiskClass(approval.risk_level)}`}>
-            {approval.risk_level} risk
+            {strings.ui.common.riskLevel(approval.risk_level)}
           </span>
           <span className="min-w-0 [overflow-wrap:anywhere]" data-approval-cost>
             {strings.approvals.decision.cost}: {approval.estimated_cost}
           </span>
-          <span>Due {approval.due}</span>
+          <span>{strings.ui.common.dueDate(approval.due)}</span>
           <span className="min-w-0 [overflow-wrap:anywhere]">
             {strings.ui.common.owner}:{" "}
             <IdentifiedName

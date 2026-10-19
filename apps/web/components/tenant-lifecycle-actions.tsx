@@ -256,13 +256,12 @@ export function TenantLifecycleActions({ tenant }: { tenant: TenantRecord }) {
         </form>
       ) : (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-          This tenant is {tenantStatusLabel(tenant.status)}. Lifecycle actions are unavailable
-          {isTerminal ? "; pending-deletion tenants have no reactivation path in this slice." : "."}
+          {strings.ui.tenantLifecycleActions.actionsUnavailable(tenantStatusLabel(tenant.status), isTerminal)}
         </p>
       )}
 
       {action.phase === "failed" ? (
-        <InlineOperatorError error={action.error} prefix="Lifecycle action failed" />
+        <InlineOperatorError error={action.error} prefix={strings.ui.tenantLifecycleActions.lifecycleActionFailed} />
       ) : null}
       {action.phase === "done" ? (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">

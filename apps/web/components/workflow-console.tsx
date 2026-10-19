@@ -557,7 +557,7 @@ export function WorkflowConsole() {
               <div className="grid gap-1">
                 <Eyebrow>{strings.workflows.list.eyebrow}</Eyebrow>
                 <h2 className="font-display m-0 text-xl text-ink">
-                  {formatNumber(filteredWorkflows.length)} visible
+                  {strings.ui.common.visibleCount(filteredWorkflows.length)}
                 </h2>
               </div>
               <div className="grid gap-2">

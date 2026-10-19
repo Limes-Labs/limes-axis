@@ -3,7 +3,7 @@
 import { SourcePill, sourceStateLabel } from "@/components/ui/source-pill";
 import { StatCard } from "@/components/ui/stat-card";
 import { isReadAuditEvent } from "@/lib/audit-demo";
-import { formatNumber, pluralize } from "@/lib/format";
+import { formatNumber } from "@/lib/format";
 import { countBlockedModelRoutes, type ManufacturingModelRouting } from "@/lib/model-routing-demo";
 import {
   OPEN_WORKFLOWS_METRIC,
@@ -182,7 +182,7 @@ export function PostureCards({
       linkLabel: copy.models.link,
       ...cardState(routing, (data) => ({
         value: formatNumber(data.routes.length),
-        detail: pluralize(countBlockedModelRoutes(data), "blocked route"),
+        detail: strings.ui.overviewPostureCards.blockedRoutes(countBlockedModelRoutes(data)),
         status: data.routing_status,
       }), (data) => data.provenance, strings),
     },

@@ -10,6 +10,7 @@ import type { ComponentType } from "react";
 
 import { cn } from "@/lib/cn";
 import type { SourceState } from "@/lib/source-state";
+import { useStrings } from "@/providers/locale-provider";
 
 const tones: Record<SourceState, string> = {
   loading: "status-checking",
@@ -66,12 +67,13 @@ export function sourceStateLabel(state: SourceState, subject: string): string {
  */
 export function SourcePill({ state, subject, className, compact = false }: SourcePillProps) {
   const Icon = icons[state];
+  const copy = useStrings().ui.uiSourcePill;
 
   return (
     <span className={cn("status-pill", tones[state], className)} data-source-state={state}>
       <Icon aria-hidden="true" className={cn("size-3.5", state === "loading" && "animate-spin")} />
-      <span className="sr-only">Data source: </span>
-      {compact && state === "reference" ? `${subject}: example` : labels[state](subject)}
+      <span className="sr-only">{copy.dataSource}{" "}</span>
+      {compact && state === "reference" ? copy.example(subject) : labels[state](subject)}
     </span>
   );
 }

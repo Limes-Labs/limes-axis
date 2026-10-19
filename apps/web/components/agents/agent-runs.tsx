@@ -196,7 +196,7 @@ function AgentRunDetail({ agentId, run }: { agentId: string; run: AgentRunRecord
 
       {run.error_reason ? (
         <p className="m-0 font-mono text-xs break-words text-muted">
-          Error reason: {run.error_reason}
+          {strings.ui.agentsAgentRuns.errorReason(run.error_reason)}
         </p>
       ) : null}
 
@@ -217,12 +217,16 @@ function AgentRunDetail({ agentId, run }: { agentId: string; run: AgentRunRecord
               >
                 <div>
                   <p className="m-0 font-mono text-[13px] text-ink break-words">
-                    {invocation.model_id ?? "unrouted"} / {invocation.endpoint_id ?? "unrouted"}
+                    {invocation.model_id ?? strings.ui.common.unrouted} / {invocation.endpoint_id ?? strings.ui.common.unrouted}
                   </p>
                   <p className="mx-0 mt-0.5 mb-0 text-xs leading-snug text-muted break-words">
-                    {invocation.input_tokens} in / {invocation.output_tokens} out tokens /{" "}
-                    {formatLiveEuroCost(invocation.estimated_cost_eur)} / {invocation.latency_ms} ms /{" "}
-                    {formatModelRoutingLabel(invocation.egress_decision)}
+                    {strings.ui.agentsAgentRuns.invocationUsage(
+                      invocation.input_tokens,
+                      invocation.output_tokens,
+                      formatLiveEuroCost(invocation.estimated_cost_eur),
+                      invocation.latency_ms,
+                      formatModelRoutingLabel(invocation.egress_decision),
+                    )}
                   </p>
                 </div>
                 {invocation.audit_event_id ? (
@@ -241,7 +245,7 @@ function AgentRunDetail({ agentId, run }: { agentId: string; run: AgentRunRecord
             ))}
             {linked.failedIds.map((invocationId) => (
               <p className="m-0 font-mono text-xs break-words text-muted" key={invocationId}>
-                Invocation {invocationId} detail unavailable (/platform/models/invocations).
+                {strings.ui.agentsAgentRuns.invocationDetailUnavailable(invocationId)}
               </p>
             ))}
           </div>
@@ -361,8 +365,7 @@ export function AgentRuns({
 
       {deferredCount > 0 ? (
         <p className="m-0 font-mono text-xs text-muted">
-          {deferredCount} deferred run{deferredCount === 1 ? "" : "s"} — model routing
-          execution is flag-gated; deferred runs end honestly without a proposal.
+          {strings.ui.agentsAgentRuns.deferredRuns(deferredCount)}
         </p>
       ) : null}
 
@@ -393,8 +396,11 @@ export function AgentRuns({
                   {run.run_id}
                 </span>
                 <span className="mx-0 mt-1 mb-0 block text-sm leading-snug text-muted break-words">
-                  {run.autonomy_level} / started {formatLiveTimestamp(run.created_at)} by{" "}
-                  {run.requested_by}
+                  {strings.ui.agentsAgentRuns.runStarted(
+                    run.autonomy_level,
+                    formatLiveTimestamp(run.created_at),
+                    run.requested_by,
+                  )}
                 </span>
               </span>
               <span className="flex min-w-0 flex-wrap items-center justify-end gap-2">

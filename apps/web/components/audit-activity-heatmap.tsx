@@ -151,7 +151,7 @@ export function AuditActivityHeatmap({ events, returnedEvents, selectedInterval 
     && activity.filteredCount === activity.returnedCount;
   const range = activity.days.length > 0
     ? `${dateLabel.formatRange(activity.days[0].timestamp, activity.days[6].timestamp)} ${zone}`
-    : "No valid dated events to plot";
+    : strings.ui.auditActivityHeatmap.noValidDatedEvents;
 
   return (
     <section aria-labelledby={`${id}-title`} className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5">
@@ -161,9 +161,9 @@ export function AuditActivityHeatmap({ events, returnedEvents, selectedInterval 
       </div>
       <p className="mb-2 mt-2 text-xs leading-relaxed text-muted">
         {completeWindow ? (
-          <><strong className="font-medium text-ink">{activity.inRange} {activity.inRange === 1 ? "event" : "events"}</strong> · {range}</>
+          <><strong className="font-medium text-ink">{strings.ui.auditActivityHeatmap.eventCount(activity.inRange)}</strong> · {range}</>
         ) : (
-          <><strong className="font-medium text-ink">{activity.inRange} of {activity.filteredCount} filtered events</strong> in range · {activity.returnedCount} returned · {range}</>
+          <><strong className="font-medium text-ink">{strings.ui.auditActivityHeatmap.filteredInRange(activity.inRange, activity.filteredCount)}</strong>{" "}{strings.ui.auditActivityHeatmap.inRangeReturned(activity.returnedCount, range)}</>
         )}
       </p>
       {activity.days.length > 0 ? (
@@ -192,7 +192,7 @@ export function AuditActivityHeatmap({ events, returnedEvents, selectedInterval 
                     return (
                       <td key={key} className="p-0">
                         <button type="button"
-                          aria-label={`${dateLabel.format(day.timestamp)}, ${hour} ${zone}: ${count} ${count === 1 ? "event" : "events"} in returned window`}
+                          aria-label={strings.ui.auditActivityHeatmap.cellLabel(`${dateLabel.format(day.timestamp)}, ${hour} ${zone}`, count)}
                           aria-describedby={`${id}-detail`}
                           aria-pressed={onSelectInterval ? isActive : undefined}
                           aria-controls={controlsId}
@@ -215,19 +215,19 @@ export function AuditActivityHeatmap({ events, returnedEvents, selectedInterval 
           </table>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-xs">
             <p id={`${id}-detail`} role="status" className="m-0 min-w-0 leading-relaxed text-ink">
-              {selected?.count} {selected?.count === 1 ? "event" : "events"} · {selected?.label}
+              {selected ? `${strings.ui.auditActivityHeatmap.eventCount(selected.count)} · ${selected.label}` : null}
             </p>
-            <div className="flex items-center gap-1.5 text-muted" aria-label={`Color scale: zero to ${activity.maximum} events per cell`}>
+            <div className="flex items-center gap-1.5 text-muted" aria-label={strings.ui.auditActivityHeatmap.colorScale(activity.maximum)}>
               <span>0</span>
               <span aria-hidden="true" className="flex gap-0.5">
                 {["bg-ink/4 dark:bg-white/5", "bg-signal/15", "bg-signal/25", "bg-signal"].map((color) => <span key={color} className={`h-2.5 w-3 rounded-sm ${activity.maximum ? color : "bg-ink/4 dark:bg-white/5"}`} />)}
               </span>
-              <span>{activity.maximum} max</span>
+              <span>{strings.ui.auditActivityHeatmap.maximumCount(activity.maximum)}</span>
             </div>
           </div>
           {selectedInterval && onSelectInterval ? (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line/60 pt-3 dark:border-white/10">
-              <p className="m-0 text-xs font-medium text-ink">Time filter: {selectedInterval.label}</p>
+              <p className="m-0 text-xs font-medium text-ink">{strings.ui.auditActivityHeatmap.timeFilter(selectedInterval.label)}</p>
               <Button aria-controls={controlsId} onClick={() => onSelectInterval(null)} size="sm" variant="secondary">
                 {strings.ui.auditActivityHeatmap.clearTimeFilter}
               </Button>
@@ -236,9 +236,7 @@ export function AuditActivityHeatmap({ events, returnedEvents, selectedInterval 
         </>
       ) : null}
       <p className="mb-0 mt-2 text-[11px] leading-relaxed text-muted">
-        Counts cover the returned window only.{onSelectInterval ? " Select a cell to filter events below." : ""}
-        {activity.outsideRange > 0 ? ` ${activity.outsideRange} outside these seven dates.` : ""}
-        {activity.invalid > 0 ? ` ${activity.invalid} with invalid or unzoned timestamps excluded.` : ""}
+        {strings.ui.auditActivityHeatmap.footnote(Boolean(onSelectInterval), activity.outsideRange, activity.invalid)}
       </p>
     </section>
   );

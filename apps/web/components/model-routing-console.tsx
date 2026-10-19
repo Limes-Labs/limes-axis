@@ -368,11 +368,11 @@ function ReferenceModelRouting({
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
             <div>
               <p className="eyebrow m-0">{strings.ui.modelRoutingConsole.routes}</p>
-              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{formatNumber(filteredRoutes.length)} visible</h2>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.common.visibleCount(filteredRoutes.length)}</h2>
             </div>
             <span className="status-pill signal-ready">
               <Filter size={15} />
-              {formatNumber(blockedRoutes)} blocked
+              {strings.ui.modelRoutingConsole.blockedCount(blockedRoutes)}
             </span>
           </div>
           <div className="grid">
@@ -552,7 +552,7 @@ function ReferenceModelRouting({
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
             <div>
               <p className="eyebrow m-0">{strings.ui.modelRoutingConsole.budgetNotes}</p>
-              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{formatEuroCost(estimatedCost)} estimated</h2>
+              <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.modelRoutingConsole.estimatedCost(formatEuroCost(estimatedCost))}</h2>
             </div>
             <FileText size={18} />
           </div>
@@ -665,12 +665,12 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
           {telemetry.data ? (
             <span className="status-pill signal-ready">
               <Gauge size={15} />
-              {formatNumber(telemetry.data.route_count)} recorded
+              {strings.ui.modelRoutingConsole.recordedCount(telemetry.data.route_count)}
             </span>
           ) : null}
           {deferredCount > 0 ? (
             <span className="status-pill signal-watch">
-              {formatNumber(deferredCount)} deferred (flag-gated)
+              {strings.ui.modelRoutingConsole.deferredFlagGated(deferredCount)}
             </span>
           ) : null}
         </div>
@@ -682,13 +682,13 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
             <p className="eyebrow m-0">{strings.ui.modelRoutingConsole.liveInvocations}</p>
             <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
               {invocations.data
-                ? `${formatNumber(invocations.data.invocations.length)} recorded${invocations.data.has_more ? "+" : ""}`
+                ? `${strings.ui.modelRoutingConsole.recordedCount(invocations.data.invocations.length)}${invocations.data.has_more ? "+" : ""}`
                 : strings.ui.modelRoutingConsole.awaitingInvocationApi}
             </h3>
           </div>
           {invocations.data && invocations.data.invocations.length > 0 ? (
             <span className="status-pill signal-ready">
-              {formatLiveEuroCost(liveCost)} estimated
+              {strings.ui.modelRoutingConsole.estimatedCost(formatLiveEuroCost(liveCost))}
             </span>
           ) : null}
         </div>
@@ -727,9 +727,9 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
               {invocations.data.invocations.map((invocation) => (
                 <tr data-invocation-id={invocation.invocation_id} key={invocation.invocation_id}>
                   <td className="font-mono text-[13px] text-ink">
-                    {invocation.model_id ?? "unrouted"}
+                    {invocation.model_id ?? strings.ui.common.unrouted}
                   </td>
-                  <td className="font-mono text-[13px]">{invocation.endpoint_id ?? "unrouted"}</td>
+                  <td className="font-mono text-[13px]">{invocation.endpoint_id ?? strings.ui.common.unrouted}</td>
                   <td>{invocation.task_type}</td>
                   <td>
                     <span className={`status-pill ${liveInvocationStatusClass(invocation.status)}`}>
@@ -746,7 +746,7 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
                   <td className="font-mono text-[13px]">
                     {formatLiveEuroCost(invocation.estimated_cost_eur)}
                   </td>
-                  <td className="font-mono text-[13px]">{formatNumber(invocation.latency_ms)} ms</td>
+                  <td className="font-mono text-[13px]">{strings.models.reference.routeDetail.latencyValue(formatNumber(invocation.latency_ms))}</td>
                   <td>{formatModelRoutingLabel(invocation.egress_decision)}</td>
                   <td className="font-mono text-[13px]">
                     {formatLiveTimestamp(invocation.created_at)}
@@ -760,7 +760,7 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
                         {strings.ui.common.openAudit}
                       </a>
                     ) : (
-                      <span className="font-mono text-[13px] text-muted">pending</span>
+                      <span className="font-mono text-[13px] text-muted">{strings.ui.common.pendingValue}</span>
                     )}
                   </td>
                 </tr>
@@ -784,7 +784,7 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
             <p className="eyebrow m-0">{strings.ui.modelRoutingConsole.endpointRegistry}</p>
             <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
               {endpoints.data
-                ? `${formatNumber(endpoints.data.enabled_endpoint_count)} of ${formatNumber(endpoints.data.endpoint_count)} enabled`
+                ? strings.ui.modelRoutingConsole.enabledOf(endpoints.data.enabled_endpoint_count, endpoints.data.endpoint_count)
                 : strings.ui.modelRoutingConsole.awaitingEndpointApi}
             </h3>
           </div>

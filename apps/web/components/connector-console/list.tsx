@@ -6,7 +6,7 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 import { PlatformStatusPill } from "@/components/status-pill";
 import { cn } from "@/lib/cn";
 import { formatConnectorLabel } from "@/lib/connectors-demo";
-import { formatDateTime, pluralize } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import type { ConnectorWorkspaceItem } from "@/lib/runtime-contracts/connector-workspace";
 import { useStrings } from "@/providers/locale-provider";
 
@@ -49,7 +49,7 @@ export function ConnectorList({
       <div className="grid gap-1">
         <Eyebrow>{strings.connectors.list.eyebrow}</Eyebrow>
         <h2 className="font-display m-0 text-xl text-ink">
-          {pluralize(totalConnectors, "connector")}
+          {strings.ui.connectorConsoleList.connectorCount(totalConnectors)}
         </h2>
       </div>
       <div className="grid gap-2">
@@ -81,7 +81,7 @@ export function ConnectorList({
                   {syncObservation
                     ? strings.connectors.list.observedRecords(syncObservation.records_read)
                     : connector.preview_sample
-                      ? pluralize(connector.preview_sample.record_count, "sample row")
+                      ? strings.ui.connectorConsoleList.sampleRows(connector.preview_sample.record_count)
                       : strings.connectors.list.neverSampled}
                 </span>
                 {syncObservation ? (
@@ -115,7 +115,7 @@ export function ConnectorList({
       {totalConnectors > limit || offset > 0 ? (
         <nav aria-label={strings.ui.connectorConsoleList.connectorPages} className="grid gap-2">
           <p className="m-0 text-xs text-muted">
-            {connectors.length ? `${offset + 1}–${offset + connectors.length}` : "0"} of {totalConnectors}
+            {strings.ui.connectorConsoleList.pageRange(connectors.length ? `${offset + 1}–${offset + connectors.length}` : "0", totalConnectors)}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button aria-label={strings.ui.connectorConsoleList.previousConnectors} variant="secondary" disabled={offset === 0}

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 import type { DataAsset, DataAssetEvidenceState } from "@/lib/data-assets";
-import { formatDateTime, pluralize } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { useStrings } from "@/providers/locale-provider";
 
 const EVIDENCE_FILTER_VALUES = [
@@ -57,7 +57,7 @@ export function DataAssetList({
       <div className="grid gap-1">
         <Eyebrow>{copy.listTitle}</Eyebrow>
         <h2 className="font-display m-0 text-xl text-ink">
-          {pluralize(assets.length, "asset")}
+          {copy.assetCount(assets.length)}
         </h2>
       </div>
       <div className="grid gap-2">
@@ -104,9 +104,10 @@ export function DataAssetList({
                 <span className="text-xs text-muted">{asset.connector_type}</span>
                 <span className="text-xs text-muted">
                   {asset.last_successful_sync
-                    ? `${asset.last_successful_sync.records_read} records · ${formatDateTime(
-                        asset.last_successful_sync.completed_at,
-                      )}`
+                    ? copy.recordsAt(
+                        asset.last_successful_sync.records_read,
+                        formatDateTime(asset.last_successful_sync.completed_at),
+                      )
                     : copy.governance[asset.governance]}
                 </span>
               </span>

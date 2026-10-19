@@ -96,14 +96,16 @@ function PanelState<T>({
   error: { title: string; detail: string };
   children: (data: T) => ReactNode;
 }) {
-  const copy = useStrings().settings;
+  const strings = useStrings();
+  const copy = strings.settings;
+  const requestCopy = strings.ui.platformSettings;
   if (query.data) {
     return (
       <div className="grid min-w-0 gap-2">
         {query.source !== "api" ? (
           <p className="m-0 text-sm text-warning" role="status">
             {copy.stale}
-            {query.errorRequestId ? ` Request ${query.errorRequestId}.` : null}
+            {query.errorRequestId ? ` ${requestCopy.requestId(query.errorRequestId)}` : null}
           </p>
         ) : null}
         {children(query.data)}

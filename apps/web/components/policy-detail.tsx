@@ -32,7 +32,7 @@ import {
   type PlatformPolicyDetail,
   type PlatformPolicyRecord,
 } from "@/lib/platform-policies";
-import { formatNumber, formatTimestamp } from "@/lib/format";
+import { formatTimestamp } from "@/lib/format";
 import {
   enumUrlField,
   opaqueStringUrlField,
@@ -108,10 +108,10 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
           <tr key={revision.revision_number}>
             <td>
               <span className="font-mono text-[13px] break-words">
-                r{revision.revision_number} / {revision.policy_version}
+                {strings.ui.common.revisionVersion(revision.revision_number, revision.policy_version)}
               </span>
               {revision.revises_revision_number != null ? (
-                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Revises r{revision.revises_revision_number}</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{strings.ui.policyDetail.revisesRevision(revision.revises_revision_number)}</p>
               ) : (
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{strings.ui.policyDetail.initialRevision}</p>
               )}
@@ -130,7 +130,7 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
               </span>
               {revision.replaced_by_revision_number != null ? (
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                  Superseded by r{revision.replaced_by_revision_number}
+                  {strings.ui.policyDetail.supersededBy(revision.replaced_by_revision_number)}
                 </p>
               ) : null}
             </td>
@@ -329,7 +329,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
         <StatCard
           detail={current.policy_version}
           label={strings.ui.policyDetail.currentRevision}
-          value={<>r{current.revision_number}</>}
+          value={strings.ui.common.revisionNumber(current.revision_number)}
           valueVariant="mono"
         />
         <StatCard
@@ -448,8 +448,11 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
               role="status"
             >
               <p className="m-0 min-w-0 text-sm leading-snug break-words text-ink">
-                Revision recorded: r{urlState.revisedRevisionNumber}. The active revision is
-                r{current.revision_number} / {current.policy_version}.
+                {strings.ui.policyDetail.revisionRecorded(
+                  urlState.revisedRevisionNumber,
+                  current.revision_number,
+                  current.policy_version,
+                )}
               </p>
               <button
                 className="inline-flex min-h-6 cursor-pointer items-center font-mono text-xs text-muted transition-colors hover:text-signal"
@@ -471,7 +474,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
               <div>
                 <p className="eyebrow m-0">{strings.ui.policyDetail.revisionHistory}</p>
                 <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
-                  {formatNumber(detail.revisions.length)} append-only revisions
+                  {strings.ui.policyDetail.appendOnlyRevisions(detail.revisions.length)}
                 </h2>
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                   {strings.ui.policyDetail.supersededRevisionsStayReadableBut}
@@ -508,7 +511,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
                     <option value="">{strings.ui.policyDetail.selectARevision}</option>
                     {compareCandidates.map((revision) => (
                       <option key={revision.revision_number} value={revision.revision_number}>
-                        r{revision.revision_number} / {revision.policy_version}
+                        {strings.ui.common.revisionVersion(revision.revision_number, revision.policy_version)}
                       </option>
                     ))}
                   </Select>

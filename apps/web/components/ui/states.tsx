@@ -117,7 +117,7 @@ export function ErrorPanel({ title, detail, endpoint, reference, onRetry }: Erro
           </div>
           {isDefaultApiBaseUrl() ? (
             <p className="m-0 leading-snug text-muted">
-              {"Console is using the default http://localhost:8000 — set NEXT_PUBLIC_AXIS_API_BASE_URL if your API runs elsewhere."}
+              {strings.ui.uiStates.defaultApiBaseUrlHint}
             </p>
           ) : null}
         </dl>

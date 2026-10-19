@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Disclosure } from "@/components/ui/disclosure";
 import type { AuditLedgerEvent } from "@/lib/audit-demo";
+import type { ConsoleStrings } from "@/lib/i18n";
 import { useStrings } from "@/providers/locale-provider";
 
 type TimelineInput = Pick<AuditLedgerEvent, "occurred_at"> & { severity: string };
@@ -49,12 +50,14 @@ const percent = new Intl.NumberFormat("en", { style: "percent", maximumFractionD
 const month = new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" });
 const rangeDate = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" });
 const dateInstant = (date: string) => new Date(`${date}T00:00:00Z`);
-const attentionValue = (bin: ActivityDateBin) => bin.attentionShare === null
-  ? `Attention unavailable · ${bin.unknownSeverity} unknown severity`
-  : `${percent.format(bin.attentionShare)} attention · ${bin.attention}/${bin.count}`;
+const ZONE = "UTC";
+const attentionValue = (bin: ActivityDateBin, copy: ConsoleStrings["ui"]["overviewActivityTimeline"]) => bin.attentionShare === null
+  ? copy.attentionUnavailable(bin.unknownSeverity)
+  : copy.attentionValue(percent.format(bin.attentionShare), bin.attention, bin.count);
 
 export function ActivityTimeline({ events }: { events: readonly AuditLedgerEvent[] }) {
   const strings = useStrings();
+  const copy = strings.ui.overviewActivityTimeline;
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   const [focusedDate, setFocusedDate] = useState<string | null>(null);
@@ -91,21 +94,21 @@ export function ActivityTimeline({ events }: { events: readonly AuditLedgerEvent
     <div className="grid min-w-0 gap-3">
       <div className="grid gap-1">
         <div className="flex items-start justify-between gap-2">
-          <p className="m-0 text-xs font-medium text-muted">{active ? `${active.date} UTC` : strings.ui.overviewActivityTimeline.returnedWindow}</p>
+          <p className="m-0 text-xs font-medium text-muted">{active ? copy.dateInZone(active.date, ZONE) : copy.returnedWindow}</p>
           <button type="button" disabled={!active} onClick={clearSelection} className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-xs text-signal disabled:cursor-default disabled:text-muted">{strings.ui.common.reset}</button>
         </div>
         <p role="status" className="m-0 text-sm font-medium tabular-nums text-ink">
-          {active ? `${active.count} ${active.count === 1 ? "event" : "events"} · ${attentionValue(active)}` : `${events.length} returned ${events.length === 1 ? "event" : "events"} · ${bins.length} UTC ${bins.length === 1 ? "date" : "dates"}`}
+          {active ? `${copy.eventCount(active.count)} · ${attentionValue(active, copy)}` : copy.returnedSummary(events.length, bins.length, ZONE)}
         </p>
-        {bins.length > 1 ? <p className="m-0 text-xs text-muted">{rangeDate.formatRange(dateInstant(bins[0].date), dateInstant(bins[bins.length - 1].date))} UTC</p> : null}
+        {bins.length > 1 ? <p className="m-0 text-xs text-muted">{copy.dateInZone(rangeDate.formatRange(dateInstant(bins[0].date), dateInstant(bins[bins.length - 1].date)), ZONE)}</p> : null}
       </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-2 text-xs text-muted" aria-label={strings.ui.overviewActivityTimeline.chartLegend}>
-        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm bg-signal" />{strings.ui.overviewActivityTimeline.eventsLeftAxis}</span>
-        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-0.5 w-4 bg-warning" />{strings.ui.overviewActivityTimeline.attentionShareRightAxis}</span>
+      <div className="flex flex-wrap gap-x-3 gap-y-2 text-xs text-muted" aria-label={copy.chartLegend}>
+        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm bg-signal" />{copy.eventsLeftAxis}</span>
+        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-0.5 w-4 bg-warning" />{copy.attentionShareRightAxis}</span>
       </div>
       {bins.length ? (
-        <div className="min-w-0 overflow-x-auto rounded-xl border border-line bg-signal/[0.03] p-1 dark:border-white/10" role="region" aria-label={dense ? strings.ui.overviewActivityTimeline.eventsAndAttentionShareBy : strings.ui.overviewActivityTimeline.eventsAndAttentionShareBy2}>
-          <svg role="group" aria-label={strings.ui.overviewActivityTimeline.chooseAUtcDateArrow} viewBox={`0 0 ${width} 194`} style={{ minWidth: dense ? width : undefined }} className="block h-auto w-full text-muted">
+        <div className="min-w-0 overflow-x-auto rounded-xl border border-line bg-signal/[0.03] p-1 dark:border-white/10" role="region" aria-label={dense ? copy.eventsAndAttentionShareBy : copy.eventsAndAttentionShareBy2}>
+          <svg role="group" aria-label={copy.chooseAUtcDateArrow} viewBox={`0 0 ${width} 194`} style={{ minWidth: dense ? width : undefined }} className="block h-auto w-full text-muted">
             {[0, 0.5, 1].map((fraction) => {
               const y = plotBottom - fraction * plotHeight;
               return <g key={fraction} aria-hidden="true" pointerEvents="none">
@@ -122,7 +125,7 @@ export function ActivityTimeline({ events }: { events: readonly AuditLedgerEvent
                 role="button"
                 ref={(element) => { dateButtons.current[index] = element; }}
                 tabIndex={index === focusIndex ? 0 : -1}
-                aria-label={`${bin.date} UTC: ${bin.count} ${bin.count === 1 ? "event" : "events"}; ${attentionValue(bin)}`}
+                aria-label={`${copy.dateInZone(bin.date, ZONE)}: ${copy.eventCount(bin.count)}; ${attentionValue(bin, copy)}`}
                 aria-pressed={selectedDate === bin.date}
                 className="cursor-pointer outline-none"
                 onPointerEnter={(event) => { if (event.pointerType !== "touch") setHoveredDate(bin.date); }}
@@ -158,18 +161,18 @@ export function ActivityTimeline({ events }: { events: readonly AuditLedgerEvent
             })}
           </svg>
         </div>
-      ) : <p className="m-0 text-sm text-muted">{strings.ui.overviewActivityTimeline.noValidTimestampsToPlot}</p>}
+      ) : <p className="m-0 text-sm text-muted">{copy.noValidTimestampsToPlot}</p>}
       <p className="m-0 text-xs leading-relaxed text-muted">
-        {bins.length === 1 ? strings.ui.overviewActivityTimeline.onlyOneUtcDateIn : bins.length > 1 ? strings.ui.overviewActivityTimeline.selectADateToInspect : strings.ui.overviewActivityTimeline.noDatedActivityInThis}
+        {bins.length === 1 ? copy.onlyOneUtcDateIn : bins.length > 1 ? copy.selectADateToInspect : copy.noDatedActivityInThis}
       </p>
-      {invalidTimestamps > 0 ? <p className="m-0 text-xs text-warning">{invalidTimestamps} {invalidTimestamps === 1 ? "event has" : "events have"} an invalid timestamp and cannot be placed by date.</p> : null}
-      {bins.length > 0 ? <Disclosure className="text-xs text-muted" size="sm" title={strings.ui.overviewActivityTimeline.dailyValues} variant="plain">
-        <p className="m-0 leading-relaxed">{strings.ui.overviewActivityTimeline.attentionWatchActionRequiredShare}</p>
-        <div className="mt-3 grid gap-2" aria-label={strings.ui.overviewActivityTimeline.dailyActivityValues}>
+      {invalidTimestamps > 0 ? <p className="m-0 text-xs text-warning">{copy.invalidTimestamps(invalidTimestamps)}</p> : null}
+      {bins.length > 0 ? <Disclosure className="text-xs text-muted" size="sm" title={copy.dailyValues} variant="plain">
+        <p className="m-0 leading-relaxed">{copy.attentionWatchActionRequiredShare}</p>
+        <div className="mt-3 grid gap-2" aria-label={copy.dailyActivityValues}>
         {bins.map((bin) => <div key={bin.date} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 border-b border-line/60 pb-2 text-xs last:border-0 last:pb-0">
-          <time dateTime={bin.date} className="font-medium text-ink">{bin.date} UTC</time>
-          <span className="tabular-nums text-ink">{bin.count} {bin.count === 1 ? "event" : "events"}</span>
-          <span className="col-span-2 mt-1 text-muted">{bin.attentionShare === null ? `Attention share unavailable · ${bin.unknownSeverity} unknown severity` : `${bin.attention}/${bin.count} attention · ${percent.format(bin.attentionShare)}`}</span>
+          <time dateTime={bin.date} className="font-medium text-ink">{copy.dateInZone(bin.date, ZONE)}</time>
+          <span className="tabular-nums text-ink">{copy.eventCount(bin.count)}</span>
+          <span className="col-span-2 mt-1 text-muted">{bin.attentionShare === null ? copy.attentionShareUnavailable(bin.unknownSeverity) : copy.attentionDaily(bin.attention, bin.count, percent.format(bin.attentionShare))}</span>
         </div>)}
         </div>
       </Disclosure> : null}

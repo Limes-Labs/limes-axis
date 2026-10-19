@@ -121,7 +121,7 @@ function ReplayComparison({ result }: { result: ManufacturingReplaySimulation })
         <div>
           <p className="eyebrow m-0">{copy.eyebrow}</p>
           <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">
-            {decisions.total} decisions compared — {decisions.changed} changed
+            {copy.decisionsCompared(decisions.total, decisions.changed)}
           </h3>
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-3">

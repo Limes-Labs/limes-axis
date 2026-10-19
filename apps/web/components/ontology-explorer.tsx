@@ -22,7 +22,7 @@ import {
   type ManufacturingOntology,
   type OntologyNodeType,
 } from "@/lib/ontology-demo";
-import { formatContextPath, formatNumber } from "@/lib/format";
+import { formatContextPath } from "@/lib/format";
 import { platformStatusLabel } from "@/lib/platform-overview";
 import {
   enumUrlField,
@@ -192,9 +192,9 @@ export function OntologyExplorer() {
             state={deriveSourceState(source, Boolean(ontology), ontology.provenance)}
             subject="ontology"
           />
-          <span className="font-mono text-xs text-muted">{formatNumber(ontology.nodes.length)} nodes</span>
+          <span className="font-mono text-xs text-muted">{strings.ui.ontologyExplorer.nodeCount(ontology.nodes.length)}</span>
           <span className="font-mono text-xs text-muted">
-            {formatNumber(ontology.relationships.length)} relationships
+            {strings.ui.ontologyExplorer.relationshipCount(ontology.relationships.length)}
           </span>
         </div>
       </div>
@@ -345,7 +345,7 @@ export function OntologyExplorer() {
                     <td>
                       <span className="font-mono text-xs">{relationship.permission_scope}</span>
                       <p className="m-0 mt-1 text-xs text-muted">
-                        {Math.round(relationship.metadata.confidence * 100)}% confidence
+                        {strings.ui.ontologyExplorer.confidence(Math.round(relationship.metadata.confidence * 100))}
                       </p>
                     </td>
                     <td>
@@ -395,17 +395,19 @@ export function OntologyExplorer() {
               </span>
               <span className="font-mono text-xs text-muted">{ontology.graph_query.source}</span>
               <span className="font-mono text-xs text-muted">
-                {formatNumber(ontology.graph_query.denied_relationship_count)} denied relationships
+                {strings.ui.ontologyExplorer.deniedRelationships(ontology.graph_query.denied_relationship_count)}
               </span>
             </div>
             <div aria-hidden="true" className="rule-hairline" />
             <p className="m-0 text-sm text-muted">
-              {formatNumber(ontology.graph_query.returned_node_count)} nodes /{" "}
-              {formatNumber(ontology.graph_query.returned_relationship_count)} relationships returned for{" "}
-              {ontology.graph_query.actor_id}
+              {strings.ui.ontologyExplorer.graphQueryReturned(
+                ontology.graph_query.returned_node_count,
+                ontology.graph_query.returned_relationship_count,
+                ontology.graph_query.actor_id,
+              )}
             </p>
             <p className="m-0 text-sm text-muted">
-              Permission decision: {ontology.graph_query.permission_decision.reason}
+              {strings.ui.ontologyExplorer.permissionDecision(ontology.graph_query.permission_decision.reason)}
             </p>
           </Card>
 

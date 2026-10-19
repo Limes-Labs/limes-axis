@@ -37,6 +37,7 @@ import { Select } from "@/components/ui/select";
 import { SourcePill } from "@/components/ui/source-pill";
 import { StatCard } from "@/components/ui/stat-card";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { TemplateText } from "@/components/ui/template-text";
 import {
   missingRequiredScopePermission,
   ScopeDenialPanel,
@@ -181,8 +182,11 @@ export function PolicyRegistry() {
             role="status"
           >
             <p className="m-0 min-w-0 text-sm leading-snug break-words text-ink">
-              Policy authored as r{authoredRecord.revision_number} /{" "}
-              {authoredRecord.policy_version}: {authoredRecord.display_name}
+              {strings.ui.policyRegistry.policyAuthored(
+                authoredRecord.revision_number,
+                authoredRecord.policy_version,
+                authoredRecord.display_name,
+              )}
             </p>
             <button
               className="inline-flex min-h-6 cursor-pointer items-center font-mono text-xs text-muted transition-colors hover:text-signal"
@@ -199,7 +203,7 @@ export function PolicyRegistry() {
             role="status"
           >
             <p className="m-0 text-sm text-muted">
-              The authored policy {authoredPolicyId} is not in the current registry view.
+              {strings.ui.policyRegistry.authoredNotInView(authoredPolicyId)}
             </p>
           </div>
         )
@@ -209,8 +213,10 @@ export function PolicyRegistry() {
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
-          Versioned governance rules for{" "}
-          <span title={registry.tenant_id}>{strings.identifiers.thisTenant}</span>
+          <TemplateText
+            template={strings.ui.policyRegistry.versionedRulesFor}
+            values={{ tenant: <span title={registry.tenant_id}>{strings.identifiers.thisTenant}</span> }}
+          />
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
@@ -219,7 +225,7 @@ export function PolicyRegistry() {
           />
           <span className="status-pill signal-watch">
             <ShieldCheck size={15} />
-            {formatNumber(registry.active_policy_count)} active
+            {strings.ui.policyRegistry.activeCount(registry.active_policy_count)}
           </span>
         </div>
       </div>
@@ -318,7 +324,7 @@ export function PolicyRegistry() {
                 </td>
                 <td>
                   <span className="font-mono text-[13px] break-words">
-                    r{policy.revision_number} / {policy.policy_version}
+                    {strings.ui.common.revisionVersion(policy.revision_number, policy.policy_version)}
                   </span>
                 </td>
                 <td>

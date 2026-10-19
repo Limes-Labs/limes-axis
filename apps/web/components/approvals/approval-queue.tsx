@@ -140,7 +140,7 @@ export function ApprovalQueue({
       </div>
       <div className="flex min-h-6 flex-wrap items-center justify-between gap-2">
         <p aria-live="polite" className="m-0 text-xs tabular-nums text-muted" role="status">
-          {approvals.length} of {allApprovals.length} pending
+          {strings.ui.approvalsApprovalQueue.pendingOf(approvals.length, allApprovals.length)}
         </p>
         {filtered ? (
           <button className="inline-flex min-h-8 cursor-pointer items-center gap-1 text-xs font-medium text-signal" onClick={() => {
@@ -176,9 +176,9 @@ export function ApprovalQueue({
               </span>
               <span className="text-xs break-words text-muted">{labelDomain(approval.domain)} · <span title={approval.owner_role}>{humanizeIdentifier(approval.owner_role) ?? strings.identifiers.notRecorded}</span></span>
               <span className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs text-muted">Due {approval.due}</span>
+                <span className="text-xs text-muted">{strings.ui.common.dueDate(approval.due)}</span>
                 <span className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1">
-                  <span className={`status-pill ${approvalRiskClass(approval.risk_level)}`}>{approval.risk_level} risk</span>
+                  <span className={`status-pill ${approvalRiskClass(approval.risk_level)}`}>{strings.ui.common.riskLevel(approval.risk_level)}</span>
                   <span className="min-w-0 text-xs break-words text-muted" data-approval-cost>
                     {copy.cost}: {approval.estimated_cost}
                   </span>

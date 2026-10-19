@@ -157,8 +157,10 @@ export function ConnectorGovernance({
                   {handle.secret_ref}
                 </KeyValueRow>
                 <KeyValueRow label={strings.ui.connectorConsoleGovernance.rotation}>
-                  {formatConnectorLabel(handle.rotation_status)} / every{" "}
-                  {handle.rotation_interval_days} days
+                  {strings.ui.connectorConsoleGovernance.rotationEvery(
+                    formatConnectorLabel(handle.rotation_status),
+                    handle.rotation_interval_days,
+                  )}
                 </KeyValueRow>
               </RecordRow>
             ))}
