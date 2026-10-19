@@ -2931,6 +2931,12 @@ const ui = {
     quotaUpdateFailed: "Aggiornamento della quota non riuscito",
     quotaApplied: (changes: number) =>
       `Aggiornamento della quota applicato con ${count(changes)} ${changes === 1 ? "modifica" : "modifiche"}. Le chiavi invariate non scrivono eventi di audit.`,
+    quotaSource: {
+      api: "Quote API impostate",
+      missing: "Tenant non trovato",
+      loading: "Caricamento dell'API delle quote",
+      unavailable: "API delle quote non disponibile",
+    },
   },
   tenantRegistry: {
     showingTenants: (count: string) => `Sono mostrati ${count} tenant. Altri tenant corrispondono a questo filtro.`,
@@ -3488,6 +3494,51 @@ export const stringsIt: ConsoleStrings = {
       autonomyLevels: "Livelli di autonomia",
       amountThreshold: "Soglia di importo",
       notes: "Note",
+    },
+    tenantQuota: {
+      fields: {
+        api_requests_per_window: {
+          label: "Richieste API per finestra",
+          detail: "Sostituisce il limite globale di frequenza delle API sui percorsi protetti.",
+        },
+        max_concurrent_sessions: {
+          label: "Sessioni simultanee massime",
+          detail: "Sostituisce il limite globale di sessioni browser simultanee.",
+        },
+        max_connector_sync_rows_per_run: {
+          label: "Righe massime sincronizzate per esecuzione del connettore",
+          detail: "Limita le righe della sincronizzazione live governata per ogni esecuzione del connettore.",
+        },
+      },
+      wholeNumber: (label: string) => `${label}: il valore deve essere un numero intero.`,
+      outOfRange: (label: string, min: number, max: number) =>
+        `${label}: il valore deve essere compreso tra ${min} e ${max}.`,
+    },
+    operationsArtifacts: {
+      actions: {
+        daily_brief: {
+          label: "Generare il report giornaliero",
+          description: "Persiste un report deterministico dello stabilimento dai record operativi correnti.",
+        },
+        quality_risk: {
+          label: "Creare lo scenario qualità",
+          description: "Persiste uno scenario di rischio qualità con riferimenti a workflow ed evidenze.",
+        },
+        maintenance_risk: {
+          label: "Creare lo scenario manutenzione",
+          description: "Persiste uno scenario di rischio di manutenzione dai record del CMMS.",
+        },
+        supplier_delay: {
+          label: "Creare lo scenario fornitori",
+          description: "Persiste uno scenario di ritardo di fornitura con evidenze di approvazione e workflow.",
+        },
+      },
+      requiresVerifiedActor:
+        "Serve un attore OIDC verificato dall'API prima che Axis possa persistere gli artefatti.",
+      missingScopes: (scopes: readonly string[]) =>
+        `Autorizzazioni richieste mancanti: ${scopes.join(", ")}`,
+      unavailable: "L'artefatto operativo non è disponibile.",
+      persistedBy: (recordId: string) => `${recordId} persistito da Axis.`,
     },
   },
   sources: {

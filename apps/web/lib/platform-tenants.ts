@@ -200,29 +200,20 @@ export type TenantQuotaFieldDescriptor = {
 };
 
 // Bounds mirror the server ge/le constraints on TenantQuotaValues.
-export const tenantQuotaFields: TenantQuotaFieldDescriptor[] = [
-  {
-    field: "api_requests_per_window",
-    label: "API requests per window",
-    min: 1,
-    max: 1_000_000,
-    detail: "Overrides the global API rate limit on protected paths.",
-  },
-  {
-    field: "max_concurrent_sessions",
-    label: "Max concurrent sessions",
-    min: 0,
-    max: 10_000,
-    detail: "Overrides the global concurrent browser-session cap.",
-  },
-  {
-    field: "max_connector_sync_rows_per_run",
-    label: "Max connector sync rows per run",
-    min: 1,
-    max: 1_000_000,
-    detail: "Caps governed live-sync row limits per connector run.",
-  },
+const tenantQuotaBounds: Array<Pick<TenantQuotaFieldDescriptor, "field" | "min" | "max">> = [
+  { field: "api_requests_per_window", min: 1, max: 1_000_000 },
+  { field: "max_concurrent_sessions", min: 0, max: 10_000 },
+  { field: "max_connector_sync_rows_per_run", min: 1, max: 1_000_000 },
 ];
+
+/** The editable quota fields, labelled from the active catalogue. */
+export function tenantQuotaFieldDescriptors(
+  copy: ConsoleStrings = strings,
+): TenantQuotaFieldDescriptor[] {
+  return tenantQuotaBounds.map((bounds) => ({ ...bounds, ...copy.labels.tenantQuota.fields[bounds.field] }));
+}
+
+export const tenantQuotaFields: TenantQuotaFieldDescriptor[] = tenantQuotaFieldDescriptors();
 
 export function buildPlatformTenantsPath(
   filters: TenantRegistryFilters,
@@ -480,6 +471,7 @@ export type QuotaValueParseResult =
 export function parseQuotaValue(
   raw: string,
   descriptor: TenantQuotaFieldDescriptor,
+  copy: ConsoleStrings = strings,
 ): QuotaValueParseResult {
   const trimmed = raw.trim();
 
@@ -489,7 +481,7 @@ export function parseQuotaValue(
   }
 
   if (!/^-?\d+$/.test(trimmed)) {
-    return { ok: false, message: `${descriptor.label} must be a whole number.` };
+    return { ok: false, message: copy.labels.tenantQuota.wholeNumber(descriptor.label) };
   }
 
   const value = Number(trimmed);
@@ -497,18 +489,21 @@ export function parseQuotaValue(
   if (!Number.isInteger(value) || value < descriptor.min || value > descriptor.max) {
     return {
       ok: false,
-      message: `${descriptor.label} must be between ${descriptor.min} and ${descriptor.max}.`,
+      message: copy.labels.tenantQuota.outOfRange(descriptor.label, descriptor.min, descriptor.max),
     };
   }
 
   return { ok: true, value };
 }
 
-export function validateQuotaForm(form: TenantQuotaFormState): TenantQuotaFieldError {
+export function validateQuotaForm(
+  form: TenantQuotaFormState,
+  copy: ConsoleStrings = strings,
+): TenantQuotaFieldError {
   const errors: TenantQuotaFieldError = {};
 
-  for (const descriptor of tenantQuotaFields) {
-    const parsed = parseQuotaValue(form[descriptor.field], descriptor);
+  for (const descriptor of tenantQuotaFieldDescriptors(copy)) {
+    const parsed = parseQuotaValue(form[descriptor.field], descriptor, copy);
     if (!parsed.ok) {
       errors[descriptor.field] = parsed.message;
     }

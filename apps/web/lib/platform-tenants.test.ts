@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { stringsIt } from "./strings.it";
 
 import { AxisApiDecodeError } from "./axis-api";
 import {
@@ -25,6 +26,7 @@ import {
   quotaFormFromQuotaSet,
   reactivateTenant,
   suspendTenant,
+  tenantQuotaFieldDescriptors,
   tenantQuotaFields,
   tenantStatusClass,
   tenantStatusLabel,
@@ -231,6 +233,22 @@ describe("quota parsing and shaping", () => {
     expect(parseQuotaValue("12.5", apiField)).toMatchObject({ ok: false });
     expect(parseQuotaValue("abc", apiField)).toMatchObject({ ok: false });
     expect(parseQuotaValue("2000000", apiField)).toMatchObject({ ok: false });
+  });
+
+  it("labels fields and validation messages from the catalogue it is given", () => {
+    const [italianApiField] = tenantQuotaFieldDescriptors(stringsIt);
+    expect(italianApiField).toMatchObject({ field: "api_requests_per_window", label: "Richieste API per finestra", min: 1 });
+    expect(parseQuotaValue("abc", italianApiField, stringsIt)).toEqual({
+      ok: false,
+      message: "Richieste API per finestra: il valore deve essere un numero intero.",
+    });
+    expect(parseQuotaValue("0", apiField)).toEqual({
+      ok: false,
+      message: "API requests per window must be between 1 and 1000000.",
+    });
+    expect(validateQuotaForm(buildQuotaForm({ max_concurrent_sessions: "-1" }), stringsIt)).toEqual({
+      max_concurrent_sessions: "Sessioni simultanee massime: il valore deve essere compreso tra 0 e 10000.",
+    });
   });
 
   it("hydrates the form from a quota set and back to a null-clearing payload", () => {

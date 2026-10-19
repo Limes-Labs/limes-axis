@@ -2970,6 +2970,12 @@ const ui = {
     quotaUpdateFailed: "Quota update failed",
     quotaApplied: (changes: number) =>
       `Quota update applied with ${count(changes)} ${changes === 1 ? "change" : "changes"}. Unchanged keys write no audit event.`,
+    quotaSource: {
+      api: "API quota set",
+      missing: "Tenant not found",
+      loading: "Loading quota API",
+      unavailable: "Quota API unavailable",
+    },
   },
   tenantRegistry: {
     showingTenants: (count: string) => `Showing ${count} tenants. More match this filter.`,
@@ -3525,6 +3531,49 @@ export const strings = {
       autonomyLevels: "Autonomy levels",
       amountThreshold: "Amount threshold",
       notes: "Notes",
+    },
+    tenantQuota: {
+      fields: {
+        api_requests_per_window: {
+          label: "API requests per window",
+          detail: "Overrides the global API rate limit on protected paths.",
+        },
+        max_concurrent_sessions: {
+          label: "Max concurrent sessions",
+          detail: "Overrides the global concurrent browser-session cap.",
+        },
+        max_connector_sync_rows_per_run: {
+          label: "Max connector sync rows per run",
+          detail: "Caps governed live-sync row limits per connector run.",
+        },
+      },
+      wholeNumber: (label: string) => `${label} must be a whole number.`,
+      outOfRange: (label: string, min: number, max: number) =>
+        `${label} must be between ${min} and ${max}.`,
+    },
+    operationsArtifacts: {
+      actions: {
+        daily_brief: {
+          label: "Generate daily brief",
+          description: "Persist a deterministic plant brief from current operation records.",
+        },
+        quality_risk: {
+          label: "Build quality scenario",
+          description: "Persist a quality risk scenario with workflow and evidence references.",
+        },
+        maintenance_risk: {
+          label: "Build maintenance scenario",
+          description: "Persist a maintenance risk scenario from CMMS-backed records.",
+        },
+        supplier_delay: {
+          label: "Build supplier scenario",
+          description: "Persist a supply delay scenario with approval and workflow evidence.",
+        },
+      },
+      requiresVerifiedActor: "Requires an API-verified OIDC actor before Axis can persist artifacts.",
+      missingScopes: (scopes: readonly string[]) => `Missing required scopes: ${scopes.join(", ")}`,
+      unavailable: "Operations artifact is unavailable.",
+      persistedBy: (recordId: string) => `${recordId} persisted by Axis.`,
     },
   },
   sources: {

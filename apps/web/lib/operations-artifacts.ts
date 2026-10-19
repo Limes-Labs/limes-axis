@@ -1,3 +1,5 @@
+import type { ConsoleStrings } from "@/lib/i18n";
+import { strings } from "@/lib/strings";
 import type {
   IdentitySessionReadModel,
   ManufacturingOperationsSnapshot,
@@ -72,39 +74,41 @@ export class OperationsArtifactRequestError extends Error {
   }
 }
 
-export const OPERATIONS_ARTIFACT_ACTIONS: OperationsArtifactAction[] = [
+const artifactActionRoutes: Array<Omit<OperationsArtifactAction, "label" | "description">> = [
   {
     kind: "daily_brief",
-    label: "Generate daily brief",
-    description: "Persist a deterministic plant brief from current operation records.",
     endpoint: `${OPERATIONS_API_PREFIX}/operations/daily-brief`,
     requiredScopes: ["briefs:generate", "audit:read", "workflows:read"],
   },
   {
     kind: "quality_risk",
-    label: "Build quality scenario",
-    description: "Persist a quality risk scenario with workflow and evidence references.",
     endpoint: `${OPERATIONS_API_PREFIX}/operations/risk-scenarios/quality`,
     requiredScopes: ["quality:read", "workflows:read", "audit:read"],
   },
   {
     kind: "maintenance_risk",
-    label: "Build maintenance scenario",
-    description: "Persist a maintenance risk scenario from CMMS-backed records.",
     endpoint: `${OPERATIONS_API_PREFIX}/operations/risk-scenarios/maintenance`,
     requiredScopes: ["maintenance:read", "workflows:read", "audit:read"],
   },
   {
     kind: "supplier_delay",
-    label: "Build supplier scenario",
-    description: "Persist a supply delay scenario with approval and workflow evidence.",
     endpoint: `${OPERATIONS_API_PREFIX}/operations/risk-scenarios/supplier-delay`,
     requiredScopes: ["supply:read", "workflows:read", "audit:read"],
   },
 ];
 
-function actionForKind(kind: OperationsArtifactKind): OperationsArtifactAction {
-  const action = OPERATIONS_ARTIFACT_ACTIONS.find((item) => item.kind === kind);
+/** The governed artifact actions, labelled from the active catalogue. */
+export function operationsArtifactActions(copy: ConsoleStrings = strings): OperationsArtifactAction[] {
+  return artifactActionRoutes.map((route) => ({
+    ...route,
+    ...copy.labels.operationsArtifacts.actions[route.kind],
+  }));
+}
+
+export const OPERATIONS_ARTIFACT_ACTIONS: OperationsArtifactAction[] = operationsArtifactActions();
+
+function actionForKind(kind: OperationsArtifactKind, copy: ConsoleStrings): OperationsArtifactAction {
+  const action = operationsArtifactActions(copy).find((item) => item.kind === kind);
   if (!action) {
     throw new OperationsArtifactRequestError(`Unsupported operations artifact: ${kind}`);
   }
@@ -122,15 +126,16 @@ function missingScopes(
 export function getOperationsArtifactActionState(
   kind: OperationsArtifactKind,
   identitySession: IdentitySessionReadModel | null,
+  copy: ConsoleStrings = strings,
 ): OperationsArtifactActionState {
-  const action = actionForKind(kind);
+  const action = actionForKind(kind, copy);
 
   if (!identitySession?.authenticated || !identitySession.actor_id || !identitySession.tenant_id) {
     return {
       action,
       canRun: false,
       missingScopes: action.requiredScopes,
-      reason: "Requires an API-verified OIDC actor before Axis can persist artifacts.",
+      reason: copy.labels.operationsArtifacts.requiresVerifiedActor,
     };
   }
 
@@ -140,7 +145,7 @@ export function getOperationsArtifactActionState(
       action,
       canRun: false,
       missingScopes: missing,
-      reason: `Missing required scopes: ${missing.join(", ")}`,
+      reason: copy.labels.operationsArtifacts.missingScopes(missing),
     };
   }
 
@@ -152,15 +157,14 @@ export function getOperationsArtifactActionState(
   };
 }
 
-export function buildOperationsArtifactRequest({
-  kind,
-  identitySession,
-  snapshot,
-}: BuildOperationsArtifactRequestInput): OperationsArtifactRequest {
-  const state = getOperationsArtifactActionState(kind, identitySession);
+export function buildOperationsArtifactRequest(
+  { kind, identitySession, snapshot }: BuildOperationsArtifactRequestInput,
+  copy: ConsoleStrings = strings,
+): OperationsArtifactRequest {
+  const state = getOperationsArtifactActionState(kind, identitySession, copy);
 
   if (!state.canRun || !identitySession?.actor_id || !identitySession.tenant_id) {
-    throw new OperationsArtifactRequestError(state.reason ?? "Operations artifact is unavailable.");
+    throw new OperationsArtifactRequestError(state.reason ?? copy.labels.operationsArtifacts.unavailable);
   }
 
   const briefDate = snapshot.as_of.slice(0, 10);
@@ -196,10 +200,13 @@ export function operationsArtifactRecordId(response: OperationsArtifactResponse)
   return response.brief_id ?? response.scenario_id ?? response.audit_event_id ?? "artifact";
 }
 
-export function operationsArtifactHeadline(response: OperationsArtifactResponse): string {
+export function operationsArtifactHeadline(
+  response: OperationsArtifactResponse,
+  copy: ConsoleStrings = strings,
+): string {
   return (
     response.summary_payload?.headline
     ?? response.scenario_payload?.headline
-    ?? `${operationsArtifactRecordId(response)} persisted by Axis.`
+    ?? copy.labels.operationsArtifacts.persistedBy(operationsArtifactRecordId(response))
   );
 }

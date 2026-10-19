@@ -9,6 +9,7 @@ import {
   fetchTenantQuotas,
   platformTenantQuotaScope,
   quotaFormFromQuotaSet,
+  tenantQuotaFieldDescriptors,
   tenantQuotaFields,
   tenantWriteOperatorError,
   updateTenantQuotas,
@@ -35,18 +36,6 @@ type SaveState =
   | { phase: "saving" }
   | { phase: "done"; changeCount: number }
   | { phase: "failed"; error: AxisOperatorError };
-
-function sourceLabel(source: QuotaSource): string {
-  if (source === "api") {
-    return "API quota set";
-  }
-
-  if (source === "missing") {
-    return "Tenant not found";
-  }
-
-  return source === "loading" ? "Loading quota API" : "Quota API unavailable";
-}
 
 /** True when every field of `a` matches `b` — used to detect unsaved edits. */
 function formsEqual(a: TenantQuotaFormState, b: TenantQuotaFormState): boolean {
@@ -138,7 +127,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
   function requestConfirmation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const errors = validateQuotaForm(form);
+    const errors = validateQuotaForm(form, strings);
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
@@ -227,7 +216,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
 
       {!quotaSet && source !== "api" ? (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
-          {sourceLabel(source)}
+          {strings.ui.tenantQuotaEditor.quotaSource[source]}
         </p>
       ) : (
         <form
@@ -236,7 +225,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
           noValidate
           onSubmit={requestConfirmation}
         >
-          {tenantQuotaFields.map((descriptor) => (
+          {tenantQuotaFieldDescriptors(strings).map((descriptor) => (
             <Field key={descriptor.field} label={descriptor.label}>
               <Input
                 aria-label={descriptor.label}
