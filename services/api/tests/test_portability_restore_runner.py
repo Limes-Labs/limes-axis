@@ -10,12 +10,18 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from test_portability_validator import (  # repo test-reuse convention
     _AXIS_VERSION,
-    _TRUSTED_KEY,
+    _TRUSTED_KEYS,
     _bundle,
     _manifest,
 )
 
-from axis_api.models import Base, PortabilityRestoreStepRecord
+from axis_api.models import (
+    Base,
+    PortabilityRestoreRunRecord,
+    PortabilityRestoreStepRecord,
+    Tenant,
+)
+from axis_api.portability_manifest import RebindingReference
 from axis_api.portability_restore_runner import (
     RUN_STATE_COMPLETED,
     RUN_STATE_QUARANTINED,
@@ -38,18 +44,35 @@ from axis_api.portability_validator import (
 
 _TARGET = "tenant-restore-beta"
 _AUTHORIZE = lambda _subject: True  # noqa: E731
+# The runner refuses unsupported plans; the default fixture's HSM-bound
+# signing key would block, so runner fixtures use a fully supported profile.
+_SUPPORTED_REBINDING = (
+    RebindingReference(
+        kind="credential",
+        reference_id="credential.oidc-client",
+        resolution="fresh_local_resolution_required",
+    ),
+)
 
 
-def _plan():
+def _supported_manifest(**overrides):
+    return _manifest(rebinding=_SUPPORTED_REBINDING, **overrides)
+
+
+def _validate(manifest):
     return validate_bundle(
-        _bundle(_manifest()),
-        trusted_signer_key_ids=frozenset({_TRUSTED_KEY}),
+        _bundle(manifest),
+        trusted_signer_keys=_TRUSTED_KEYS,
         supported_axis_versions=(_AXIS_VERSION,),
     )
 
 
+def _plan():
+    return _validate(_supported_manifest())
+
+
 def _components(manifest=None):
-    manifest = manifest or _manifest()
+    manifest = manifest or _supported_manifest()
     return manifest.components
 
 
@@ -90,18 +113,35 @@ def components():
     return _components()
 
 
-def _start(session: Session, plan, components, **overrides: object):
+def _tenant(session: Session, tenant_id: str, status: str = "suspended") -> Tenant:
+    tenant = session.get(Tenant, tenant_id)
+    if tenant is None:
+        tenant = Tenant(id=tenant_id, name=tenant_id, status=status)
+        session.add(tenant)
+        session.flush()
+    return tenant
+
+
+def _start(
+    session: Session,
+    plan,
+    components,
+    *,
+    tenant_status: str = "suspended",
+    manifest=None,
+    **overrides: object,
+):
     values: dict[str, object] = {
         "plan": plan,
         "acknowledgement": _acknowledgement(plan),
         "target_tenant_id": f"tenant-restore-{uuid4().hex[:12]}",
-        "target_tenant_status": "suspended",
-        "manifest_components": components,
+        "manifest": manifest or _supported_manifest(),
         "acknowledged_by": "operator:restore",
         "authorized_by": "operator:restore",
         "authorize": _AUTHORIZE,
     }
     values.update(overrides)
+    _tenant(session, str(values["target_tenant_id"]), tenant_status)
     return start_restore_run(session, **values)  # type: ignore[arg-type]
 
 
@@ -147,7 +187,7 @@ def test_run_starts_with_restore_only_steps(session, plan, components) -> None:
 
 def test_non_suspended_target_is_refused(session, plan, components) -> None:
     with pytest.raises(PortabilityRestoreError) as blocked:
-        _start(session, plan, components, target_tenant_status="active")
+        _start(session, plan, components, tenant_status="active")
     assert blocked.value.code == PortabilityRestoreError.TARGET_NOT_SUSPENDED
 
 
@@ -158,11 +198,7 @@ def test_revoked_operator_rights_fail_closed(session, plan, components) -> None:
 
 
 def test_mismatched_acknowledgement_is_refused(session, plan, components) -> None:
-    other_plan = validate_bundle(
-        _bundle(_manifest(decisions={"object-store": "exclude"})),
-        trusted_signer_key_ids=frozenset({_TRUSTED_KEY}),
-        supported_axis_versions=(_AXIS_VERSION,),
-    )
+    other_plan = _validate(_supported_manifest(decisions={"object-store": "exclude"}))
     other = acknowledge_restore_plan(
         other_plan,
         acknowledged_exclusions=other_plan.exclusions(),
@@ -318,12 +354,9 @@ def test_completed_run_clears_activation_blockers(session, plan, components) -> 
 
 def test_changed_plan_starts_a_new_generation(session, plan, components) -> None:
     run = _start(session, plan, components)
-    other = validate_bundle(
-        _bundle(_manifest(decisions={"object-store": "exclude"})),
-        trusted_signer_key_ids=frozenset({_TRUSTED_KEY}),
-        supported_axis_versions=(_AXIS_VERSION,),
-    )
-    changed = _start(session, other, _components(_manifest(decisions={"object-store": "exclude"})))
+    other_manifest = _supported_manifest(decisions={"object-store": "exclude"})
+    other = _validate(other_manifest)
+    changed = _start(session, other, _components(other_manifest), manifest=other_manifest)
     assert changed.id != run.id
     assert changed.generation == 1
     assert changed.plan_digest != run.plan_digest
@@ -353,3 +386,157 @@ def test_missing_handler_block_survives_resume(session, plan, components) -> Non
     again = _start(session, plan, components, target_tenant_id=target)
     assert again.id == run.id
     assert _step(session, again.id, "ontology").state == "blocked"
+
+
+# --- review hardening: tenant binding, plan binding, fencing, honest steps -------
+
+
+def test_missing_target_tenant_row_is_refused(session, plan) -> None:
+    with pytest.raises(PortabilityRestoreError) as blocked:
+        start_restore_run(
+            session,
+            plan=plan,
+            acknowledgement=_acknowledgement(plan),
+            target_tenant_id=f"tenant-restore-{uuid4().hex[:12]}",
+            manifest=_supported_manifest(),
+            acknowledged_by="operator:restore",
+            authorized_by="operator:restore",
+            authorize=_AUTHORIZE,
+        )
+    assert blocked.value.code == PortabilityRestoreError.TARGET_NOT_SUSPENDED
+
+
+def test_unsupported_plan_is_refused(session, components) -> None:
+    unsupported = _manifest()  # carries an unsupported HSM-bound signing key
+    plan = _validate(unsupported)
+    assert plan.supported is False
+    with pytest.raises(PortabilityRestoreError) as blocked:
+        _start(session, plan, components, manifest=unsupported)
+    assert blocked.value.code == PortabilityRestoreError.PLAN_UNSUPPORTED
+
+
+def test_manifest_that_does_not_match_the_plan_is_refused(session, plan, components) -> None:
+    other = _supported_manifest(decisions={"object-store": "exclude"})
+    with pytest.raises(PortabilityRestoreError) as blocked:
+        _start(session, plan, components, manifest=other)
+    assert blocked.value.code == PortabilityRestoreError.PLAN_MISMATCH
+
+
+def test_target_bound_to_another_bundle_is_refused(session, plan, components) -> None:
+    target = f"tenant-restore-{uuid4().hex[:12]}"
+    _start(session, plan, components, target_tenant_id=target)
+    other_manifest = _supported_manifest(decisions={"object-store": "exclude"})
+    with pytest.raises(PortabilityRestoreError) as blocked:
+        _start(
+            session,
+            _validate(other_manifest),
+            _components(other_manifest),
+            manifest=other_manifest,
+            target_tenant_id=target,
+        )
+    assert blocked.value.code == PortabilityRestoreError.TARGET_BOUND
+
+
+def test_reactivated_target_blocks_further_claims(session, plan, components) -> None:
+    target = f"tenant-restore-{uuid4().hex[:12]}"
+    run = _start(session, plan, components, target_tenant_id=target)
+    session.get(Tenant, target).status = "active"
+    session.flush()
+    with pytest.raises(PortabilityRestoreError) as blocked:
+        claim_step(
+            session, run_id=run.id, component_id="ontology",
+            worker_id="worker:a", authorize=_AUTHORIZE,
+        )
+    assert blocked.value.code == PortabilityRestoreError.TARGET_NOT_SUSPENDED
+
+
+def test_second_worker_cannot_claim_the_same_in_progress_step(
+    session, plan, components
+) -> None:
+    run = _start(session, plan, components)
+    claim_step(
+        session, run_id=run.id, component_id="ontology",
+        worker_id="worker:a", authorize=_AUTHORIZE,
+    )
+    with pytest.raises(PortabilityRestoreError) as blocked:
+        claim_step(
+            session, run_id=run.id, component_id="ontology",
+            worker_id="worker:b", authorize=_AUTHORIZE,
+        )
+    assert blocked.value.code == PortabilityRestoreError.FENCED
+    # The fencing worker itself may retry its interrupted step.
+    retried = claim_step(
+        session, run_id=run.id, component_id="ontology",
+        worker_id="worker:a", authorize=_AUTHORIZE,
+    )
+    assert retried.attempts == 2
+
+
+@pytest.mark.parametrize("prepare", ["pending", "blocked"])
+def test_unclaimed_steps_cannot_be_completed(session, plan, components, prepare) -> None:
+    run = _start(session, plan, components)
+    if prepare == "blocked":
+        block_unsupported_steps(
+            session, run_id=run.id,
+            registry=HandlerRegistry(handlers={}),
+            manifest_components=components,
+        )
+    with pytest.raises(PortabilityRestoreError) as blocked:
+        complete_step(
+            session, run_id=run.id, component_id="ontology",
+            evidence_digest=_evidence("ontology"),
+        )
+    assert blocked.value.code == PortabilityRestoreError.NOT_RESUMABLE
+    assert _step(session, run.id, "ontology").state == prepare
+
+
+def test_completion_requires_digest_shaped_evidence(session, plan, components) -> None:
+    run = _start(session, plan, components)
+    claim_step(
+        session, run_id=run.id, component_id="ontology",
+        worker_id="worker:a", authorize=_AUTHORIZE,
+    )
+    with pytest.raises(PortabilityRestoreError) as blocked:
+        complete_step(
+            session, run_id=run.id, component_id="ontology", evidence_digest="done",
+        )
+    assert blocked.value.code == PortabilityRestoreError.EVIDENCE_INVALID
+
+
+def test_completed_identical_run_is_returned_not_re_executed(
+    session, plan, components
+) -> None:
+    target = f"tenant-restore-{uuid4().hex[:12]}"
+    run = _start(session, plan, components, target_tenant_id=target)
+    for component_id in ("ontology", "audit-ledger", "object-store"):
+        claim_step(
+            session, run_id=run.id, component_id=component_id,
+            worker_id="worker:a", authorize=_AUTHORIZE,
+        )
+        complete_step(
+            session, run_id=run.id, component_id=component_id,
+            evidence_digest=_evidence(component_id),
+        )
+    again = _start(session, plan, components, target_tenant_id=target)
+    assert again.id == run.id
+    assert again.state == RUN_STATE_COMPLETED
+
+
+def test_resume_reset_of_failed_steps_is_persisted(engine, plan, components) -> None:
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    target = f"tenant-restore-{uuid4().hex[:12]}"
+    with factory() as db:
+        run = _start(db, plan, components, target_tenant_id=target)
+        claim_step(
+            db, run_id=run.id, component_id="ontology",
+            worker_id="worker:a", authorize=_AUTHORIZE,
+        )
+        fail_step(db, run_id=run.id, component_id="ontology", failure_code="checksum")
+        db.commit()
+        _start(db, plan, components, target_tenant_id=target)
+        db.commit()
+        run_id = run.id
+    with factory() as fresh:
+        persisted = fresh.get(PortabilityRestoreRunRecord, run_id)
+        assert persisted.steps_failed == {}
+        assert _step(fresh, run_id, "ontology").state == "pending"
