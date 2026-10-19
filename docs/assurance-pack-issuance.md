@@ -34,7 +34,10 @@ delivery/download surface and no CLI yet: the verifier is a library function.
 reference included) and enforces the gates it owns:
 
 1. The assembled package is self-consistent: its bytes hash to its
-   `package_sha256` (`issuance_requires_assembled_package`).
+   `package_sha256`, and the archive holds exactly this manifest's canonical
+   `manifest.json`, index and attachments — the same structural check the
+   offline verifier runs, so Axis never signs a package the verifier would
+   reject (`issuance_requires_assembled_package`).
 2. The approval covers the exact manifest digest, package digest, audience,
    release and profile (`approval_does_not_match_package`).
 3. The #883 preflight passes (`pack_not_ready`) and the sign-time support
@@ -42,7 +45,10 @@ reference included) and enforces the gates it owns:
    (`stale_pack_support`).
 4. The signer is the approved profile and its proof matches the signed
    payload (`unsupported_signing_provider`); invalid lifecycle input such as
-   an unparseable capture time is `invalid_issuance_input`.
+   an unparseable or offset-less capture time is `invalid_issuance_input`.
+5. A pack whose `valid_through` is already past on the capture date is not
+   issued (`pack_expired_at_issuance`); expiry after issuance stays a
+   verification-time fact.
 
 The frozen `IssuedAssurancePack` takes pack id, audience, purpose, release
 and profile from the manifest itself and binds them to `manifest_sha256`,
@@ -69,7 +75,9 @@ revocation facts. It opens no network connection, database or global key.
    the package itself.
 4. Without trust material the result is `untrusted_input`; the package is
    only `consistent_unauthenticated`.
-5. The signing profile must be on the allowlist and agree with the proof
+5. When the reviewer passes `expected_audience`, a record issued for any
+   other audience fails.
+6. The signing profile must be on the allowlist and agree with the proof
    before any signature math; the trust material must name the same key id,
    algorithm and mode; then the Ed25519 signature and the signed-payload
    digest are verified.

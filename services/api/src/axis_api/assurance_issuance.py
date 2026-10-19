@@ -111,6 +111,7 @@ class AssuranceIssuanceError(ValueError):
     """Fixed issuance codes; raw validation details are never rendered."""
 
     NOT_ASSEMBLED = "issuance_requires_assembled_package"
+    EXPIRED = "pack_expired_at_issuance"
     APPROVAL_MISMATCH = "approval_does_not_match_package"
     NOT_READY = "pack_not_ready"
     STALE_SUPPORT = "stale_pack_support"
@@ -130,9 +131,12 @@ def _canonical_json(payload: dict) -> bytes:
 
 def _iso_datetime(value: str) -> datetime:
     try:
-        return datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(value)
     except ValueError:
         raise ValueError("capture_time must be an ISO 8601 timestamp") from None
+    if parsed.utcoffset() is None:
+        raise ValueError("capture_time must carry an explicit UTC offset")
+    return parsed
 
 
 class SignatureProof(ContractModel):
@@ -359,6 +363,11 @@ def issue_assurance_pack(
         or hashlib.sha256(package_bytes).hexdigest() != assembled.package_sha256
     ):
         raise AssuranceIssuanceError(AssuranceIssuanceError.NOT_ASSEMBLED)
+    # The issuer never signs a package the offline verifier would reject:
+    # the archive must hold exactly this manifest, its index and attachments.
+    members = _read_members(package_bytes)
+    if isinstance(members, str) or _package_mismatch(manifest, members) is not None:
+        raise AssuranceIssuanceError(AssuranceIssuanceError.NOT_ASSEMBLED)
 
     if (
         approval.manifest_sha256 != manifest.digest()
@@ -404,6 +413,11 @@ def issue_assurance_pack(
         )
     except ValidationError:
         raise AssuranceIssuanceError(AssuranceIssuanceError.INVALID_INPUT) from None
+    # An already-expired pack is never issued as a fresh record; expiry after
+    # issuance stays a verification-time fact.
+    captured_on = _iso_datetime(capture_time).date()
+    if captured_on > date.fromisoformat(manifest.valid_through):
+        raise AssuranceIssuanceError(AssuranceIssuanceError.EXPIRED)
 
     payload = unsigned_issuance_payload(statement)
     proof = signer.sign_payload(payload)
@@ -472,6 +486,28 @@ def _expected_members(manifest: PackManifest) -> list[str]:
     return names
 
 
+def _package_mismatch(manifest: PackManifest, members: dict[str, bytes]) -> str | None:
+    """Why ``members`` are not exactly the package of ``manifest``, or None."""
+
+    if members.get("manifest.json") != canonical_manifest_json(manifest):
+        return "packaged manifest is not canonical"
+    expected = _expected_members(manifest)
+    for name in expected:
+        if name not in members:
+            return f"required package member missing: {name}"
+    if list(members) != expected:
+        return "package members differ from the manifest"
+    if members["index.md"] != build_index_text(manifest).encode("utf-8"):
+        return "package index does not match the manifest"
+    for entry in manifest.entries:
+        if entry.mode != "included_artifact":
+            continue
+        content = members[attachment_name(entry.entry_id)]
+        if hashlib.sha256(content).hexdigest() != entry.artifact_digest:
+            return f"attachment digest mismatch for {entry.entry_id}"
+    return None
+
+
 def _read_members(package_bytes: bytes) -> dict[str, bytes] | str:
     """Bounded read of a stored (uncompressed) package; returns a reason on failure."""
 
@@ -500,6 +536,7 @@ def verify_assurance_pack_offline(
     package_bytes: bytes,
     trust_material: TrustedVerificationMaterial | None,
     clock: VerificationClock | None,
+    expected_audience: str | None = None,
 ) -> OfflineVerificationResult:
     """Bounded offline verification of one issued package.
 
@@ -507,7 +544,8 @@ def verify_assurance_pack_offline(
     an argument. The manifest and attachments are read from the package under
     test (bounded member count and sizes); trust material must come through a
     separately trusted channel. Stale revocation data or an uncertain clock
-    can only qualify the result, never upgrade it.
+    can only qualify the result, never upgrade it. A reviewer passes
+    ``expected_audience`` to fail a package issued for another audience.
     """
 
     if len(issuance_json) > MAX_ISSUANCE_RECORD_BYTES or len(package_bytes) > MAX_PACKAGE_BYTES:
@@ -530,8 +568,9 @@ def verify_assurance_pack_offline(
         manifest = parse_assurance_pack(json.loads(manifest_bytes))
     except (AssurancePackError, ValueError):
         return _failed("packaged manifest is not a valid #883 manifest", package="failed")
-    if canonical_manifest_json(manifest) != manifest_bytes:
-        return _failed("packaged manifest is not canonical", package="failed")
+    mismatch = _package_mismatch(manifest, members)
+    if mismatch is not None:
+        return _failed(mismatch, package="failed")
     if record.manifest_sha256 != manifest.digest():
         return _failed("manifest digest does not match the issued record", package="failed")
     if (
@@ -543,21 +582,8 @@ def verify_assurance_pack_offline(
         or record.lifecycle.valid_through != manifest.valid_through
     ):
         return _failed("issued record does not describe the packaged manifest", package="failed")
-
-    expected = _expected_members(manifest)
-    for name in expected:
-        if name not in members:
-            return _failed(f"required package member missing: {name}", package="failed")
-    if list(members) != expected:
-        return _failed("package members differ from the manifest", package="failed")
-    if members["index.md"] != build_index_text(manifest).encode("utf-8"):
-        return _failed("package index does not match the manifest", package="failed")
-    for entry in manifest.entries:
-        if entry.mode != "included_artifact":
-            continue
-        content = members[attachment_name(entry.entry_id)]
-        if hashlib.sha256(content).hexdigest() != entry.artifact_digest:
-            return _failed(f"attachment digest mismatch for {entry.entry_id}", package="failed")
+    if expected_audience is not None and record.audience != expected_audience:
+        return _failed("package was issued for a different audience", package="failed")
 
     notes = [SIGNATURE_SEMANTICS_NOTE]
     freshness = _freshness(record, clock)
@@ -690,7 +716,9 @@ def _qualified(freshness: str, revocation: str, clock_status: str) -> str:
 
 
 def _date_of(value: str) -> date | None:
+    """Date of an ISO date or timestamp; anything else is unparseable."""
+
     try:
-        return date.fromisoformat(value[:10])
+        return datetime.fromisoformat(value).date()
     except ValueError:
         return None

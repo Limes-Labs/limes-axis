@@ -559,3 +559,79 @@ def test_signature_wording_is_bounded():
     assert "provenance" in note
     assert "not regulatory certification" in note
     assert "self-attested claims" in note
+
+
+# Issuance gate: a self-consistent archive that does not hold exactly this
+# manifest's package (here: another manifest's package) is never signed.
+def test_issuance_rejects_package_of_another_manifest():
+    manifest = _manifest()
+    pack = _assemble(manifest, ATTACHMENT)
+    other = _assemble(_manifest(CORRECTED_ATTACHMENT), CORRECTED_ATTACHMENT)
+
+    class _Swapped:
+        manifest = pack.manifest
+        package_sha256 = other.package_sha256
+        package_bytes = other.package_bytes
+
+    approval = _approval(manifest, pack).model_copy(
+        update={"package_sha256": other.package_sha256}
+    )
+    with pytest.raises(AssuranceIssuanceError) as excinfo:
+        issue_assurance_pack(
+            assembled=_Swapped(),
+            approval=approval,
+            signer=_SIGNER,
+            capture_time="2026-09-18T10:00:00+00:00",
+        )
+    assert excinfo.value.code == AssuranceIssuanceError.NOT_ASSEMBLED
+
+
+def test_issuance_refuses_pack_already_expired_at_capture():
+    manifest = _manifest()
+    pack = _assemble(manifest, ATTACHMENT)
+    with pytest.raises(AssuranceIssuanceError) as excinfo:
+        issue_assurance_pack(
+            assembled=pack,
+            approval=_approval(manifest, pack),
+            signer=_SIGNER,
+            capture_time="2027-09-02T00:00:00+00:00",
+        )
+    assert excinfo.value.code == AssuranceIssuanceError.EXPIRED
+
+
+def test_issuance_requires_offset_aware_capture_time():
+    manifest = _manifest()
+    pack = _assemble(manifest, ATTACHMENT)
+    with pytest.raises(AssuranceIssuanceError) as excinfo:
+        issue_assurance_pack(
+            assembled=pack,
+            approval=_approval(manifest, pack),
+            signer=_SIGNER,
+            capture_time="2026-09-18T10:00:00",
+        )
+    assert excinfo.value.code == AssuranceIssuanceError.INVALID_INPUT
+
+
+# Audience binding: a reviewer can refuse a package issued for someone else.
+def test_verification_binds_expected_audience():
+    pack, record = _issue(_manifest())
+    common = {
+        "issuance_json": record.model_dump_json().encode("utf-8"),
+        "package_bytes": pack.package_bytes,
+        "trust_material": _TRUST,
+        "clock": _CURRENT_CLOCK,
+    }
+    matching = verify_assurance_pack_offline(**common, expected_audience="enterprise")
+    assert matching.qualified_result == "verified_current"
+    other = verify_assurance_pack_offline(**common, expected_audience="public-buyer")
+    assert other.qualified_result == "failed"
+    assert other.notes == ("Verification failed: package was issued for a different audience.",)
+
+
+# Clock facts parse strictly; trailing garbage never yields a certain clock.
+def test_malformed_verification_time_leaves_clock_uncertain():
+    pack, record = _issue(_manifest())
+    clock = _CURRENT_CLOCK.model_copy(update={"verification_time": "2026-09-18garbage"})
+    result = _verify(pack, record, clock=clock)
+    assert result.clock_status == "uncertain"
+    assert result.qualified_result == "verified_but_qualified"
