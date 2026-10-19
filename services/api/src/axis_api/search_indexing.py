@@ -215,6 +215,11 @@ def index_document_observation(
     )
 
 
+#: Placeholder vocabulary for a tombstone that arrives before any live
+#: projection of its identity. Tombstoned rows are never served.
+_TOMBSTONE_PLACEHOLDER = "tombstone-before-projection"
+
+
 def tombstone_document(
     repository: AxisPersistenceRepository,
     *,
@@ -222,13 +227,18 @@ def tombstone_document(
     source_object_id: str,
     content_revision: str,
     index_generation: int = 1,
+    kind: str = "document",
     audit_event_id=None,
+    retry_on_conflict: bool = True,
 ) -> IndexProjection:
     """Apply an explicit deletion observation; tombstones are monotone.
 
     Deletions carry their own revision and need no ordering evidence: the
     classifier applies them over any current state, and only bound ordering
-    evidence can ever replace them afterwards.
+    evidence can ever replace them afterwards. A deletion of an identity the
+    index has never seen still records a text-free tombstone row: without
+    it, a late out-of-order live event for that identity would be a new
+    record and resurrect deleted content.
     """
 
     current = repository.get_search_index_record_for_update(tenant_id, source_object_id)
@@ -241,22 +251,63 @@ def tombstone_document(
         incoming_generation=index_generation,
         supersedes_current=False,
     )
-    audit = repository.append_audit_event(
-        _audit_event_create(
-            tenant_id=tenant_id,
-            event_type=TOMBSTONE_AUDIT_EVENT_TYPE,
-            payload={
-                "adapter": SEARCH_INDEX_ADAPTER,
-                "source_object_id": source_object_id,
-                "decision": projection.decision,
-                "reason": projection.reason,
-                "index_generation": projection.next_generation,
-            },
+
+    def append_audit():
+        return repository.append_audit_event(
+            _audit_event_create(
+                tenant_id=tenant_id,
+                event_type=TOMBSTONE_AUDIT_EVENT_TYPE,
+                payload={
+                    "adapter": SEARCH_INDEX_ADAPTER,
+                    "source_object_id": source_object_id,
+                    "decision": projection.decision,
+                    "reason": projection.reason,
+                    "index_generation": projection.next_generation,
+                },
+            )
         )
-    )
-    if projection.decision == "superseded" or current is None:
-        # A tombstone for an unknown object needs no row: nothing readable
-        # ever existed in the index for that identity.
+
+    if current is None:
+        # Same first-writer race as _apply_projection: the unique identity
+        # constraint is the backstop and the loser re-classifies once.
+        try:
+            with repository.session.begin_nested():
+                audit = append_audit()
+                repository.create_search_index_record(
+                    SearchIndexRecordCreate(
+                        tenant_id=tenant_id,
+                        kind=kind,
+                        source_object_id=source_object_id,
+                        content_revision=content_revision,
+                        source_locator=f"{_TOMBSTONE_PLACEHOLDER}://{source_object_id}",
+                        state="tombstoned",
+                        searchable_text=None,
+                        text_digest=None,
+                        language="simple",
+                        analyzer_revision=_TOMBSTONE_PLACEHOLDER,
+                        policy_revision_ref=_TOMBSTONE_PLACEHOLDER,
+                        index_generation=projection.next_generation,
+                        indexed_event_type=TOMBSTONE_AUDIT_EVENT_TYPE,
+                        indexed_audit_event_id=audit.id,
+                    )
+                )
+        except IntegrityError:
+            if not retry_on_conflict:
+                raise
+            return tombstone_document(
+                repository,
+                tenant_id=tenant_id,
+                source_object_id=source_object_id,
+                content_revision=content_revision,
+                index_generation=index_generation,
+                kind=kind,
+                audit_event_id=audit_event_id,
+                retry_on_conflict=False,
+            )
+        return projection
+
+    audit = append_audit()
+    if projection.decision == "superseded":
         return projection
     repository.apply_search_index_projection(
         current,
@@ -368,6 +419,8 @@ def _apply_projection(
             next_state=projection.next_state,
             next_content_revision=projection.next_content_revision,
             next_generation=projection.next_generation,
+            kind=document.kind,
+            source_locator=document.source_locator,
             searchable_text=projection_data.searchable_text,
             text_digest=projection_data.text_digest,
             language=projection_data.language,
