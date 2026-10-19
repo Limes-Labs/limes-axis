@@ -432,8 +432,56 @@ function SupportPanel({ query }: { query: SettingsQuery<SupportDiagnosticsReport
   );
 }
 
-export function PlatformSettingsConsole() {
+type SettingsTabsProps = {
+  deployment: SettingsQuery<DeploymentReadinessReport>;
+  identity: SettingsQuery<IdentitySessionReadModel>;
+  oidc: SettingsQuery<OidcReadinessReport>;
+  ready: SettingsQuery<AxisReadyReport>;
+  support: SettingsQuery<SupportDiagnosticsReport>;
+};
+
+/*
+ * The tab state lives below ConsolePage so it reads the URL through the
+ * page's ConsoleUrlStateProvider (inside its Suspense boundary) instead of
+ * `window.location`. The server never sees `?tab=…`; reading it during render
+ * made `/settings?tab=identity` hydrate with different tab markup.
+ */
+function SettingsTabs({ deployment, identity, oidc, ready, support }: SettingsTabsProps) {
   const [urlState, setUrlState] = useConsoleUrlState(settingsUrlSchema);
+
+  return (
+    <Tabs
+      className="grid min-w-0 gap-1"
+      onValueChange={(tab) =>
+        setUrlState({ tab: tab as SettingsTab }, { history: "push" })
+      }
+      value={urlState.tab}
+    >
+      <TabsList>
+        <TabsTrigger value="readiness">{copy.tabs.readiness}</TabsTrigger>
+        <TabsTrigger value="identity">{copy.tabs.identity}</TabsTrigger>
+        <TabsTrigger value="deployment">{copy.tabs.deployment}</TabsTrigger>
+        <TabsTrigger value="support">{copy.tabs.support}</TabsTrigger>
+      </TabsList>
+      <TabsContent className="grid items-start gap-4 lg:grid-cols-2 [&>*]:min-w-0" value="readiness">
+        <ReadyPanel query={ready} />
+        <ProductionGatesPanel query={deployment} />
+      </TabsContent>
+      <TabsContent className="grid items-start gap-4 lg:grid-cols-2 [&>*]:min-w-0" value="identity">
+        <OidcPanel query={oidc} />
+        <SessionPanel query={identity} />
+      </TabsContent>
+      <TabsContent value="deployment">
+        <DeploymentPanel query={deployment} />
+      </TabsContent>
+      <TabsContent value="support">
+        <SupportPanel query={support} />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+export function PlatformSettingsConsole() {
   const ready = useAxisQuery<AxisReadyReport>(READY_ENDPOINT, { parse: parseAxisReadyReport });
   const oidc = useAxisQuery<OidcReadinessReport>(OIDC_READINESS_ENDPOINT, {
     parse: parseOidcReadinessReport,
@@ -459,34 +507,13 @@ export function PlatformSettingsConsole() {
     // The h1 comes from `strings.pages.settings`, so it matches the
     // "Settings" nav label that leads here.
     <ConsolePage pageKey="settings" sourceLabel={sourceLabel}>
-      <Tabs
-        className="grid min-w-0 gap-1"
-        onValueChange={(tab) =>
-          setUrlState({ tab: tab as SettingsTab }, { history: "push" })
-        }
-        value={urlState.tab}
-      >
-        <TabsList>
-          <TabsTrigger value="readiness">{copy.tabs.readiness}</TabsTrigger>
-          <TabsTrigger value="identity">{copy.tabs.identity}</TabsTrigger>
-          <TabsTrigger value="deployment">{copy.tabs.deployment}</TabsTrigger>
-          <TabsTrigger value="support">{copy.tabs.support}</TabsTrigger>
-        </TabsList>
-        <TabsContent className="grid items-start gap-4 lg:grid-cols-2 [&>*]:min-w-0" value="readiness">
-          <ReadyPanel query={ready} />
-          <ProductionGatesPanel query={deployment} />
-        </TabsContent>
-        <TabsContent className="grid items-start gap-4 lg:grid-cols-2 [&>*]:min-w-0" value="identity">
-          <OidcPanel query={oidc} />
-          <SessionPanel query={identity} />
-        </TabsContent>
-        <TabsContent value="deployment">
-          <DeploymentPanel query={deployment} />
-        </TabsContent>
-        <TabsContent value="support">
-          <SupportPanel query={support} />
-        </TabsContent>
-      </Tabs>
+      <SettingsTabs
+        deployment={deployment}
+        identity={identity}
+        oidc={oidc}
+        ready={ready}
+        support={support}
+      />
     </ConsolePage>
   );
 }
