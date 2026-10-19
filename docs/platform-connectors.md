@@ -447,7 +447,13 @@ leases require
 `connectors:credential_lease:renew` and
 `connectors:credential_lease:revoke` respectively, writing
 `connector.credential_lease.renewed` and
-`connector.credential_lease.revoked`. The default adapter is deferred.
+`connector.credential_lease.revoked`. These scopes are fixed by the service:
+the deprecated `required_scopes` request field is accepted for wire
+compatibility but ignored, so a caller can never choose (or empty) the scope
+that authorizes its own lease operation. The same applies to the deprecated
+`required_scope` field of manifest lifecycle transitions, which always require
+`connectors:manifest:lifecycle` (plus `connectors:manifest:enable_live` for
+`active_live`). The default adapter is deferred.
 `AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED=true` switches the boundary to the
 self-hosted Vault/KMS lease adapter, which records a provider lease reference
 without returning secret material, without requiring a managed service, without

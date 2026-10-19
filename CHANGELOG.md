@@ -5,6 +5,14 @@ release-bound behavior, not the complete commit history.
 
 ## [Unreleased]
 
+### Security
+
+- Connector credential lease request/renew/revoke and manifest lifecycle
+  transitions always enforce the service's own scope constants. The
+  `required_scopes`/`required_scope` request fields are deprecated and ignored
+  (still accepted on the wire), so a caller can no longer send
+  `"required_scopes": []` or `"required_scope": "openid"` to bypass the gate.
+
 ### Added
 
 - Versioned Document Studio contract for durable documents and reusable
