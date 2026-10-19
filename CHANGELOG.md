@@ -7,6 +7,18 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- A provider-neutral writeback contract that maps an existing typed action onto
+  one registered external mutation: adapter capability/readiness and conformance
+  declarations, a schema-bound REST operation mapping with allowlisted methods,
+  protected host-derived headers and bounded response projection, remote
+  identifier/version/precondition fields, honest idempotency metadata and
+  normalized outcome states that keep remote request, acknowledgement, business
+  result and later source verification apart. A tenant-bound registry keeps
+  append-only target versions with explicit enable/disable, and resolution
+  rechecks tenant, approval payload digest, credential handle and lease,
+  resolved egress target, readiness and request bounds before any I/O
+  ([#510](https://github.com/Limes-Labs/limes-axis/issues/510)).
+
 - A reproducible REST connector conformance scenario (one documented command,
   `make rest-conformance`) that drives a declared synthetic collection through
   the real host boundaries over a loopback service: pagination completion with a
@@ -38,10 +50,24 @@ release-bound behavior, not the complete commit history.
   secret resolution, retries and durable checkpoint commits
   ([#860](https://github.com/Limes-Labs/limes-axis/issues/860)).
 
+- Bounded Google Drive discovery adapter over Drive API v3: one explicitly
+  configured My Drive root or shared drive is enumerated with pinned origin,
+  drive-scoped queries and token-only pagination, normalizing user/group/domain/link
+  permission evidence into the document observation contract with fixed safe setup
+  states, shortcut pointers that are never fetched, and no content download
+  ([#866](https://github.com/Limes-Labs/limes-axis/issues/866)).
+
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
   ([#859](https://github.com/Limes-Labs/limes-axis/issues/859)).
+
+- Microsoft 365 library discovery (#864): bounded Graph v1.0 enumeration of one
+  explicitly selected drive, permission evidence normalized into #863
+  observations, distinct safe setup states per permission mode, and an
+  endpoint-by-permission-mode support table
+  (`docs/m365-discovery-permissions.md`). No content reads, no auto-escalation;
+  production support is unclaimed until a real authorized tenant is tested.
 
 - Approval queue search and risk/domain filters, compact counts, and a dedicated
   mobile review with focus restoration. Explicit approval links remain reviewable
