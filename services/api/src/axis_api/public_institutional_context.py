@@ -151,6 +151,10 @@ def register_public_context(
             raise HTTPException(503, detail={"reason": "public_context_unavailable"}) from exc
         except GovCoreContractError as exc:
             raise HTTPException(503, detail={"reason": "public_context_contract_invalid"}) from exc
+        except PermissionError as exc:
+            # The host callback raises its own HTTP denial; this maps any other
+            # SDK-side refusal to a closed 403 instead of an unhandled 500.
+            raise HTTPException(403, detail={"reason": "public_context_policy_denied"}) from exc
         except ValueError as exc:
             raise HTTPException(422, detail={"reason": "invalid_public_entity_id"}) from exc
         return JSONResponse(

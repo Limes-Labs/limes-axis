@@ -3,15 +3,17 @@
 This file records notable changes to Limes Axis. It describes shipped or
 release-bound behavior, not the complete commit history.
 
-## Isolated integration review (unreleased)
-
-- Add an optional authenticated public institutional context reader, default absent,
-  with current tenant/scope and separate fixed-origin policy checks. No ontology ingestion
-  or execution authority. See ADR 0019; production installation remains unverified.
-
 ## [Unreleased]
 
 ### Added
+
+- An optional authenticated public institutional context reader (GovCore),
+  absent unless `create_app(public_context=...)` opts in, with current
+  tenant/scope and separate fixed-origin policy checks before and after the
+  remote read. No ontology ingestion, tenant writes or execution authority.
+  See [ADR 0019](docs/adr/0019-public-institutional-context.md); production
+  installation remains unverified
+  ([#930](https://github.com/Limes-Labs/limes-axis/issues/930)).
 
 - A provider-neutral writeback contract that maps an existing typed action onto
   one registered external mutation: adapter capability/readiness and conformance

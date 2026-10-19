@@ -1,3 +1,6 @@
+import importlib.util
+import os
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -7,7 +10,7 @@ from time import time
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -21,6 +24,13 @@ ID = "gov_" + "a" * 32
 TENANT = "synthetic-tenant"
 URL = "https://govcore.example"
 HEADERS = {"Authorization": "Bearer synthetic-token"}
+
+# The SDK is an explicit optional install (tools/govcore). A clean `make install`
+# skips the opt-in route tests; CI installs the wheel and sets the variable so a
+# missing SDK fails instead of silently skipping.
+_SDK_PRESENT = importlib.util.find_spec("govcore_client") is not None
+if not _SDK_PRESENT and os.environ.get("AXIS_REQUIRE_GOVCORE_SDK") == "1":
+    raise RuntimeError("AXIS_REQUIRE_GOVCORE_SDK=1 but govcore_client is not installed")
 
 
 def public_entity():
@@ -65,6 +75,8 @@ class Verifier:
 
 @pytest.fixture
 def host():
+    if not _SDK_PRESENT:
+        pytest.skip("optional govcore_client wheel not installed (tools/govcore)")
     engine = create_engine(
         "sqlite+pysqlite://",
         connect_args={"check_same_thread": False},
@@ -112,6 +124,21 @@ def host():
 def test_default_app_has_no_route_or_optional_sdk_contract():
     app = create_app(Settings(_env_file=None, postgres_dsn="sqlite+pysqlite://"))
     assert not any(path.startswith("/institutional-context") for path in app.openapi()["paths"])
+
+
+def test_default_app_starts_and_serves_without_govcore_sdk(monkeypatch):
+    # Simulate an installation without the optional SDK: the ordinary app must
+    # import, start and answer, and only an explicit opt-in may need the SDK.
+    monkeypatch.setitem(sys.modules, "govcore_client", None)
+    settings = Settings(_env_file=None, postgres_dsn="sqlite+pysqlite://")
+    app = create_app(settings)
+    assert TestClient(app).get("/health").status_code == 200
+    assert TestClient(app).get(f"/institutional-context/entities/{ID}").status_code == 404
+    config = PublicContextConfig(
+        base_url=URL, approved_origins=frozenset({URL}), allowed_tenants=frozenset({TENANT})
+    )
+    with pytest.raises(ImportError):
+        create_app(settings, public_context=config)
 
 
 def test_real_host_gate_and_only_public_id_egress(host):
@@ -251,3 +278,118 @@ def test_concurrent_policy_revocation_blocks_inflight_response(host):
             release.set()
         result = pending.result(timeout=5)
     assert result.status_code == 403 and len(calls) == 1
+
+
+def _snapshot(factory):
+    with factory() as session:
+        return {
+            table.name: sorted(
+                tuple(sorted((key, repr(value)) for key, value in row._mapping.items()))
+                for row in session.execute(select(table))
+            )
+            for table in Base.metadata.sorted_tables
+        }
+
+
+def _retired():
+    return {**public_entity(), "status": "retired"}
+
+
+def _other_id():
+    return {**public_entity(), "id": "gov_" + "c" * 32}
+
+
+def _partial():
+    entity = public_entity()
+    del entity["provenance"]
+    return entity
+
+
+def _nulls():
+    return {**public_entity(), "name": None, "identifiers": None}
+
+
+def _conflicting_identifier():
+    entity = public_entity()
+    entity["identifiers"] = [
+        {
+            "entity_id": "gov_" + "d" * 32,
+            "scheme": "istat",
+            "value": "000000",
+            "provenance": entity["provenance"],
+        }
+    ]
+    return entity
+
+
+def _expired_proof():
+    entity = public_entity()
+    past = datetime.now(UTC) - timedelta(days=30)
+    entity["provenance"][0]["valid_from"] = (past - timedelta(days=30)).isoformat()
+    entity["provenance"][0]["valid_to"] = past.isoformat()
+    return entity
+
+
+def _timeout(request):
+    raise httpx.ReadTimeout("synthetic timeout", request=request)
+
+
+@pytest.mark.parametrize(
+    ("respond", "expected"),
+    [
+        (lambda request: httpx.Response(200, json=public_entity()), 200),
+        (lambda request: httpx.Response(200, json=_expired_proof()), 200),
+        (lambda request: httpx.Response(200, json=_partial()), 503),
+        (lambda request: httpx.Response(200, json=_nulls()), 503),
+        (lambda request: httpx.Response(200, json=_other_id()), 503),
+        (lambda request: httpx.Response(200, json=_retired()), 503),
+        (lambda request: httpx.Response(200, json=_conflicting_identifier()), 503),
+        (lambda request: httpx.Response(302, headers={"Location": "https://evil.example/"}), 503),
+        (
+            lambda request: httpx.Response(
+                200, text="<html>", headers={"content-type": "text/html"}
+            ),
+            503,
+        ),
+        (_timeout, 503),
+        (lambda request: httpx.Response(503), 503),
+    ],
+    ids=[
+        "valid", "expired-proof", "partial", "nulls", "different-id", "retired",
+        "conflicting-identifier", "redirect", "non-json", "timeout", "unavailable",
+    ],
+)
+def test_lookup_never_writes_or_overwrites_local_records(host, respond, expected):
+    """Issue #930: local records differing from GovCore survive every response shape."""
+    _, factory, verifier, _, config = host
+    with factory.begin() as session:
+        # Local-only values deliberately differ from the public payload.
+        session.get(Tenant, TENANT).name = "Local contract counterparty name"
+    before = _snapshot(factory)
+    engine = factory.kw["bind"]
+    writes = []
+
+    def record_writes(conn, cursor, statement, parameters, context, executemany):
+        if not statement.lstrip().upper().startswith(("SELECT", "PRAGMA")):
+            writes.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record_writes)
+    try:
+        app = create_app(
+            Settings(_env_file=None, postgres_dsn="sqlite+pysqlite://"),
+            public_context=replace(config, transport=httpx.MockTransport(respond)),
+        )
+        app.state.session_factory = factory
+        app.state.identity_verifier = verifier
+        client = TestClient(app)
+        for _ in range(2):  # a repeated lookup must not converge on remote data either
+            result = client.get(f"/institutional-context/entities/{ID}", headers=HEADERS)
+            assert result.status_code == expected
+            if expected != 200:
+                assert "entity" not in result.json()
+                assert "synthetic timeout" not in result.text and "evil" not in result.text
+    finally:
+        event.remove(engine, "before_cursor_execute", record_writes)
+    transaction_control = ("BEGIN", "COMMIT", "ROLLBACK")
+    assert [w for w in writes if not w.lstrip().upper().startswith(transaction_control)] == []
+    assert _snapshot(factory) == before
