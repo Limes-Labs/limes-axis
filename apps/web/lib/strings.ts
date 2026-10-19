@@ -1871,6 +1871,21 @@ const demoBadge = {
   tooltip: "This tenant runs the demo manufacturing scenario",
 } as const;
 
+/**
+ * Tenant lifecycle copy. Suspension is destructive for the tenant's users, so
+ * its impact is stated next to the action rather than only after it runs.
+ */
+const tenantLifecycle = {
+  suspend: {
+    title: "Suspend tenant",
+    action: "Suspend tenant",
+    saving: "Suspending",
+    impactTitle: "What suspending does",
+    impact:
+      "Every sign-in and API request made as this tenant is denied until it is reactivated, so its operators, agents and integrations are locked out. Remaining browser sessions are revoked by the next reconciliation sweep. Tenant data and audit evidence are kept.",
+  },
+} as const;
+
 const tenantVocabulary = {
   eyebrow: "Tenant vocabulary",
   title: "Console terminology",
@@ -2170,6 +2185,7 @@ export const strings = {
   policyDetail,
   settings,
   simulation,
+  tenantLifecycle,
   tenantVocabulary,
   workflows,
   states: {
