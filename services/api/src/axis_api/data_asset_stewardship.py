@@ -22,6 +22,7 @@ from axis_api.persistence import (
     DataAssetStewardshipCreate,
 )
 
+STEWARDSHIP_WRITE_SCOPE = "data:asset:stewardship:write"
 
 class DataAssetClassification(StrEnum):
     PUBLIC = "public"

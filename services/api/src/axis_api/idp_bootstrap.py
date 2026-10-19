@@ -95,6 +95,38 @@ def canonical_axis_realm_roles() -> tuple[RealmRoleSpec, ...]:
             ),
         ),
         RealmRoleSpec(
+            name="connectors:manifest:write",
+            description="Register and replace connector manifests.",
+        ),
+        RealmRoleSpec(
+            name="connectors:configuration:write",
+            description="Record tenant connector configurations.",
+        ),
+        RealmRoleSpec(
+            name="connectors:credential_handle:write",
+            description="Record connector credential handles and rotations (reference metadata).",
+        ),
+        RealmRoleSpec(
+            name="connectors:egress_policy:write",
+            description="Record connector egress policies.",
+        ),
+        RealmRoleSpec(
+            name="connectors:ontology_proposal:write",
+            description="Record connector ontology proposals.",
+        ),
+        RealmRoleSpec(
+            name="connectors:manual_import:write",
+            description="Request governed connector manual imports.",
+        ),
+        RealmRoleSpec(
+            name="data:asset:stewardship:write",
+            description="Declare data asset stewardship.",
+        ),
+        RealmRoleSpec(
+            name="data:asset:contract:write",
+            description="Declare data asset contracts.",
+        ),
+        RealmRoleSpec(
             name="connectors:source:discover",
             description=(
                 "Verify external source connectivity and run bounded schema "

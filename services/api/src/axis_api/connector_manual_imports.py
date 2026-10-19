@@ -155,6 +155,7 @@ class ManufacturingConnectorManualImportRegistry(BaseModel):
 AUDIT_EVENT_TYPE = "connector.manual_import.requested"
 DECISION_AUDIT_EVENT_TYPE = "connector.manual_import.decision_recorded"
 REQUIRED_DECISION_SCOPE = "approvals:connectors:decide"
+MANUAL_IMPORT_WRITE_SCOPE = "connectors:manual_import:write"
 ALLOWED_IMPORT_MODES = {"manual_import_request"}
 REQUEST_STATUS = "approval_required"
 GRAPH_MUTATION_STATUS = "not_applied"

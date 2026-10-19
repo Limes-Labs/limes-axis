@@ -100,6 +100,8 @@ class ManufacturingConnectorCredentialHandleRegistry(BaseModel):
     handle_notes: list[str] = Field(default_factory=list)
 
 
+CREDENTIAL_HANDLE_WRITE_SCOPE = "connectors:credential_handle:write"
+
 ALLOWED_SECRET_REF_PREFIXES = (
     "vault://",
     "external-secret://",

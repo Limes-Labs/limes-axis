@@ -1460,6 +1460,28 @@ across tenants; audit events are appended only on real transitions.
 
 ## Governance Boundary
 
+### Governance write scopes
+
+Every connector governance write requires its own scope when a verified OIDC
+principal is bound (the request body's `actor_scopes` never satisfies these
+gates). A missing scope fails closed with 403 `missing_required_scope` before
+the service layer runs, so no record or audit event is written.
+Unauthenticated demo traffic keeps the demo-mode convention.
+
+| Write | Scope |
+| --- | --- |
+| `POST /connectors/manifests`, `PUT /connectors/manifests/{connector_id}` | `connectors:manifest:write` |
+| `POST /connectors/configurations` | `connectors:configuration:write` |
+| `POST /connectors/credential-handles`, `POST /connectors/credential-handles/{handle_id}/rotations` | `connectors:credential_handle:write` |
+| `POST /connectors/egress-policies` | `connectors:egress_policy:write` |
+| `POST /connectors/ontology-proposals` | `connectors:ontology_proposal:write` |
+| `POST /connectors/manual-imports` | `connectors:manual_import:write` |
+
+The paths are relative to `/operations` (and the deprecated
+`/demo/manufacturing` alias). Provision these as realm roles for connector
+stewards; `make demo-keycloak-bootstrap-check` and the IdP bootstrap declare
+them.
+
 Connectors are designed as extractable from day one. The current manifest
 contract keeps these boundaries visible:
 

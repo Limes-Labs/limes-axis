@@ -283,6 +283,7 @@ RAW_CONNECTION_MARKERS = ("postgres://", "postgresql://", "jdbc:")
 RAW_QUERY_MARKERS = ("select ", "insert ", "update ", "delete ", "drop ")
 MANIFEST_LIFECYCLE_SCOPE = "connectors:manifest:lifecycle"
 LIVE_MANIFEST_ENABLE_SCOPE = "connectors:manifest:enable_live"
+MANIFEST_WRITE_SCOPE = "connectors:manifest:write"
 ACTIVE_LIVE_STATUS = "active_live"
 MANIFEST_LIFECYCLE_TRANSITIONS = {
     "registered_preview_only": {"active_preview", "deprecated"},

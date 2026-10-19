@@ -95,6 +95,7 @@ class ManufacturingConnectorOntologyProposalRegistry(BaseModel):
 
 
 AUDIT_EVENT_TYPE = "connector.ontology_proposals.recorded"
+ONTOLOGY_PROPOSAL_WRITE_SCOPE = "connectors:ontology_proposal:write"
 ALLOWED_WRITE_MODES = {"proposal_only"}
 RAW_PAYLOAD_FIELD_NAMES = {
     "api_key",

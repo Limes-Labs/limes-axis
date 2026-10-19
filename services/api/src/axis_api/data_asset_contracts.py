@@ -19,6 +19,7 @@ from axis_api.persistence import (
     DataAssetContractCreate,
 )
 
+CONTRACT_WRITE_SCOPE = "data:asset:contract:write"
 CHECK_PRESENCE = "presence"
 CHECK_SCHEMA = "schema"
 CHECK_FRESHNESS = "freshness"

@@ -129,6 +129,7 @@ from axis_api.audit_reference import (
 from axis_api.audit_signing import SelfHostedAuditLedgerSigner
 from axis_api.config import Settings, validate_runtime_configuration
 from axis_api.connector_configurations import (
+    CONFIGURATION_WRITE_SCOPE,
     ConnectorConfigurationCreateRequest,
     ConnectorConfigurationQuery,
     ConnectorConfigurationValidationError,
@@ -138,6 +139,7 @@ from axis_api.connector_configurations import (
     record_demo_connector_configuration,
 )
 from axis_api.connector_credential_handles import (
+    CREDENTIAL_HANDLE_WRITE_SCOPE,
     ConnectorCredentialHandleCreateRequest,
     ConnectorCredentialHandleQuery,
     ConnectorCredentialHandleRecord,
@@ -168,6 +170,7 @@ from axis_api.connector_credential_leases import (
     revoke_demo_connector_credential_lease,
 )
 from axis_api.connector_egress_policies import (
+    EGRESS_POLICY_WRITE_SCOPE,
     ConnectorEgressPolicyCreateRequest,
     ConnectorEgressPolicyQuery,
     ConnectorEgressPolicyRecord,
@@ -220,6 +223,7 @@ from axis_api.connector_execution import (
 )
 from axis_api.connector_manifests import (
     MANIFEST_VALIDATION_BATCH_LIMIT,
+    MANIFEST_WRITE_SCOPE,
     ConnectorManifestBatchValidationRequest,
     ConnectorManifestBatchValidationResponse,
     ConnectorManifestConflict,
@@ -243,6 +247,7 @@ from axis_api.connector_manifests import (
     validate_connector_manifest_batch,
 )
 from axis_api.connector_manual_imports import (
+    MANUAL_IMPORT_WRITE_SCOPE,
     ConnectorManualImportCreateRequest,
     ConnectorManualImportDecisionRequest,
     ConnectorManualImportDecisionResult,
@@ -267,6 +272,7 @@ from axis_api.connector_ontology_promotions import (
     record_demo_connector_ontology_promotion,
 )
 from axis_api.connector_ontology_proposals import (
+    ONTOLOGY_PROPOSAL_WRITE_SCOPE,
     ConnectorOntologyProposalCreateRequest,
     ConnectorOntologyProposalQuery,
     ConnectorOntologyProposalValidationError,
@@ -421,6 +427,7 @@ from axis_api.connectors import (
 )
 from axis_api.csrf import BrowserSessionCsrfMiddleware
 from axis_api.data_asset_contracts import (
+    CONTRACT_WRITE_SCOPE,
     DataAssetContractConflict,
     DataAssetContractDeclarationRequest,
     DataAssetContractEvaluationView,
@@ -439,6 +446,7 @@ from axis_api.data_asset_lineage import (
     build_data_asset_lineage_view,
 )
 from axis_api.data_asset_stewardship import (
+    STEWARDSHIP_WRITE_SCOPE,
     DataAssetStewardshipConflict,
     DataAssetStewardshipDeclarationRequest,
     DataAssetStewardshipView,
@@ -1927,6 +1935,32 @@ def _authorize_scopes_for_tenant(
         )
     except ScopeAuthorizationError as exc:
         raise _scope_denial_http_exception(exc) from exc
+
+
+def _authorize_governance_write(
+    *,
+    tenant_id: str,
+    principal: OidcPrincipal | None,
+    required_scope: str,
+    surface: str,
+    resource: str,
+    message: str,
+) -> None:
+    """Gate one governance write on its dedicated scope before any side effect.
+
+    A verified principal must hold ``required_scope`` (and be bound to
+    ``tenant_id``); otherwise the write fails closed with 403 before the
+    service layer runs, so no record or audit event is written. Unauthenticated
+    demo traffic keeps the established demo-mode convention.
+    """
+    _authorize_scopes_for_tenant(
+        tenant_id=tenant_id,
+        principal=principal,
+        required_scope=required_scope,
+        surface=surface,
+        resource=resource,
+        message=message,
+    )
 
 
 def _authorize_platform_policy_read(
@@ -4655,6 +4689,14 @@ def create_app(
         asset_id: str = Path(min_length=1),
     ) -> JSONResponse:
         _authorize_tenant_read(tenant_id, principal)
+        _authorize_governance_write(
+            tenant_id=tenant_id,
+            principal=principal,
+            required_scope=STEWARDSHIP_WRITE_SCOPE,
+            surface="data_assets",
+            resource="data_asset_stewardship",
+            message="The actor cannot declare data asset stewardship.",
+        )
         try:
             ensure_data_asset_in_catalog(repository, tenant_id=tenant_id, asset_id=asset_id)
         except DataAssetNotInCatalog as exc:
@@ -4754,6 +4796,14 @@ def create_app(
         asset_id: str = Path(min_length=1),
     ) -> JSONResponse:
         _authorize_tenant_read(tenant_id, principal)
+        _authorize_governance_write(
+            tenant_id=tenant_id,
+            principal=principal,
+            required_scope=CONTRACT_WRITE_SCOPE,
+            surface="data_assets",
+            resource="data_asset_contract",
+            message="The actor cannot declare data asset contracts.",
+        )
         try:
             ensure_data_asset_in_catalog(repository, tenant_id=tenant_id, asset_id=asset_id)
         except DataAssetNotInCatalog as exc:
@@ -4882,6 +4932,14 @@ def create_app(
             principal,
             actor_field="registered_by",
         )
+        _authorize_governance_write(
+            tenant_id=bound_manifest.tenant_id,
+            principal=principal,
+            required_scope=MANIFEST_WRITE_SCOPE,
+            surface="connectors",
+            resource="connector_manifest",
+            message="The actor cannot register connector manifests.",
+        )
         try:
             return record_demo_connector_manifest(repository, bound_manifest)
         except ConnectorManifestConflict as exc:
@@ -4954,6 +5012,14 @@ def create_app(
             replace_request,
             principal,
             actor_field="registered_by",
+        )
+        _authorize_governance_write(
+            tenant_id=bound_request.tenant_id,
+            principal=principal,
+            required_scope=MANIFEST_WRITE_SCOPE,
+            surface="connectors",
+            resource="connector_manifest",
+            message="The actor cannot replace connector manifests.",
         )
         request_connector_id = bound_request.manifest.get("connector_id")
         if connector_id != request_connector_id:
@@ -5125,6 +5191,14 @@ def create_app(
             principal,
             actor_field="created_by",
         )
+        _authorize_governance_write(
+            tenant_id=bound_configuration.tenant_id,
+            principal=principal,
+            required_scope=CONFIGURATION_WRITE_SCOPE,
+            surface="connectors",
+            resource="connector_configuration",
+            message="The actor cannot record connector configurations.",
+        )
         try:
             return record_demo_connector_configuration(repository, bound_configuration)
         except ConnectorReferenceRecordNotFound as exc:
@@ -5201,6 +5275,14 @@ def create_app(
             principal,
             actor_field="created_by",
         )
+        _authorize_governance_write(
+            tenant_id=bound_handle.tenant_id,
+            principal=principal,
+            required_scope=CREDENTIAL_HANDLE_WRITE_SCOPE,
+            surface="connectors",
+            resource="connector_credential_handle",
+            message="The actor cannot record connector credential handles.",
+        )
         try:
             return record_demo_connector_credential_handle(repository, bound_handle)
         except ConnectorReferenceRecordNotFound as exc:
@@ -5251,6 +5333,14 @@ def create_app(
             rotation,
             principal,
             actor_field="rotated_by",
+        )
+        _authorize_governance_write(
+            tenant_id=bound_rotation.tenant_id,
+            principal=principal,
+            required_scope=CREDENTIAL_HANDLE_WRITE_SCOPE,
+            surface="connectors",
+            resource="connector_credential_rotation",
+            message="The actor cannot record connector credential rotations.",
         )
         try:
             return record_demo_connector_credential_rotation(
@@ -5519,6 +5609,14 @@ def create_app(
             egress_policy,
             principal,
             actor_field="created_by",
+        )
+        _authorize_governance_write(
+            tenant_id=bound_policy.tenant_id,
+            principal=principal,
+            required_scope=EGRESS_POLICY_WRITE_SCOPE,
+            surface="connectors",
+            resource="connector_egress_policy",
+            message="The actor cannot record connector egress policies.",
         )
         try:
             return record_demo_connector_egress_policy(repository, bound_policy)
@@ -6460,6 +6558,14 @@ def create_app(
             principal,
             actor_field="proposed_by",
         )
+        _authorize_governance_write(
+            tenant_id=bound_proposal.tenant_id,
+            principal=principal,
+            required_scope=ONTOLOGY_PROPOSAL_WRITE_SCOPE,
+            surface="connectors",
+            resource="connector_ontology_proposal",
+            message="The actor cannot record connector ontology proposals.",
+        )
         try:
             return record_demo_connector_ontology_proposals(repository, bound_proposal)
         except ConnectorReferenceRecordNotFound as exc:
@@ -7012,6 +7118,14 @@ def create_app(
             manual_import_request,
             principal,
             actor_field="requested_by",
+        )
+        _authorize_governance_write(
+            tenant_id=bound_import.tenant_id,
+            principal=principal,
+            required_scope=MANUAL_IMPORT_WRITE_SCOPE,
+            surface="connectors",
+            resource="connector_manual_import",
+            message="The actor cannot request connector manual imports.",
         )
         try:
             result = record_demo_connector_manual_import(repository, bound_import)

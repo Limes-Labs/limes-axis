@@ -17,6 +17,15 @@ release-bound behavior, not the complete commit history.
   and reject traversal or non-normalized keys with 403
   `storage_key_outside_tenant_scope`, so a tenant can no longer hold or release
   another tenant's WORM export artifact.
+- Connector and data-asset governance writes now enforce a dedicated scope for
+  verified principals, failing closed with 403 before any write:
+  `connectors:manifest:write` (manifest register/replace),
+  `connectors:configuration:write`, `connectors:credential_handle:write`
+  (handles and rotations), `connectors:egress_policy:write`,
+  `connectors:ontology_proposal:write`, `connectors:manual_import:write`,
+  `data:asset:stewardship:write` and `data:asset:contract:write`. Operators
+  must grant these realm roles (declared by the IdP bootstrap and the local
+  demo realm) to connector and data stewards before upgrading.
 
 ### Added
 

@@ -14,6 +14,7 @@ from axis_api.manufacturing_metadata import (
 from axis_api.persistence import AxisPersistenceRepository, ConnectorEgressPolicyCreate
 
 READ_AUDIT_EVENT_TYPE = "connector.egress_policies_read"
+EGRESS_POLICY_WRITE_SCOPE = "connectors:egress_policy:write"
 
 
 class ConnectorEgressPolicyValidationError(ValueError):
