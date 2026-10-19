@@ -25,6 +25,7 @@ from axis_api.telemetry import ATTR_JOB, ATTR_OUTCOME, set_span_attributes
 from sqlalchemy.orm import Session, sessionmaker
 from temporalio import activity
 
+from axis_worker.activity_execution import run_blocking
 from axis_worker.telemetry import WorkerTelemetryRuntime, configure_worker_telemetry
 
 AUDIT_RETENTION_ACTIVITY = "run_audit_retention_deletion"
@@ -49,6 +50,9 @@ class MaintenanceActivities:
 
     @activity.defn(name=AUDIT_RETENTION_ACTIVITY)
     async def run_audit_retention_deletion(self) -> dict:
+        return await run_blocking(self._run_audit_retention_deletion_blocking)
+
+    def _run_audit_retention_deletion_blocking(self) -> dict:
         with self._telemetry.activity_span("axis.scheduled_job.audit_retention_deletion") as span:
             result = run_audit_retention_deletion_job(
                 self._session_factory, settings=self.settings
@@ -67,6 +71,9 @@ class MaintenanceActivities:
 
     @activity.defn(name=SESSION_SWEEP_ACTIVITY)
     async def run_orphaned_session_sweep(self) -> dict:
+        return await run_blocking(self._run_orphaned_session_sweep_blocking)
+
+    def _run_orphaned_session_sweep_blocking(self) -> dict:
         with self._telemetry.activity_span("axis.scheduled_job.orphaned_session_sweep") as span:
             result = run_orphaned_session_sweep_job(self._session_factory, settings=self.settings)
             set_span_attributes(span, {ATTR_JOB: result.job, ATTR_OUTCOME: result.status})
@@ -83,6 +90,9 @@ class MaintenanceActivities:
 
     @activity.defn(name=TENANT_RECONCILIATION_ACTIVITY)
     async def run_tenant_state_reconciliation(self) -> dict:
+        return await run_blocking(self._run_tenant_state_reconciliation_blocking)
+
+    def _run_tenant_state_reconciliation_blocking(self) -> dict:
         with self._telemetry.activity_span(
             "axis.scheduled_job.tenant_state_reconciliation"
         ) as span:

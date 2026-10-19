@@ -60,6 +60,7 @@ from axis_api.telemetry import ATTR_JOB, ATTR_OUTCOME, set_span_attributes
 from sqlalchemy.orm import Session, sessionmaker
 from temporalio import activity
 
+from axis_worker.activity_execution import run_blocking
 from axis_worker.telemetry import WorkerTelemetryRuntime, configure_worker_telemetry
 
 LIST_CANDIDATES_ACTIVITY = "list_scheduled_live_sync_candidates"
@@ -99,6 +100,9 @@ class ConnectorLiveSyncActivities:
 
     @activity.defn(name=LIST_CANDIDATES_ACTIVITY)
     async def list_scheduled_live_sync_candidates(self) -> dict:
+        return await run_blocking(self._list_scheduled_live_sync_candidates_blocking)
+
+    def _list_scheduled_live_sync_candidates_blocking(self) -> dict:
         if not self._scheduled_live_sync_enabled():
             return {"status": "scheduled_live_sync_disabled", "candidates": []}
         tenant_id = self.settings.connector_scheduled_live_sync_tenant_id
@@ -130,6 +134,9 @@ class ConnectorLiveSyncActivities:
 
     @activity.defn(name=CLAIM_ACTIVITY)
     async def claim_scheduled_live_sync_checkpoint(self, payload: dict) -> dict:
+        return await run_blocking(self._claim_scheduled_live_sync_checkpoint_blocking, payload)
+
+    def _claim_scheduled_live_sync_checkpoint_blocking(self, payload: dict) -> dict:
         tenant_id = str(payload["tenant_id"])
         run_id = str(payload["run_id"])
         attempt_id = str(payload["attempt_id"])
@@ -177,6 +184,9 @@ class ConnectorLiveSyncActivities:
 
     @activity.defn(name=EXECUTE_ACTIVITY)
     async def execute_scheduled_live_sync(self, payload: dict) -> dict:
+        return await run_blocking(self._execute_scheduled_live_sync_blocking, payload)
+
+    def _execute_scheduled_live_sync_blocking(self, payload: dict) -> dict:
         tenant_id = str(payload["tenant_id"])
         run_id = str(payload["run_id"])
         attempt_id = str(payload["attempt_id"])
@@ -238,6 +248,9 @@ class ConnectorLiveSyncActivities:
 
     @activity.defn(name=RELEASE_ACTIVITY)
     async def release_scheduled_live_sync_claim(self, payload: dict) -> dict:
+        return await run_blocking(self._release_scheduled_live_sync_claim_blocking, payload)
+
+    def _release_scheduled_live_sync_claim_blocking(self, payload: dict) -> dict:
         tenant_id = str(payload["tenant_id"])
         checkpoint_id = str(payload["checkpoint_id"])
         claim_id = str(payload["claim_id"])

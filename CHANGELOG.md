@@ -373,6 +373,12 @@ release-bound behavior, not the complete commit history.
 
 ### Changed
 
+- Worker maintenance and scheduled live-sync activities no longer block the
+  worker event loop shared with the Temporal pollers and outbox loops: their
+  synchronous DB and connector work runs in a thread while the activity
+  heartbeats every 10 s, and the workflows set a 60 s `heartbeat_timeout`, so a
+  dead worker is detected in about a minute rather than at the 10-minute
+  start-to-close timeout.
 - Cookie-authenticated requests no longer rewrite the browser-session row on
   every request. `last_seen_at` is updated at most once per 60 s per session,
   or a tenth of `AXIS_OIDC_SESSION_IDLE_TIMEOUT_SECONDS` when that is shorter,
