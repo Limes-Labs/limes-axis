@@ -385,7 +385,14 @@ def test_lookup_never_writes_or_overwrites_local_records(host, respond, expected
         for _ in range(2):  # a repeated lookup must not converge on remote data either
             result = client.get(f"/institutional-context/entities/{ID}", headers=HEADERS)
             assert result.status_code == expected
-            if expected != 200:
+            if expected == 200:
+                # Proof state is surfaced as returned: an expired validity window
+                # stays visible evidence, never a refreshed or current claim.
+                sent = respond(None).json()["provenance"][0]
+                proof = result.json()["entity"]["provenance"][0]
+                assert {"verification_status", "valid_from", "valid_to"} <= set(proof)
+                assert (proof["valid_to"] is None) == (sent["valid_to"] is None)
+            else:
                 assert "entity" not in result.json()
                 assert "synthetic timeout" not in result.text and "evil" not in result.text
     finally:

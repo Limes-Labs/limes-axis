@@ -81,7 +81,7 @@ def test_repository_inventory():
 
 def test_synthetic_complete_inventory_passes(repository):
     counts = inventory.check_repository(repository)
-    assert counts == {"components": 10, "dependencies": 21, "configuration_references": 29,
+    assert counts == {"components": 10, "dependencies": 22, "configuration_references": 29,
                       "topology_files": 17}
 
 
