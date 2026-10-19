@@ -398,3 +398,66 @@ def test_review_is_deterministic():
     second = review_portability_manifest(manifest())
     assert first == second
     assert PortabilityReview.model_validate(to_dict(first)) == first
+
+
+# --- Review hardening: minor versions, dependency order, unique references ---
+
+
+def test_unsupported_minor_version_is_reported_as_incompatible():
+    payload = to_dict(manifest()) | {"schema_version": {"major": 1, "minor": 1}}
+    with pytest.raises(PortabilityManifestError) as error:
+        parse_portability_manifest(payload)
+    assert error.value.code == PortabilityManifestError.INCOMPATIBLE_VERSION
+
+
+@pytest.mark.parametrize(
+    "depends_on", [("relational-core",), ("not-inventoried",)]
+)
+def test_dependencies_must_name_other_inventoried_components(depends_on):
+    with pytest.raises(ValidationError):
+        manifest(components=(component("relational-core", depends_on=depends_on),))
+
+
+def test_dependency_cycles_are_rejected():
+    with pytest.raises(ValidationError):
+        manifest(
+            components=(
+                component("relational-core", depends_on=("object-artifacts",)),
+                component(
+                    "object-artifacts",
+                    store="object_storage",
+                    depends_on=("relational-core",),
+                ),
+            ),
+            consistency_point=consistency_point(
+                per_store=[
+                    StoreWatermark(store="postgres", watermark="pg/42"),
+                    StoreWatermark(store="object_storage", watermark="obj/7"),
+                ]
+            ),
+        )
+
+
+def test_acyclic_dependencies_are_accepted():
+    accepted = manifest(
+        components=(
+            component("relational-core"),
+            component(
+                "object-artifacts",
+                store="object_storage",
+                depends_on=("relational-core",),
+            ),
+        ),
+        consistency_point=consistency_point(
+            per_store=[
+                StoreWatermark(store="postgres", watermark="pg/42"),
+                StoreWatermark(store="object_storage", watermark="obj/7"),
+            ]
+        ),
+    )
+    assert accepted.components[1].depends_on == ("relational-core",)
+
+
+def test_duplicate_rebinding_reference_ids_are_rejected():
+    with pytest.raises(ValidationError):
+        manifest(rebinding_references=(rebinding(), rebinding(kind="signing_key")))

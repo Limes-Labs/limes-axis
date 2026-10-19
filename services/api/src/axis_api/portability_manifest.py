@@ -11,8 +11,8 @@ emit and a validator must check:
   major fallback and no all-version compatibility promise.
 * One bounded entry per authoritative component: owner layer, consistency rule,
   object counts and digests, dependency order, and an explicit restore decision
-  (``restore``, ``rebuild``, ``exclude``). Future or unknown components are
-  ``unsupported``, never silent empty successes.
+  (``restore``, ``rebuild``, ``exclude``). Components without a restore
+  handler must be excluded with a reason, never silent empty successes.
 * Secret/session/private-key material is structurally excluded: it can appear
   only as a typed :class:`RebindingReference` pointing at deployment-local
   resolution, never as portable data.
@@ -197,6 +197,32 @@ class RestoreSafetyPolicy(ContractModel):
     auto_replay_external_effects: Literal[False] = False
 
 
+def _require_acyclic_dependencies(components: tuple[ComponentInventory, ...]) -> None:
+    """Dependency order must name inventoried components and form a DAG."""
+
+    by_id = {component.component_id: component for component in components}
+    for component in components:
+        for dependency in component.depends_on:
+            if dependency == component.component_id or dependency not in by_id:
+                raise ValueError("Component dependencies must name other inventoried components")
+    visiting: set[str] = set()
+    done: set[str] = set()
+
+    def visit(component_id: str) -> None:
+        if component_id in done:
+            return
+        if component_id in visiting:
+            raise ValueError("Component dependencies must not form a cycle")
+        visiting.add(component_id)
+        for dependency in by_id[component_id].depends_on:
+            visit(dependency)
+        visiting.discard(component_id)
+        done.add(component_id)
+
+    for component in components:
+        visit(component.component_id)
+
+
 class PortabilityManifest(ContractModel):
     """The restore-capable profile of one tenant export bundle."""
 
@@ -231,6 +257,10 @@ class PortabilityManifest(ContractModel):
             raise ValueError(
                 "A quiesced export cannot contain captured-watermark components"
             )
+        reference_ids = [reference.reference_id for reference in self.rebinding_references]
+        if len(set(reference_ids)) != len(reference_ids):
+            raise ValueError("Rebinding references must be unique per reference id")
+        _require_acyclic_dependencies(self.components)
         return self
 
     def digest(self) -> Digest:
@@ -313,10 +343,10 @@ def parse_portability_manifest(value: object) -> PortabilityManifest:
         version = value.get("schema_version")
         if version is not None:
             try:
-                major, _minor = _parse_version(version)
+                major, minor = _parse_version(version)
             except PortabilityManifestError:
                 raise
-            if major not in SUPPORTED_MAJOR_VERSIONS:
+            if major not in SUPPORTED_MAJOR_VERSIONS or minor not in SUPPORTED_MINOR_VERSIONS:
                 raise PortabilityManifestError(
                     PortabilityManifestError.INCOMPATIBLE_VERSION
                 ) from None
