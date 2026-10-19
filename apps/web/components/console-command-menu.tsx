@@ -163,9 +163,9 @@ export function ConsoleCommandMenu({
         }
       }}
       open={open}
-      title="Console command menu"
+      title={copy.dialogTitle}
     >
-      <CommandInput aria-label="Search console commands" placeholder={copy.placeholder} />
+      <CommandInput aria-label={copy.inputLabel} placeholder={copy.placeholder} />
       <CommandList>
         <CommandEmpty>{copy.empty}</CommandEmpty>
         {navGroups.map((group) => (

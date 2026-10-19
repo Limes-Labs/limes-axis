@@ -70,10 +70,20 @@ describe("SidebarAccount", () => {
     expect(screen.getByText(strings.nav.noTenant)).toBeInTheDocument();
   });
 
+  it("names the account button with its visible actor and tenant (WCAG 2.5.3)", () => {
+    renderFooter();
+
+    expect(
+      screen.getByRole("button", {
+        name: "plant.operator, tenant_demo_manufacturing, open operator account",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("opens the account panel from the footer and closes it on Escape", async () => {
     const user = userEvent.setup();
     renderFooter();
-    const trigger = screen.getByRole("button", { name: "Open operator account" });
+    const trigger = screen.getByRole("button", { name: /open operator account/i });
 
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     await user.click(trigger);
@@ -81,6 +91,27 @@ describe("SidebarAccount", () => {
 
     await user.keyboard("{Escape}");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("positions rail panels against the viewport so the clipped rail cannot cut them", async () => {
+    const user = userEvent.setup();
+    renderFooter();
+    const trigger = screen.getByRole("button", { name: "Open platform help" });
+    const footer = trigger.parentElement as HTMLElement;
+    footer.getBoundingClientRect = () =>
+      ({ left: 10, top: 700, right: 202, bottom: 880, width: 192, height: 180 }) as DOMRect;
+
+    await user.click(trigger);
+
+    const wrapper = document.querySelector<HTMLElement>("[data-sidebar-popover]");
+    expect(wrapper).not.toBeNull();
+    expect(wrapper).toHaveClass("fixed");
+    expect(wrapper?.style.left).toBe("14px");
+    expect(wrapper?.style.bottom).toBe(`${window.innerHeight - 700 + 10}px`);
+    expect(wrapper?.style.getPropertyValue("--sidebar-popover-max-h")).toBe("674px");
+    const panel = screen.getByRole("region", { name: "Platform help" });
+    expect(panel.className).not.toMatch(/\babsolute\b/);
+    expect(wrapper).toContainElement(panel);
   });
 
   it("keeps only one footer panel open at a time", async () => {
@@ -93,7 +124,7 @@ describe("SidebarAccount", () => {
       "true",
     );
 
-    await user.click(screen.getByRole("button", { name: "Open operator account" }));
+    await user.click(screen.getByRole("button", { name: /open operator account/i }));
     expect(screen.getByRole("button", { name: "Open platform help" })).toHaveAttribute(
       "aria-expanded",
       "false",

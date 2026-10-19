@@ -131,7 +131,7 @@ export function ModelRoutingFlow({ routes, sourceState, onInspect }: {
             <div className="relative mt-3 grid min-w-[760px] grid-cols-[180px_minmax(300px,1fr)_240px] gap-3" style={{ height }}>
               <div className="relative">
                 {layout.map((provider) => (
-                  <button type="button" {...controls({ providerId: provider.id })} aria-label={`Select provider ${provider.name}`} key={provider.id} className="absolute flex w-full flex-col justify-center gap-1 rounded-lg px-2 text-left text-sm hover:bg-ink/4 aria-pressed:bg-signal/10 dark:hover:bg-white/5" style={{ top: provider.top, height: provider.height, opacity: emphasized(provider.id) ? 1 : 0.35 }}>
+                  <button type="button" {...controls({ providerId: provider.id })} aria-label={`${provider.name}, ${routeCount(provider.count)}`} key={provider.id} className="absolute flex w-full flex-col justify-center gap-1 rounded-lg px-2 text-left text-sm hover:bg-ink/4 aria-pressed:bg-signal/10 dark:hover:bg-white/5" style={{ top: provider.top, height: provider.height, opacity: emphasized(provider.id) ? 1 : 0.35 }}>
                     <span className="break-all font-medium leading-[18px] text-ink">{provider.name}</span>
                     <span className="tabular-nums text-muted">{routeCount(provider.count)}</span>
                   </button>
@@ -152,7 +152,7 @@ export function ModelRoutingFlow({ routes, sourceState, onInspect }: {
               </svg>
               <div className="relative">
                 {layout.flatMap((provider) => provider.rows.map((row) => (
-                  <button type="button" {...controls({ providerId: provider.id, model: row.name })} aria-label={`Select ${row.name} from ${provider.name}`} key={JSON.stringify([provider.id, row.name])} className="absolute flex w-full flex-col justify-center gap-1 rounded-lg px-3 text-left text-sm hover:bg-ink/4 aria-pressed:bg-signal/10 dark:hover:bg-white/5" style={{ top: row.targetY - row.height / 2, height: row.height, opacity: emphasized(provider.id, row.name) ? 1 : 0.35 }}>
+                  <button type="button" {...controls({ providerId: provider.id, model: row.name })} aria-label={`${row.name}, ${routeCount(row.count)} from ${provider.name}`} key={JSON.stringify([provider.id, row.name])} className="absolute flex w-full flex-col justify-center gap-1 rounded-lg px-3 text-left text-sm hover:bg-ink/4 aria-pressed:bg-signal/10 dark:hover:bg-white/5" style={{ top: row.targetY - row.height / 2, height: row.height, opacity: emphasized(provider.id, row.name) ? 1 : 0.35 }}>
                     <span className="break-all font-medium leading-[18px] text-ink">{row.name}</span>
                     <span className="tabular-nums text-muted">{routeCount(row.count)}</span>
                   </button>
@@ -164,10 +164,10 @@ export function ModelRoutingFlow({ routes, sourceState, onInspect }: {
         <dl className={`m-0 grid gap-4 ${showDiagram ? "sm:hidden" : ""}`} aria-label="Routes by provider and model">
           {providers.map((provider) => (
             <div key={provider.id} className="min-w-0 rounded-xl border border-line p-3 dark:border-white/10">
-              <dt><button type="button" {...controls({ providerId: provider.id })} aria-label={`Select provider ${provider.name}`} className="flex min-h-11 w-full flex-wrap items-center justify-between gap-2 rounded-lg text-left text-sm font-medium text-ink aria-pressed:bg-signal/10"><span className="min-w-0 break-all">{provider.name}</span><span className="tabular-nums">{routeCount(provider.count)}</span></button></dt>
+              <dt><button type="button" {...controls({ providerId: provider.id })} aria-label={`${provider.name}, ${routeCount(provider.count)}`} className="flex min-h-11 w-full flex-wrap items-center justify-between gap-2 rounded-lg text-left text-sm font-medium text-ink aria-pressed:bg-signal/10"><span className="min-w-0 break-all">{provider.name}</span><span className="tabular-nums">{routeCount(provider.count)}</span></button></dt>
               <dd className="m-0 mt-3 grid gap-2">
                 {provider.models.map((model) => (
-                  <button type="button" {...controls({ providerId: provider.id, model: model.name })} aria-label={`Select ${model.name} from ${provider.name}`} key={model.name} className="flex min-h-11 items-center justify-between gap-3 rounded-lg text-left text-sm text-muted aria-pressed:bg-signal/10"><span className="min-w-0 break-all">{model.name}</span><span className="shrink-0 tabular-nums">{routeCount(model.count)}</span></button>
+                  <button type="button" {...controls({ providerId: provider.id, model: model.name })} aria-label={`${model.name}, ${routeCount(model.count)} from ${provider.name}`} key={model.name} className="flex min-h-11 items-center justify-between gap-3 rounded-lg text-left text-sm text-muted aria-pressed:bg-signal/10"><span className="min-w-0 break-all">{model.name}</span><span className="shrink-0 tabular-nums">{routeCount(model.count)}</span></button>
                 ))}
               </dd>
             </div>

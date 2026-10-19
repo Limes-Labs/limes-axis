@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -554,6 +554,21 @@ describe("ConnectorConsole list and detail", () => {
 
     await user.click(screen.getByRole("button", { name: "Add connector" }));
     expect(screen.getByRole("dialog", { name: "Add connector" })).toBeInTheDocument();
+  });
+
+  it("returns focus to the header action when the wizard closes", async () => {
+    const user = userEvent.setup();
+    renderConsole();
+
+    const opener = screen.getByRole("button", { name: "Add connector" });
+    await user.click(opener);
+    expect(screen.getByRole("dialog", { name: "Add connector" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Add connector" })).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(opener).toHaveFocus());
   });
 
   it("does not persist a validate result panel across a connector switch", async () => {

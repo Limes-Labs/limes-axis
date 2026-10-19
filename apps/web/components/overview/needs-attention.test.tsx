@@ -74,6 +74,9 @@ function renderStrip(overview: {
     <ToastProvider>
       <NeedsAttention
         actor={{ actorId: "acme-operator", scopes: ["approvals:supply:decide"] }}
+        // The page owns the approvals query; resolve it through the same
+        // per-path mock the strip's own action-run query uses.
+        approvals={mocks.useAxisQuery(`${OPERATIONS_API_PREFIX}/approvals`)}
         identitySession={null}
         overview={overview}
         tenantId={tenantId}

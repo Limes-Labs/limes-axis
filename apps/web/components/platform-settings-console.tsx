@@ -11,7 +11,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { enumUrlField, useConsoleUrlState } from "@/lib/console-url-state";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import {
+  dependencyStatusClass,
+  settingsCheckAction,
   settingsCheckGuidance,
+  settingsCheckLabel,
+  sortSettingsChecks,
   settingsStatusClass,
   settingsStatusLabel,
   type AxisReadyReport,
@@ -121,29 +125,48 @@ function PanelState<T>({
 }
 
 /** Check list with a guidance line on every action-required check. */
-function CheckList({ checks }: { checks: SettingsCheck[] }) {
+function CheckList({
+  checks,
+}: {
+  checks: ReadonlyArray<SettingsCheck & { production_required?: boolean }>;
+}) {
   return (
     <div className="grid min-w-0 gap-0 border-t border-line/60 pt-1 dark:border-white/10">
-      {checks.map((check) => (
-        <div
-          className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10"
-          key={check.check_id}
-        >
-          <div className="grid min-w-0 gap-1">
-            <p className="m-0 font-medium text-ink break-words">{compactId(check.check_id)}</p>
-            {check.status === "action_required" ? (
-              <p className="m-0 text-sm leading-snug text-ink break-words">
-                {settingsCheckGuidance(check.check_id)}
+      {sortSettingsChecks(checks).map((check) => {
+        const action =
+          check.status === "action_required" ? settingsCheckAction(check.check_id) : null;
+        return (
+          <div
+            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10"
+            data-check-id={check.check_id}
+            key={check.check_id}
+          >
+            <div className="grid min-w-0 gap-1">
+              <p className="m-0 font-medium text-ink break-words">
+                {settingsCheckLabel(check.check_id)}
               </p>
-            ) : null}
-            <details className="text-xs text-muted">
-              <summary className="min-h-6 w-fit cursor-pointer">{strings.states.technicalDetails}</summary>
-              <p className="mt-2 font-mono leading-snug break-words">{check.detail}</p>
-            </details>
+              {check.status === "action_required" ? (
+                <p className="m-0 text-sm leading-snug text-ink break-words">
+                  {settingsCheckGuidance(check.check_id)}
+                </p>
+              ) : null}
+              {action ? (
+                <Link
+                  className="inline-flex w-fit items-center text-sm font-medium text-signal hover:underline"
+                  href={action.href}
+                >
+                  {action.label}
+                </Link>
+              ) : null}
+              <details className="text-xs text-muted">
+                <summary className="min-h-6 w-fit cursor-pointer">{strings.states.technicalDetails}</summary>
+                <p className="mt-2 font-mono leading-snug break-words">{check.detail}</p>
+              </details>
+            </div>
+            <SettingsStatusPill status={check.status} />
           </div>
-          <SettingsStatusPill status={check.status} />
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -206,11 +229,7 @@ function ReadyPanel({ query }: { query: SettingsQuery<AxisReadyReport> }) {
                 <Database size={16} />
                 <strong>{compactId(dependency)}</strong>
                 <small
-                  className={
-                    readiness.status === "ready" || readiness.status === "disabled"
-                      ? "signal-ready"
-                      : "signal-action-required"
-                  }
+                  className={dependencyStatusClass(readiness.status, readiness.required)}
                 >
                   {readiness.status === "ready"
                     ? copy.ready.dependencyReachable
@@ -242,6 +261,12 @@ function ReadyPanel({ query }: { query: SettingsQuery<AxisReadyReport> }) {
   );
 }
 
+function openProductionGates(report: DeploymentReadinessReport) {
+  return report.checks.filter(
+    (check) => check.production_required && check.status === "action_required",
+  );
+}
+
 function ProductionGatesPanel({ query }: { query: SettingsQuery<DeploymentReadinessReport> }) {
   return (
     <PanelState endpoint={DEPLOYMENT_READINESS_ENDPOINT} error={copy.deployment.error} query={query}>
@@ -255,11 +280,12 @@ function ProductionGatesPanel({ query }: { query: SettingsQuery<DeploymentReadin
             <Fact label={copy.gates.demoSafe} value={boolLabel(report.demo_safe)} />
             <Fact label={copy.gates.productionReady} value={boolLabel(report.production_ready)} />
           </div>
-          <CheckList
-            checks={report.checks.filter(
-              (check) => check.production_required && check.status === "action_required",
-            )}
-          />
+          {openProductionGates(report).length > 0 ? (
+            <p className="mx-0 mt-0 mb-2 text-sm text-muted" data-gates-summary>
+              {copy.gatesSummary(openProductionGates(report).length)}
+            </p>
+          ) : null}
+          <CheckList checks={openProductionGates(report)} />
           {report.production_blockers.length === 0 ? (
             <p className="m-0 pt-2 text-sm text-muted">{copy.gates.noBlockers}</p>
           ) : null}
@@ -430,7 +456,9 @@ export function PlatformSettingsConsole() {
         : copy.source.stale;
 
   return (
-    <ConsolePage pageKey="settings" sourceLabel={sourceLabel} title={copy.pageTitle}>
+    // The h1 comes from `strings.pages.settings`, so it matches the
+    // "Settings" nav label that leads here.
+    <ConsolePage pageKey="settings" sourceLabel={sourceLabel}>
       <Tabs
         className="grid min-w-0 gap-1"
         onValueChange={(tab) =>

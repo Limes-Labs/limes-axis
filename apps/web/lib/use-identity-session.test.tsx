@@ -344,3 +344,22 @@ describe("identity session heartbeat", () => {
     stopHeartbeat();
   });
 });
+
+describe("useIdentitySession refetch", () => {
+  it("re-runs the identity session after a failure without a console refresh", async () => {
+    mocks.axisFetchParsedJson
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(sessionPayload("tenant-a", "actor-a"));
+
+    const { result } = renderHook(() => useIdentitySession());
+    await waitFor(() => expect(result.current.source).toBe("unavailable"));
+
+    act(() => {
+      result.current.refetch();
+    });
+
+    await waitFor(() => expect(result.current.source).toBe("api"));
+    expect(result.current.data?.actor_id).toBe("actor-a");
+    expect(mocks.axisFetchParsedJson).toHaveBeenCalledTimes(2);
+  });
+});

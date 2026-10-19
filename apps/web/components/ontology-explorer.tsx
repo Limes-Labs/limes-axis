@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
 import { Database, List, Share2, ShieldCheck } from "lucide-react";
 
-import { ErrorPanel } from "@/components/ui/states";
+import { ErrorPanel, TenantEmptyPanel } from "@/components/ui/states";
 import { OntologyEntitySheet } from "@/components/ontology/entity-sheet";
 import { useOntologyEntityHistory } from "@/components/ontology/use-ontology-entity-history";
 import { OntologyGraph } from "@/components/ontology-graph";
@@ -76,6 +76,7 @@ export function OntologyExplorer() {
   const {
     data: ontology,
     errorRequestId: ontologyErrorRequestId,
+    refetch: refetchOntology,
     source,
   } = useAxisQuery<ManufacturingOntology>(ontologyPath, {
     enabled: tenantQueriesEnabled,
@@ -137,7 +138,8 @@ export function OntologyExplorer() {
         detail="The ontology is not loaded until the current actor and tenant are verified."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -157,10 +159,15 @@ export function OntologyExplorer() {
       return <OntologyExplorerSkeleton />;
     }
 
+    if (source === "tenant_not_found") {
+      return <TenantEmptyPanel icon={Share2} />;
+    }
+
     return (
       <ErrorPanel
         detail="Axis did not receive API-backed ontology records. Local fallback ontology records are disabled."
         endpoint={ontologyPath}
+        onRetry={refetchOntology}
         reference={ontologyErrorRequestId ?? undefined}
         title="Ontology API unavailable"
       />

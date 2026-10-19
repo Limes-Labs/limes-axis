@@ -259,14 +259,15 @@ test.describe("Axis console smoke", () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test("toggles to the navy dark theme and persists it across reloads", async ({ page }) => {
+  test("switches to the navy dark theme, persists it, and returns to System", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
     await page.goto("/");
     await expectAxisLightShell(page);
 
-    await page.getByRole("button", { name: "Toggle color theme" }).click();
+    await page.getByRole("button", { name: "Color theme: System" }).click();
+    await page.getByRole("menuitemradio", { name: "Dark" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 
     const dark = await page.evaluate(() => ({
@@ -289,8 +290,16 @@ test.describe("Axis console smoke", () => {
     await expectNoHorizontalOverflow(page);
     await expectNoUndersizedTargets(page);
 
-    await page.getByRole("button", { name: "Toggle color theme" }).click();
+    await page.getByRole("button", { name: "Color theme: Dark" }).click();
+    await expect(page.getByRole("menuitemradio", { name: "Dark" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await page.getByRole("menuitemradio", { name: "System" }).click();
+    // Playwright's default color scheme is light, so System resolves to light.
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await expect(page.getByRole("button", { name: "Color theme: System" })).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem("axis-theme"))).toBe("system");
     await expectAxisLightShell(page);
     expect(pageErrors).toEqual([]);
   });
@@ -304,13 +313,13 @@ test.describe("Axis console smoke", () => {
     await expect(page.getByRole("button", { name: "Open operator account" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Connect OIDC bearer token" })).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Search console" }).click();
-    await expect(page.getByRole("dialog", { name: "Console command menu" })).toBeVisible();
-    await page.getByRole("combobox", { name: "Search console commands" }).fill("audit");
+    await page.getByRole("button", { name: "Go to…" }).click();
+    await expect(page.getByRole("dialog", { name: "Go to…" })).toBeVisible();
+    await page.getByRole("combobox", { name: "Go to a page, entity or action" }).fill("audit");
     // cmdk renders commands as options, not links.
     await expect(page.getByRole("option", { name: "Audit", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: "Console command menu" })).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: "Go to…" })).toHaveCount(0);
 
     const topbarHeight = await page.locator(".ops-topbar").evaluate((element) =>
       Math.round(element.getBoundingClientRect().height),
@@ -562,7 +571,7 @@ test.describe("Axis console smoke", () => {
     await expect(mobileNav).toBeVisible();
     await expect(mobileNav.locator("[data-mobile-current-section]")).toHaveText("Settings");
     const menuTrigger = mobileNav.getByRole("button", {
-      name: "Open navigation. Current section: Settings",
+      name: "Menu, current section: Settings",
     });
     await menuTrigger.click();
 
@@ -1676,8 +1685,10 @@ test.describe("Axis console smoke", () => {
 
     await page.goto("/settings");
 
-    // The page header is "System status"; the nav label stays Settings.
-    await expect(page.getByRole("heading", { name: "System status", exact: true })).toBeVisible();
+    // The page header matches the "Settings" nav label that leads here.
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Settings", exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Settings API unavailable" })).toHaveCount(0);
 
     // Readiness tab (default): each panel degrades on its own instead of one

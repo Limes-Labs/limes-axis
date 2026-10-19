@@ -61,6 +61,9 @@ operational profiles and secret injection.
 | `AXIS_REDIS_TIMEOUT_SECONDS` | `redis_timeout_seconds` | number | `0.25` | maximum: 5.0; minimum: 0.05 |
 | `AXIS_POSTGRES_CONNECT_TIMEOUT_SECONDS` | `postgres_connect_timeout_seconds` | integer | `3` | maximum: 30; minimum: 1 |
 | `AXIS_POSTGRES_POOL_TIMEOUT_SECONDS` | `postgres_pool_timeout_seconds` | number | `3.0` | maximum: 30.0; minimum: 0.1 |
+| `AXIS_POSTGRES_POOL_SIZE` | `postgres_pool_size` | integer | `5` | maximum: 100; minimum: 1 |
+| `AXIS_POSTGRES_MAX_OVERFLOW` | `postgres_max_overflow` | integer | `10` | maximum: 100; minimum: 0 |
+| `AXIS_POSTGRES_STATEMENT_TIMEOUT_MS` | `postgres_statement_timeout_ms` | integer | `0` | maximum: 3600000; minimum: 0 |
 | `AXIS_POSTGRES_DSN` | `postgres_dsn` | string | `"<redacted>"` |  |
 | `AXIS_TYPEDB_ADDRESS` | `typedb_address` | string | `"localhost:1729"` |  |
 | `AXIS_TYPEDB_USERNAME` | `typedb_username` | string | `"admin"` |  |

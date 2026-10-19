@@ -4,7 +4,7 @@ import { FileText, GitBranch, History, ShieldCheck } from "lucide-react";
 
 import { RunReplayForm } from "@/components/simulation/run-replay-form";
 import { SourcePill } from "@/components/ui/source-pill";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import {
   formatContextPath,
   formatDateTime,
@@ -78,7 +78,8 @@ export function SimulationConsole() {
         detail="The console could not verify the current actor and tenant. Replay data is not loaded until identity is available."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -88,10 +89,15 @@ export function SimulationConsole() {
       return <LoadingPanel layout="detail" />;
     }
 
+    if (replayQuery.isTenantNotFound) {
+      return <TenantEmptyPanel icon={History} title={strings.simulation.noArtifacts.title} />;
+    }
+
     return (
       <ErrorPanel
         detail={strings.simulation.error.detail}
         endpoint={replayPath}
+        onRetry={replayQuery.refetch}
         reference={replayQuery.errorRequestId ?? undefined}
         title={strings.simulation.error.title}
       />
@@ -101,6 +107,8 @@ export function SimulationConsole() {
   if (simulationData.artifacts.length === 0) {
     return (
       <EmptyPanel
+        // Replays are derived from workflow history, so that is where to go next.
+        action={{ href: "/workflows", label: strings.simulation.noArtifacts.action }}
         detail={strings.simulation.noArtifacts.detail}
         icon={History}
         title={strings.simulation.noArtifacts.title}

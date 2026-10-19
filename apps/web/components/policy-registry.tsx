@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { RotateCcw, ScrollText, ShieldCheck } from "lucide-react";
 
+import { DataTable } from "@/components/ui/data-table";
 import { Disclosure } from "@/components/ui/disclosure";
 import { PolicyCreateForm } from "@/components/policy-create-form";
 import {
@@ -125,7 +126,8 @@ export function PolicyRegistry() {
         detail="The console could not verify the current actor and tenant. Policy data is not loaded until identity is available."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -282,56 +284,54 @@ export function PolicyRegistry() {
       </section>
 
       {policies.length > 0 ? (
-        <section className="min-w-0 overflow-x-auto rounded-2xl border border-line bg-surface dark:border-white/10 dark:bg-white/5">
-          <table className="w-full min-w-[640px] border-collapse text-left text-sm text-ink [&_th]:border-b [&_th]:border-line [&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:font-mono [&_th]:text-[11px] [&_th]:font-medium [&_th]:tracking-[0.16em] [&_th]:uppercase [&_th]:text-signal dark:[&_th]:border-white/10 [&_td]:border-b [&_td]:border-line/60 [&_td]:px-4 [&_td]:py-3 [&_td]:align-top dark:[&_td]:border-white/6 [&_tbody_tr:last-child_td]:border-b-0">
-            <thead>
-              <tr>
-                <th>Policy</th>
-                <th>Scope</th>
-                <th>Effect</th>
-                <th>Conditions</th>
-                <th>Revision</th>
-                <th>Status</th>
-                <th>Updated</th>
+        <DataTable wrapperProps={{ className: "min-w-0" }}>
+          <thead>
+            <tr>
+              <th>Policy</th>
+              <th>Scope</th>
+              <th>Effect</th>
+              <th>Conditions</th>
+              <th>Revision</th>
+              <th>Status</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            {policies.map((policy) => (
+              <tr key={`${policy.policy_id}-${policy.revision_number}`}>
+                <td>
+                  <Link className="inline-flex min-h-6 items-center font-medium text-signal underline decoration-1 underline-offset-2" href={`/policies/${policy.policy_id}`}>
+                    {policy.display_name}
+                  </Link>
+                  <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{policy.policy_id}</p>
+                </td>
+                <td>{policyScopeLabel(policy.scope)}</td>
+                <td>
+                  <span className={`status-pill ${policyEffectClass(policy.effect)}`}>
+                    {policyEffectLabel(policy.effect)}
+                  </span>
+                </td>
+                <td>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{summarizePolicyConditions(policy.conditions)}</p>
+                </td>
+                <td>
+                  <span className="font-mono text-[13px] break-words">
+                    r{policy.revision_number} / {policy.policy_version}
+                  </span>
+                </td>
+                <td>
+                  <span className={`status-pill ${policyStatusClass(policy.status)}`}>
+                    {policyStatusLabel(policy.status)}
+                  </span>
+                </td>
+                <td>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatTimestamp(policy.created_at)}</p>
+                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policy.created_by}</p>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {policies.map((policy) => (
-                <tr key={`${policy.policy_id}-${policy.revision_number}`}>
-                  <td>
-                    <Link className="inline-flex min-h-6 items-center font-medium text-signal underline decoration-1 underline-offset-2" href={`/policies/${policy.policy_id}`}>
-                      {policy.display_name}
-                    </Link>
-                    <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{policy.policy_id}</p>
-                  </td>
-                  <td>{policyScopeLabel(policy.scope)}</td>
-                  <td>
-                    <span className={`status-pill ${policyEffectClass(policy.effect)}`}>
-                      {policyEffectLabel(policy.effect)}
-                    </span>
-                  </td>
-                  <td>
-                    <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{summarizePolicyConditions(policy.conditions)}</p>
-                  </td>
-                  <td>
-                    <span className="font-mono text-[13px] break-words">
-                      r{policy.revision_number} / {policy.policy_version}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`status-pill ${policyStatusClass(policy.status)}`}>
-                      {policyStatusLabel(policy.status)}
-                    </span>
-                  </td>
-                  <td>
-                    <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatTimestamp(policy.created_at)}</p>
-                    <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{policy.created_by}</p>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+            ))}
+          </tbody>
+        </DataTable>
       ) : (
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
           <div>

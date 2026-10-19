@@ -11,7 +11,7 @@ import { Term } from "@/components/ui/glossary";
 import { MasterDetail } from "@/components/ui/master-detail";
 import { MetricStrip, type Metric } from "@/components/ui/metric-strip";
 import { SourcePill } from "@/components/ui/source-pill";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import {
   allAgentFilter,
   filterAgents,
@@ -130,6 +130,7 @@ export function AgentRegistry() {
   const {
     data: registry,
     errorRequestId: registryErrorRequestId,
+    refetch: refetchRegistry,
     source,
   } = useAxisQuery<ManufacturingAgentRegistry>(agentsPath, {
     enabled: tenantQueriesEnabled,
@@ -162,7 +163,8 @@ export function AgentRegistry() {
         detail="The agent registry is not loaded until the current actor and tenant are verified."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -190,10 +192,15 @@ export function AgentRegistry() {
       );
     }
 
+    if (source === "tenant_not_found") {
+      return <TenantEmptyPanel icon={Bot} title={strings.agents.empty.title} />;
+    }
+
     return (
       <ErrorPanel
         detail={strings.agents.error.detail}
         endpoint={agentsPath}
+        onRetry={refetchRegistry}
         reference={registryErrorRequestId ?? undefined}
         title={strings.agents.error.title}
       />

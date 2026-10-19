@@ -65,7 +65,7 @@ describe("PolicyRegistry tenant scope", () => {
 
     render(<PolicyRegistry />);
 
-    expect(screen.getByRole("heading", { name: "Identity API unavailable" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Can't reach Axis" })).toBeInTheDocument();
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
       "/platform/policies",
       expect.objectContaining({ enabled: false }),

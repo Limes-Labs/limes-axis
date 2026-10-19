@@ -128,6 +128,9 @@ export type ManufacturingAuditEventSummary = {
   payload_refs: Record<string, string | string[]>;
 };
 
+/** Label of the persisted open-workflow metric in the operations snapshot. */
+export const OPEN_WORKFLOWS_METRIC = "Open Workflows";
+
 export type ManufacturingOperationsSnapshot = {
   tenant_id: string;
   plant_name: string | null;

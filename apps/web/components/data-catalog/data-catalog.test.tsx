@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -221,6 +221,20 @@ describe("DataCatalog", () => {
       { assetId: "source:external_db_operational_mirror:default" },
       { history: "push" },
     );
+  });
+
+  it("makes the scrollable schema table a named, keyboard-focusable region", () => {
+    mocks.useDataAssetCatalog.mockReturnValue(loadedCatalog(catalogFixture()));
+
+    render(<DataCatalog />);
+
+    const region = screen.getByRole("region", {
+      name: strings.dataCatalog.detail.schemaRegion,
+    });
+    expect(region).toHaveAttribute("tabindex", "0");
+    expect(within(region).getByRole("table", { name: strings.dataCatalog.detail.schemaTitle })).toBeInTheDocument();
+    region.focus();
+    expect(region).toHaveFocus();
   });
 
   it("fails closed on an unknown deep-linked asset id", () => {

@@ -26,6 +26,7 @@ vi.mock("@/providers/theme-provider", () => ({
 }));
 
 import { ConsoleCommandMenu } from "./console-command-menu";
+import { strings } from "@/lib/strings";
 import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 function mockEntityEndpoints() {
@@ -85,6 +86,15 @@ beforeEach(() => {
 });
 
 describe("ConsoleCommandMenu", () => {
+  it("presents itself as Go to…, not as a record search", () => {
+    renderMenu();
+
+    expect(screen.getByRole("dialog", { name: strings.commandMenu.dialogTitle })).toBeInTheDocument();
+    const input = screen.getByLabelText(strings.commandMenu.inputLabel);
+    expect(input).toHaveAttribute("placeholder", strings.commandMenu.placeholder);
+    expect(strings.commandMenu.placeholder).not.toMatch(/search/i);
+  });
+
   it("filters page items as the operator types", async () => {
     const user = userEvent.setup();
     renderMenu();

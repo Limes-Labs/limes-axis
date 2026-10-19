@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import IntegrityError
 
 from axis_api.action_reference import (
     ActionReferenceRecordInvalid,
@@ -11,6 +12,7 @@ from axis_api.action_reference import (
 )
 from axis_api.audit import AuditEventCreate
 from axis_api.demo import ActionRegistryEntry
+from axis_api.models import ActionRun
 from axis_api.ontology_reference import require_persisted_manufacturing_ontology
 from axis_api.permissions import PermissionDecision, PermissionRequest, evaluate_permission
 from axis_api.persistence import (
@@ -813,6 +815,33 @@ async def record_demo_action_run_outcome(
     )
 
 
+def _idempotent_replay(
+    existing: ActionRun,
+    *,
+    payload: dict,
+    tenant_id: str,
+    action: ActionRegistryEntry,
+    idempotency_key: str,
+    permission_decision: PermissionDecision,
+) -> ActionRunPersistenceResult:
+    if existing.payload != payload:
+        raise ActionRunIdempotencyConflict(existing.id)
+
+    return _result_from_action_run(
+        tenant_id=tenant_id,
+        action=action,
+        action_run_id=existing.id,
+        idempotency_key=idempotency_key,
+        status=existing.status,
+        requested_by=existing.requested_by,
+        permission_decision=permission_decision,
+        audit_event_id=None,
+        audit_event_type=None,
+        idempotent_replay=True,
+        workflow_signal_status="idempotent_replay",
+    )
+
+
 async def record_demo_action_run(
     repository: AxisPersistenceRepository,
     action_id: str,
@@ -843,21 +872,13 @@ async def record_demo_action_run(
         idempotency_key,
     )
     if existing is not None:
-        if existing.payload != payload:
-            raise ActionRunIdempotencyConflict(existing.id)
-
-        return _result_from_action_run(
+        return _idempotent_replay(
+            existing,
+            payload=payload,
             tenant_id=tenant_id,
             action=action,
-            action_run_id=existing.id,
             idempotency_key=idempotency_key,
-            status=existing.status,
-            requested_by=existing.requested_by,
             permission_decision=permission_decision,
-            audit_event_id=None,
-            audit_event_type=None,
-            idempotent_replay=True,
-            workflow_signal_status="idempotent_replay",
         )
 
     platform_policy_decision = _enforce_platform_policies(
@@ -872,19 +893,40 @@ async def record_demo_action_run(
         or platform_policy_decision.effect == PlatformPolicyEffect.REQUIRE_APPROVAL.value
     )
     status = _action_status(action, approval_required)
-    action_run = repository.create_action_run(
-        ActionRunCreate(
-            tenant_id=tenant_id,
-            action_id=action.definition.action_id,
-            idempotency_key=idempotency_key,
-            execution_mode=action.policy.execution_mode,
-            requested_by=request.actor_id,
-            approval_id=action.approval_refs[0] if action.approval_refs else None,
-            workflow_id=action.workflow_bindings[0] if action.workflow_bindings else None,
-            payload=payload,
-            status=status,
+    try:
+        # A concurrent request with the same idempotency key can win the
+        # unique constraint between the lookup above and this insert. The
+        # savepoint keeps the request transaction usable so the loser replays.
+        with repository.session.begin_nested():
+            action_run = repository.create_action_run(
+                ActionRunCreate(
+                    tenant_id=tenant_id,
+                    action_id=action.definition.action_id,
+                    idempotency_key=idempotency_key,
+                    execution_mode=action.policy.execution_mode,
+                    requested_by=request.actor_id,
+                    approval_id=action.approval_refs[0] if action.approval_refs else None,
+                    workflow_id=action.workflow_bindings[0] if action.workflow_bindings else None,
+                    payload=payload,
+                    status=status,
+                )
+            )
+    except IntegrityError:
+        winner = repository.get_action_run_by_idempotency_key(
+            tenant_id,
+            action.definition.action_id,
+            idempotency_key,
         )
-    )
+        if winner is None:
+            raise
+        return _idempotent_replay(
+            winner,
+            payload=payload,
+            tenant_id=tenant_id,
+            action=action,
+            idempotency_key=idempotency_key,
+            permission_decision=permission_decision,
+        )
     workflow_signal = await _signal_action_workflow(
         runtime,
         tenant_id=tenant_id,

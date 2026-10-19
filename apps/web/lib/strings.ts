@@ -100,6 +100,14 @@ const identityGate = {
     "This deployment requires an authenticated operator session through your organization's identity provider.",
   signIn: "Sign in with SSO",
   returnHint: "You will return to the page you opened.",
+  /* Shown in place of a live sign-in link when the API's OIDC readiness
+     report says browser sign-in is not configured; following the link would
+     only open the API's raw 503 response. */
+  ssoNotConfigured: {
+    title: "Single sign-on isn't set up yet.",
+    detail:
+      "This deployment has no browser sign-in configured. An administrator needs to set the OIDC client ID and session-cookie signing secret on the Axis API.",
+  },
   reasons: {
     missing_authorization: "No active session was found for this browser.",
     invalid_session_cookie: "Your session is no longer valid. Sign in again to continue.",
@@ -221,8 +229,37 @@ const globalError = {
   action: "Reload the console",
 } as const;
 
+/**
+ * Console chrome. Accessible names start with the control's visible text so
+ * speech-input users can say what they see (WCAG 2.5.3 Label in Name).
+ */
+const shell = {
+  brand: "Limes Axis",
+  controlPlane: "Control plane",
+  homeLink: "Limes Axis Control plane, home",
+  menu: "Menu",
+  menuLabel: (section: string) => `Menu, current section: ${section}`,
+  notifications: "Open notifications",
+  notificationsLabel: (badge: string) => `Open notifications, ${badge} unread`,
+  account: "Open operator account",
+  accountLabel: (visible: string) => `${visible}, open operator account`,
+  theme: {
+    trigger: "Color theme",
+    triggerLabel: (current: string) => `Color theme: ${current}`,
+    options: { system: "System", light: "Light", dark: "Dark" },
+  },
+} as const;
+
+/*
+ * The command menu jumps to pages, indexed entities and console actions; it
+ * does not search records yet, so its copy says "Go to" rather than "Search"
+ * (#945). Record search will reuse the migration 0068 index.
+ */
 const commandMenu = {
-  placeholder: "Search pages, entities, actions",
+  trigger: "Go to…",
+  dialogTitle: "Go to…",
+  inputLabel: "Go to a page, entity or action",
+  placeholder: "Go to a page, entity or action…",
   empty: "No matching command.",
   apiStatus: "API status",
   actionsHeading: "Actions",
@@ -504,7 +541,8 @@ const workflows = {
   empty: {
     title: "No workflow runs yet",
     detail:
-      "When a governed workflow starts, its run will appear here with a step-by-step timeline.",
+      "A governed workflow starts when someone decides an approval. Its run will then appear here with a step-by-step timeline.",
+    action: "Review pending approvals",
   },
   noMatch: {
     title: "No workflows match the current filters",
@@ -1305,11 +1343,15 @@ const overview = {
   },
   posture: {
     agents: { label: "Agents", link: "Manage agents" },
-    workflows: { label: "Workflows", link: "Open workflows" },
+    workflows: {
+      label: "Open workflows",
+      link: "View workflows",
+      detail: "Persisted workflows that are not completed or cancelled",
+    },
     connectors: {
       label: "Connector activity",
       link: "Manage connectors",
-      detail: "Connector events in the latest audit window",
+      detail: "Connector changes in the latest audit window (reads excluded)",
     },
     policies: { label: "Policies", link: "Review policies" },
     models: { label: "Models", link: "View routing" },
@@ -1396,6 +1438,16 @@ const audit = {
     title: "Audit API returned no records",
     detail: "The audit API responded without ledger records for this tenant.",
   },
+  /* Activity feeds and charts default to state-changing events; console page
+     views write read evidence that would otherwise dominate them. */
+  reads: {
+    show: "Show reads",
+    hidden: (count: number) =>
+      `${count.toLocaleString("en")} read ${count === 1 ? "event" : "events"} hidden`,
+    onlyReadsTitle: "No state-changing events in this window",
+    onlyReadsDetail:
+      "Only read events were recorded in this window. Turn on Show reads to see them.",
+  },
 } as const;
 
 /** Models page copy: the reference-vs-live distinction and tab labels. */
@@ -1420,6 +1472,27 @@ const models = {
       title: "No routes match the current filters",
       detail: "Adjust or reset the domain, provider and decision filters to see routing telemetry.",
       reset: "Reset filters",
+    },
+    /* Selected-route detail panel. Values are API identifiers rendered as-is;
+       only the labels and connective copy live here. */
+    routeDetail: {
+      provider: "Provider",
+      model: "Model",
+      estimatedCost: "Estimated cost",
+      latency: "Latency",
+      latencyValue: (milliseconds: string) => `${milliseconds} ms`,
+      totalTokens: (tokens: string) => `${tokens} tokens`,
+      policy: "Policy",
+      egressRequested: (requested: boolean) =>
+        `Requested external egress: ${requested ? "yes" : "no"}`,
+      egressAllowed: (allowed: boolean) =>
+        `Allowed external egress: ${allowed ? "yes" : "no"}`,
+      boundary: (boundary: string) => `Boundary: ${boundary}`,
+      requiredPermissions: "Required permissions",
+      observabilityEvents: "Observability events",
+      evidence: "Evidence",
+      audit: "Audit",
+      tokenSplit: (input: string, output: string) => `Input ${input} / output ${output}`,
     },
   },
   live: {
@@ -1511,7 +1584,9 @@ const simulation = {
   },
   noArtifacts: {
     title: "No replay history yet",
-    detail: "Replay previews will appear after this tenant has governed workflow history.",
+    detail:
+      "Replays are built from governed workflow history. Previews will appear here once this tenant has recorded workflow runs.",
+    action: "Open workflow runs",
   },
   noPolicyResult: "No policy result recorded for this replay.",
 } as const;
@@ -1572,7 +1647,8 @@ const onboarding = {
 const settingsPanelUnavailable = "Local fallback settings records are disabled.";
 
 const settings = {
-  pageTitle: "System status",
+  // No page-title override: the h1 is `pages.settings.title`, matching the
+  // "Settings" nav label (#945).
   source: {
     live: "Live system status",
     loading: "Loading system status",
@@ -1700,6 +1776,8 @@ const settings = {
     session_absolute_timeout:
       "Set an absolute session lifetime above zero so sessions always expire.",
     // Deployment readiness checks (/deployment/readiness)
+    registered_tenant_admission:
+      "Switch tenant admission to registered-only, so sign-in requires a tenant registered under Tenants.",
     oidc_enterprise_sso:
       "Resolve the identity checks on the Identity tab to make SSO enterprise-ready.",
     oidc_secure_cookie_session:
@@ -1736,6 +1814,68 @@ const settings = {
       "Configure at least two escalation channel classes for production support.",
   } satisfies Record<string, string>,
   guidanceFallback: "Review the technical detail below and update the platform configuration.",
+  /**
+   * Operator-facing names for readiness check ids, replacing the raw
+   * lowercase ids. Unknown ids fall back to a sentence-cased form of the id.
+   */
+  checkLabels: {
+    // OIDC readiness checks
+    auth_required: "API sign-in required",
+    https_issuer: "HTTPS identity issuer",
+    explicit_jwks_url: "Explicit signing-key (JWKS) URL",
+    asymmetric_algorithms: "Asymmetric token signing",
+    openid_scope: "OpenID scope",
+    tenant_claim: "Tenant claim",
+    actor_claim: "Actor claim",
+    authorization_code_client: "Browser SSO client",
+    authorization_endpoint: "Authorization endpoint",
+    token_endpoint: "Token endpoint",
+    end_session_endpoint: "Sign-out endpoint",
+    post_logout_redirect: "Post-sign-out redirect",
+    session_cookie_signing: "Session cookie signing secret",
+    secure_session_cookie: "Secure session cookies",
+    host_prefixed_session_cookie: "Host-bound session cookies",
+    refresh_credential_encryption: "Refresh credential encryption",
+    session_idle_timeout: "Session idle timeout",
+    session_absolute_timeout: "Session maximum lifetime",
+    // Deployment readiness checks
+    oidc_enterprise_sso: "Enterprise single sign-on",
+    oidc_secure_cookie_session: "Secure browser sessions",
+    registered_tenant_admission: "Registered-tenant admission",
+    external_model_egress_disabled: "External model egress",
+    api_rate_limiting: "API rate limiting",
+    network_egress_restricted: "Network egress restrictions",
+    deployment_tenancy_profile: "Tenancy and isolation profile",
+    live_connector_execution_disabled: "Live connector execution",
+    ontology_graph_mutation_posture: "Ontology graph promotion",
+    audit_ledger_signing_configured: "Audit ledger signing",
+    production_object_store_adapter: "Evidence object storage",
+    observability_instrumentation: "Tracing and metrics",
+    production_dr_procedures: "Disaster recovery runbook",
+    // Support diagnostics checks
+    support_diagnostics_public_safe: "Shareable diagnostics",
+    support_runbook_baseline: "Support runbook baseline",
+    demo_support_ready: "Demo support readiness",
+    deployment_readiness_attached: "Deployment report attached",
+    production_support_model: "Production support model",
+    production_support_commitments: "Support commitments",
+    support_slo_targets: "Support response targets",
+    support_escalation_channels: "Escalation channels",
+  } satisfies Record<string, string>,
+  /** Where an operator can act on a check from inside the console. */
+  checkActions: {
+    identityTab: "Open identity checks",
+    deploymentTab: "Open deployment posture",
+    tenants: "Open tenants",
+    modelRouting: "Open model routing",
+    connectors: "Open connectors",
+    ontology: "Open ontology",
+    audit: "Open audit",
+  },
+  gatesSummary: (count: number) =>
+    count === 1
+      ? "1 gate needs action before production."
+      : `${count} gates need action before production.`,
 } as const;
 
 const ontology = {
@@ -1772,6 +1912,21 @@ const ontology = {
 const demoBadge = {
   label: "Demo",
   tooltip: "This tenant runs the demo manufacturing scenario",
+} as const;
+
+/**
+ * Tenant lifecycle copy. Suspension is destructive for the tenant's users, so
+ * its impact is stated next to the action rather than only after it runs.
+ */
+const tenantLifecycle = {
+  suspend: {
+    title: "Suspend tenant",
+    action: "Suspend tenant",
+    saving: "Suspending",
+    impactTitle: "What suspending does",
+    impact:
+      "Every sign-in and API request made as this tenant is denied until it is reactivated, so its operators, agents and integrations are locked out. Remaining browser sessions are revoked by the next reconciliation sweep. Tenant data and audit evidence are kept.",
+  },
 } as const;
 
 const tenantVocabulary = {
@@ -1857,7 +2012,10 @@ export const strings = {
     createOrganization: "Create organization",
     activity: {
       title: "Activity by category",
-      window: (count: number) => `Share of ${count} events in the latest window (up to 25).`,
+      window: (count: number, limit: number) =>
+        `Share of ${count} events in the latest window (up to ${limit}).`,
+      dateWindow: (count: number, limit: number) =>
+        `${count} returned events · latest window, up to ${limit}.`,
       errorTitle: "Activity breakdown unavailable",
       errorDetail: "Refresh to load the recent audit window.",
       emptyTitle: "No activity to compare",
@@ -1866,6 +2024,7 @@ export const strings = {
   },
   scopeDenial,
   nav,
+  shell,
   identityGate,
   commandMenu,
   routeError,
@@ -1906,6 +2065,7 @@ export const strings = {
       manifestRevision: "Manifest revision",
       registryOrigin: "Registry origin",
       schemaTitle: "Declared schema mapping",
+      schemaRegion: "Scrollable declared schema mapping",
       schemaEmpty: "This source has no declared field mapping yet.",
       ontologyTargets: "Ontology targets",
       notes: "Catalog notes",
@@ -2073,6 +2233,7 @@ export const strings = {
   policyDetail,
   settings,
   simulation,
+  tenantLifecycle,
   tenantVocabulary,
   workflows,
   states: {
@@ -2081,6 +2242,11 @@ export const strings = {
     technicalDetails: "Technical details",
     /** Correlation id an operator can quote to support. */
     reference: "Reference",
+    /* Shown when `/identity/session` cannot be read. The console cannot tell
+       which part of Axis is down, so it does not blame one API. */
+    identityUnavailable: {
+      title: "Can't reach Axis",
+    },
     error: {
       title: "This data could not be loaded",
       detail: "The console could not reach the platform API. Check your connection and try again.",
@@ -2089,6 +2255,15 @@ export const strings = {
     empty: {
       title: "Nothing here yet",
       detail: "Records will appear here as soon as they exist.",
+    },
+    /* A tenant the API has never bootstrapped (`TENANT_NOT_FOUND`). This is
+       an empty state, not an outage: the API answered, there is just nothing
+       recorded for the tenant yet. */
+    tenantEmpty: {
+      title: "This tenant has no records yet",
+      detail:
+        "Nothing has been set up for this tenant. Finish guided setup on the overview, or load demo data, and records will appear here.",
+      action: "Open guided setup",
     },
     requestedRecord: {
       title: "Requested record is not in this view",

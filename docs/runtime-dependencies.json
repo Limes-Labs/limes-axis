@@ -1162,7 +1162,7 @@
     },
     {
       "path": "infra/helm/limes-axis/templates/configmap.yaml",
-      "git_blob": "d5b470b74e26685090b1fb87acb5af9d3f80518c"
+      "git_blob": "95a627c74ef853ef282061de5d14667eb3cb9419"
     },
     {
       "path": "infra/helm/limes-axis/templates/externalsecret.yaml",

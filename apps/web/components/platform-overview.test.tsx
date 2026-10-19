@@ -6,6 +6,7 @@ import { ToastProvider } from "@/components/ui/toast";
 
 const mocks = vi.hoisted(() => ({
   axisFetchParsedJson: vi.fn(),
+  refetch: vi.fn(),
   triggerRefresh: vi.fn(),
   useAxisQuery: vi.fn(),
 }));
@@ -62,17 +63,22 @@ import { parseManufacturingOverview } from "@/lib/runtime-contracts/overview";
 import { strings } from "@/lib/strings";
 import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
-type Source = "loading" | "api" | "unavailable";
+type Source = "loading" | "api" | "tenant_not_found" | "unavailable";
 
 function queryResult(data: unknown, source: Source, errorStatus: number | null = null) {
   return {
     data,
     source,
-    error: source === "unavailable" ? "Axis API request failed." : null,
+    error: source === "unavailable" || source === "tenant_not_found"
+      ? "Axis API request failed."
+      : null,
     errorStatus,
+    errorCode: source === "tenant_not_found" ? "TENANT_NOT_FOUND" : null,
     isRefreshing: false,
     isLoading: source === "loading",
     isUnavailable: source === "unavailable",
+    isTenantNotFound: source === "tenant_not_found",
+    refetch: mocks.refetch,
   };
 }
 
@@ -98,7 +104,7 @@ function onboardingRegistryFixtures(count: number): [string, unknown][] {
 }
 
 type MockOptions = {
-  /** Endpoints answering 404 (tenant not bootstrapped) instead of failing. */
+  /** Endpoints answering 404 TENANT_NOT_FOUND (tenant not bootstrapped). */
   notFoundPaths?: string[];
   /** Overrides every checklist registry count, including /platform/policies. */
   onboardingCount?: number;
@@ -129,6 +135,16 @@ function mockQueriesByPath(unavailablePaths: string[] = [], options: MockOptions
     [`${OPERATIONS_API_PREFIX}/actions/runs`, emptyActionRunsFixture],
     ["/platform/policies", policyRegistryFixture],
     ["/identity/session", options.identity ?? identitySessionFixture],
+    // Browser SSO readiness behind the artifact panel's sign-in link.
+    [
+      "/identity/oidc/readiness",
+      {
+        checks: [
+          { check_id: "authorization_code_client", status: "ready", detail: "" },
+          { check_id: "session_cookie_signing", status: "ready", detail: "" },
+        ],
+      },
+    ],
     ...onboardingRegistryFixtures(options.onboardingCount ?? 1),
   ];
 
@@ -138,7 +154,7 @@ function mockQueriesByPath(unavailablePaths: string[] = [], options: MockOptions
       throw new Error(`Unexpected overview query path: ${path}`);
     }
     if (options.notFoundPaths?.some((prefix) => path.startsWith(prefix))) {
-      return queryResult(null, "unavailable", 404);
+      return queryResult(null, "tenant_not_found", 404);
     }
     if (unavailablePaths.some((prefix) => path.startsWith(prefix))) {
       return queryResult(null, "unavailable");
@@ -158,6 +174,7 @@ function renderOverview() {
 beforeEach(() => {
   mocks.axisFetchParsedJson.mockReset();
   mocks.triggerRefresh.mockReset();
+  mocks.refetch.mockReset();
   mocks.useAxisQuery.mockReset();
 });
 
@@ -190,6 +207,32 @@ describe("PlatformOverview hero", () => {
     expect(screen.queryByText(/Manufacturing overview/)).not.toBeInTheDocument();
     expect(screen.getByTestId("hero-audit-count")).toBeInTheDocument();
     expect(screen.getByText(/Northwind Press/)).not.toHaveTextContent(/null|^\s*\//);
+  });
+
+  it("reads each headline number from the same source as the panels around it", () => {
+    mockQueriesByPath();
+    renderOverview();
+
+    // Pending approvals: the approvals queue that also renders the review
+    // cards (four awaiting a decision in the fixture), not the snapshot metric.
+    const awaiting = approvalInboxFixture.approvals.filter(
+      (approval) => approval.status !== "decided",
+    ).length;
+    expect(screen.getByTestId("hero-pending-approvals")).toHaveTextContent(
+      new RegExp(`^${awaiting}$`),
+    );
+    // Open workflows: the hero and the posture card show one snapshot metric.
+    const openWorkflows = snapshotFixture.metrics.find(
+      (metric) => metric.label === "Open Workflows",
+    )?.value;
+    expect(screen.getByTestId("hero-open-workflows")).toHaveTextContent(
+      new RegExp(`^${openWorkflows}$`),
+    );
+    const workflowsCard = screen
+      .getAllByRole("listitem")
+      .find((item) => within(item).queryByText(strings.overview.posture.workflows.label));
+    expect(workflowsCard).toBeDefined();
+    expect(within(workflowsCard as HTMLElement).getByText(openWorkflows as string)).toBeInTheDocument();
   });
 
   it("shows the same audit registry count in the hero and the evidence feed", () => {
@@ -257,7 +300,7 @@ describe("PlatformOverview hero", () => {
     );
     expect(paths).toContain(`${OPERATIONS_API_PREFIX}/model-routing?tenant_id=tenant_acme`);
     expect(paths).toContain(
-      `${OPERATIONS_API_PREFIX}/audit/events?tenant_id=tenant_acme&limit=25`,
+      `${OPERATIONS_API_PREFIX}/audit/events?tenant_id=tenant_acme&limit=100`,
     );
     expect(paths.filter((path) => path.includes("tenant_demo_manufacturing"))).toHaveLength(0);
   });
@@ -300,12 +343,25 @@ describe("PlatformOverview per-section degradation", () => {
     ]);
     renderOverview();
 
-    expect(screen.getByRole("heading", { name: "Identity API unavailable" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Can't reach Axis" })).toBeInTheDocument();
     expect(
       screen.getByText("Tenant-scoped data is not loaded until identity is available.", {
         exact: false,
       }),
     ).toBeInTheDocument();
+  });
+
+  it("offers a retry that re-runs the identity session instead of blaming one API", async () => {
+    mockQueriesByPath(["/identity/session"]);
+    const user = userEvent.setup();
+    renderOverview();
+
+    expect(screen.getByRole("heading", { name: "Can't reach Axis" })).toBeInTheDocument();
+    expect(screen.queryByText(/Identity API/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: strings.states.retry }));
+
+    expect(mocks.refetch).toHaveBeenCalledTimes(1);
+    expect(mocks.triggerRefresh).not.toHaveBeenCalled();
   });
 
   it("does not fall back to demo data when an authenticated tenant claim is missing", () => {
@@ -351,6 +407,24 @@ describe("PlatformOverview onboarding checklist", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("does not treat a plain 404 without TENANT_NOT_FOUND as an empty tenant", () => {
+    mockQueriesByPath([], { onboardingCount: 0 });
+    const routed = mocks.useAxisQuery.getMockImplementation()!;
+    mocks.useAxisQuery.mockImplementation((path: string) =>
+      path.startsWith(`${OPERATIONS_API_PREFIX}/overview`)
+        ? queryResult(null, "unavailable", 404)
+        : routed(path),
+    );
+    renderOverview();
+
+    expect(
+      screen.queryByRole("heading", { name: "Set up your governed platform" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: strings.overview.hero.error.title }),
+    ).toBeInTheDocument();
+  });
+
   it("keeps the error wall when the API is down instead of showing the checklist", () => {
     mockQueriesByPath([
       `${OPERATIONS_API_PREFIX}`,
@@ -359,7 +433,7 @@ describe("PlatformOverview onboarding checklist", () => {
     ]);
     renderOverview();
 
-    expect(screen.getByRole("heading", { name: "Identity API unavailable" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Can't reach Axis" })).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Set up your governed platform" }),
     ).not.toBeInTheDocument();
@@ -444,6 +518,58 @@ describe("PlatformOverview demo bootstrap CTA", () => {
     expect(screen.queryByText("Demo data loaded")).not.toBeInTheDocument();
     // The checklist stays actionable for a retry.
     expect(screen.getByRole("button", { name: "Explore with demo data" })).toBeEnabled();
+  });
+});
+
+describe("PlatformOverview read events", () => {
+  function mockAuditWindowWithReads() {
+    mockQueriesByPath();
+    const routed = mocks.useAxisQuery.getMockImplementation()!;
+    const [first] = auditEventsFixture.events;
+    const read = (index: number, eventType: string) => ({
+      ...first,
+      audit_event_id: `99999999-0000-4000-8000-00000000000${index}`,
+      event_type: eventType,
+      category: "connector",
+    });
+    mocks.useAxisQuery.mockImplementation((path: string) =>
+      path.startsWith(`${OPERATIONS_API_PREFIX}/audit/events`)
+        ? queryResult({
+            ...auditEventsFixture,
+            events: [
+              ...auditEventsFixture.events,
+              read(1, "connector.workspace_read"),
+              read(2, "connector.egress_policies_read"),
+              read(3, "connector.credential_leases_read"),
+            ],
+          }, "api")
+        : routed(path),
+    );
+  }
+
+  it("defaults the feed, chart and hero count to state-changing events", async () => {
+    mockAuditWindowWithReads();
+    const user = userEvent.setup();
+    renderOverview();
+
+    // Four state-changing fixture events; the three reads are hidden.
+    expect(screen.getByTestId("hero-audit-count")).toHaveTextContent(/^4$/);
+    expect(screen.getByText("Showing 4 of 4 recent events")).toBeInTheDocument();
+    expect(screen.queryByText("Connector Workspace Read")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Share of 4 events in the latest window (up to 100)."),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("3 read events hidden").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("checkbox", { name: "Show reads" }));
+
+    expect(screen.getByTestId("hero-audit-count")).toHaveTextContent(/^7$/);
+    expect(screen.getByText("Showing 7 of 7 recent events")).toBeInTheDocument();
+    expect(screen.getByText("Connector Workspace Read")).toBeInTheDocument();
+    expect(
+      screen.getByText("Share of 7 events in the latest window (up to 100)."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("3 read events hidden")).not.toBeInTheDocument();
   });
 });
 

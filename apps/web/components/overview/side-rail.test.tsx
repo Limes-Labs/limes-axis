@@ -13,7 +13,7 @@ describe("Activity breakdown", () => {
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("tab", { name: "By date" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("region", { name: "Activity by date" })).toBeInTheDocument();
-    expect(screen.getByText("4 returned events · latest window, up to 25.")).toBeInTheDocument();
+    expect(screen.getByText("4 returned events · latest window, up to 100.")).toBeInTheDocument();
     expect(screen.getByText("audit window: live")).toBeInTheDocument();
     expect(screen.getByLabelText("Daily activity values")).toBeInTheDocument();
     await user.keyboard("{ArrowLeft}");
@@ -25,11 +25,21 @@ describe("Activity breakdown", () => {
     const events = auditEventsFixture.events.map((event, index) => ({ ...event, category: index < 3 ? "connector" : "approval" }));
     render(<SideRail auditEvents={{ source: "api", data: { ...auditEventsFixture, events } }} />);
     const chart = screen.getByRole("region", { name: "Activity by category" });
-    expect(within(chart).getByText("Share of 4 events in the latest window (up to 25).")).toBeInTheDocument();
+    expect(within(chart).getByText("Share of 4 events in the latest window (up to 100).")).toBeInTheDocument();
     expect(within(chart).getByText("3 · 75%")).toBeInTheDocument();
     expect(within(chart).getByText("1 · 25%")).toBeInTheDocument();
     expect(within(chart).getByText("audit window: live")).toBeInTheDocument();
     expect(within(chart).getAllByRole("term").map((term) => term.textContent)).toEqual(["Connector", "Approval"]);
+  });
+
+  it("keeps the breakdown a valid description list (dl > div > dt/dd only)", () => {
+    const { container } = render(<SideRail auditEvents={{ source: "api", data: auditEventsFixture }} />);
+    const list = container.querySelector("dl");
+    expect(list).not.toBeNull();
+    for (const group of Array.from(list!.children)) {
+      expect(group.tagName).toBe("DIV");
+      expect(Array.from(group.children).map((child) => child.tagName).every((tag) => tag === "DT" || tag === "DD")).toBe(true);
+    }
   });
 
   it("preserves reference provenance instead of calling example records live", () => {

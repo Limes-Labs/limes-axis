@@ -71,7 +71,7 @@ test.describe("Axis live story: tabbed console layout hardening", () => {
   test("platform settings tabs stay inside the viewport", async ({ page }) => {
     await page.goto("/settings");
     await expect(
-      page.getByRole("heading", { name: "System status", exact: true }),
+      page.getByRole("heading", { level: 1, name: "Settings", exact: true }),
     ).toBeVisible();
     const tabs = ["Readiness", "Identity", "Deployment", "Support"];
     for (const name of tabs) {

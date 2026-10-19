@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import type { ManufacturingModelRouting } from "@/lib/model-routing-demo";
+import { strings } from "@/lib/strings";
 import { DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 const mocks = vi.hoisted(() => ({
@@ -130,7 +131,7 @@ describe("ModelRoutingConsole tabs", () => {
 
     render(<ModelRoutingConsole />);
 
-    expect(screen.getByRole("heading", { name: "Identity API unavailable" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Can't reach Axis" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Reference routing" })).not.toBeInTheDocument();
   });
 
@@ -343,6 +344,33 @@ describe("ModelRoutingConsole no-match filter state", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("contains long evidence and audit identifiers inside their column", () => {
+    const longEvidence = "audit_20260621_154000_ontology_read_with_a_very_long_suffix";
+    const fixture = structuredClone(routingFixture);
+    for (const route of fixture.routes) {
+      route.evidence_refs = [longEvidence];
+      route.observability_events = ["model.route.selected"];
+    }
+    const base = mocks.useAxisQuery.getMockImplementation()!;
+    mocks.useAxisQuery.mockImplementation((path: string, ...rest: unknown[]) =>
+      path.startsWith(`${OPERATIONS_API_PREFIX}/model-routing`)
+        ? { ...base(path, ...rest), data: fixture }
+        : base(path, ...rest),
+    );
+    render(<ModelRoutingConsole />);
+
+    const detail = strings.models.reference.routeDetail;
+    const block = document.querySelector<HTMLElement>("[data-route-evidence]")!;
+    expect(within(block).getByText(detail.evidence)).toBeInTheDocument();
+    expect(within(block).getByText(detail.observabilityEvents)).toBeInTheDocument();
+    const evidence = within(block).getByText(longEvidence);
+    expect(evidence).toHaveClass("break-all", "line-clamp-2");
+    expect(evidence.closest("li")).toHaveAttribute("title", longEvidence);
+    const audit = within(block).getByTitle(/^audit_(quality|ops)_fixture$/);
+    expect(audit).toHaveClass("break-all");
+    expect(within(block).getByText(/^Input [\d,]+ \/ output [\d,]+$/)).toBeInTheDocument();
+  });
+
   it("counts blocked routes within the visible filter result and restores the count on reset", async () => {
     const user = userEvent.setup();
     render(<ModelRoutingConsole />);
@@ -368,7 +396,7 @@ describe("ModelRoutingConsole no-match filter state", () => {
     render(<ModelRoutingConsole />);
     await user.selectOptions(screen.getByLabelText("Domain"), "Operations");
     const diagram = screen.getByRole("region", { name: "Provider to model diagram" });
-    await user.click(within(diagram).getByRole("button", { name: "Select general-large from External General LLM" }));
+    await user.click(within(diagram).getByRole("button", { name: /^general-large, \d+ routes? from External General LLM$/ }));
     expect(new URLSearchParams(window.location.search).get("domain")).toBe("Operations");
     await user.click(screen.getByRole("button", { name: "Inspect first matching route" }));
     const params = new URLSearchParams(window.location.search);

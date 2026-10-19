@@ -1,17 +1,27 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 
 import { OnboardingChecklist } from "@/components/onboarding-checklist";
 import { ArtifactPanel } from "@/components/overview/artifact-panel";
-import { EvidenceFeed } from "@/components/overview/evidence-feed";
-import { NeedsAttention } from "@/components/overview/needs-attention";
+import {
+  EvidenceFeed,
+  OVERVIEW_AUDIT_WINDOW,
+} from "@/components/overview/evidence-feed";
+import { APPROVALS_ENDPOINT, NeedsAttention } from "@/components/overview/needs-attention";
 import { type OverviewQuery } from "@/components/overview/overview-shared";
 import { PostureCards } from "@/components/overview/posture-cards";
 import { SideRail } from "@/components/overview/side-rail";
 import { SourcePill } from "@/components/ui/source-pill";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
-import type { ManufacturingAuditExplorer } from "@/lib/audit-demo";
+import {
+  countAwaitingDecision,
+  type ManufacturingApprovalInbox,
+} from "@/lib/approval-demo";
+import {
+  partitionReadAuditEvents,
+  type ManufacturingAuditExplorer,
+} from "@/lib/audit-demo";
 import type { ManufacturingModelRouting } from "@/lib/model-routing-demo";
 import {
   formatNumber,
@@ -19,10 +29,12 @@ import {
   NO_VALUE,
 } from "@/lib/format";
 import {
+  OPEN_WORKFLOWS_METRIC,
   type ManufacturingOperationsSnapshot,
   type ManufacturingOverview,
 } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import { parseManufacturingAuditExplorer } from "@/lib/runtime-contracts/audit";
 import { parseManufacturingModelRouting } from "@/lib/runtime-contracts/model-routing";
 import {
@@ -59,10 +71,12 @@ const AUDIT_EVENTS_ENDPOINT = `${OPERATIONS_API_PREFIX}/audit/events`;
 function OverviewHero({
   overview,
   snapshot,
+  approvals,
   auditEvents,
 }: {
   overview: OverviewQuery<ManufacturingOverview>;
   snapshot: OverviewQuery<ManufacturingOperationsSnapshot>;
+  approvals: OverviewQuery<ManufacturingApprovalInbox>;
   auditEvents: OverviewQuery<ManufacturingAuditExplorer>;
 }) {
   if (!overview.data) {
@@ -74,6 +88,7 @@ function OverviewHero({
       <ErrorPanel
         detail={strings.overview.hero.error.detail}
         endpoint={OVERVIEW_ENDPOINT}
+        onRetry={overview.refetch}
         reference={overview.errorRequestId ?? undefined}
         title={strings.overview.hero.error.title}
       />
@@ -89,6 +104,11 @@ function OverviewHero({
    * pending" while the persisted truth is zero, which is exactly the kind of
    * confident-but-wrong number this console must never show. When the snapshot
    * has not resolved, the fact reads "—" rather than falling back to seed data.
+   *
+   * One source per number: "Open workflows" is the snapshot metric the
+   * workflows posture card also shows, and "Pending approvals" is counted from
+   * the approvals queue that feeds the needs-attention cards and the sidebar
+   * badge, so the hero can never contradict the panels around it.
    */
   const persistedFact = (metricLabel: string): string => {
     const metric = snapshot.data?.metrics.find((entry) => entry.label === metricLabel);
@@ -99,11 +119,19 @@ function OverviewHero({
   const auditEventCount = auditEvents.data
     ? formatNumber(auditEvents.data.events.length)
     : NO_VALUE;
+  const pendingApprovals = approvals.data
+    ? formatNumber(countAwaitingDecision(approvals.data))
+    : NO_VALUE;
   const facts = [
-    { label: strings.overview.hero.facts.openWorkflows, value: persistedFact("Open Workflows") },
+    {
+      label: strings.overview.hero.facts.openWorkflows,
+      value: persistedFact(OPEN_WORKFLOWS_METRIC),
+      testId: "hero-open-workflows",
+    },
     {
       label: strings.overview.hero.facts.pendingApprovals,
-      value: persistedFact("Pending Approvals"),
+      value: pendingApprovals,
+      testId: "hero-pending-approvals",
     },
     { label: strings.overview.hero.facts.operationRecords, value: persistedFact("Operation Records") },
     {
@@ -132,6 +160,7 @@ function OverviewHero({
       <div aria-label="Overview data sources" className="flex min-w-0 flex-wrap gap-1.5">
         <SourcePill compact state={deriveSourceState(overview.source, true, data.provenance)} subject="Context" />
         <SourcePill compact state={deriveSourceState(snapshot.source, Boolean(snapshot.data), snapshot.data?.provenance)} subject="Operations" />
+        <SourcePill compact state={deriveSourceState(approvals.source, Boolean(approvals.data), approvals.data?.provenance)} subject="Approvals" />
         <SourcePill compact state={deriveSourceState(auditEvents.source, Boolean(auditEvents.data), auditEvents.data?.provenance)} subject="Audit" />
       </div>
     </section>
@@ -157,10 +186,14 @@ export function PlatformOverview() {
     MODEL_ROUTING_ENDPOINT,
     tenantId ?? DEMO_TENANT_ID,
   );
+  const approvalsPath = buildTenantScopedPath(
+    APPROVALS_ENDPOINT,
+    tenantId ?? DEMO_TENANT_ID,
+  );
   const auditEventsPath = buildTenantScopedPath(
     AUDIT_EVENTS_ENDPOINT,
     tenantId ?? DEMO_TENANT_ID,
-    { limit: 25 },
+    { limit: OVERVIEW_AUDIT_WINDOW },
   );
   const overviewQuery = useAxisQuery<ManufacturingOverview>(overviewPath, {
     enabled: tenantQueriesEnabled,
@@ -177,11 +210,33 @@ export function PlatformOverview() {
     expectedTenantId: tenantId ?? undefined,
     parse: parseManufacturingModelRouting,
   });
+  // One approvals query for the page: the hero count and the needs-attention
+  // cards both read it (the sidebar badge counts the same endpoint the same way).
+  const approvalsQuery = useAxisQuery<ManufacturingApprovalInbox>(approvalsPath, {
+    enabled: tenantQueriesEnabled,
+    expectedTenantId: tenantId ?? undefined,
+    parse: parseManufacturingApprovalInbox,
+  });
   const auditEventsQuery = useAxisQuery<ManufacturingAuditExplorer>(auditEventsPath, {
     enabled: tenantQueriesEnabled,
     expectedTenantId: tenantId ?? undefined,
     parse: parseManufacturingAuditExplorer,
   });
+  // The hero count, the evidence feed and the activity chart all show the same
+  // display window: state-changing events by default, reads on request. This
+  // is a view filter only; the ledger and the request are unchanged.
+  const [showReads, setShowReads] = useState(false);
+  const auditPartition = auditEventsQuery.data
+    ? partitionReadAuditEvents(auditEventsQuery.data.events)
+    : null;
+  const hiddenReadCount = !showReads && auditPartition ? auditPartition.reads.length : 0;
+  const activityQuery: typeof auditEventsQuery =
+    auditEventsQuery.data && auditPartition && !showReads
+      ? {
+          ...auditEventsQuery,
+          data: { ...auditEventsQuery.data, events: auditPartition.stateChanging },
+        }
+      : auditEventsQuery;
 
   if (identityQuery.source === "loading") {
     return <LoadingPanel layout="detail" />;
@@ -193,7 +248,8 @@ export function PlatformOverview() {
         detail="The console could not verify the current actor and tenant. Tenant-scoped data is not loaded until identity is available."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identityQuery.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identityQuery.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -208,14 +264,14 @@ export function PlatformOverview() {
     );
   }
 
-  // An overview 404 on an otherwise healthy API means the tenant has never
+  // `TENANT_NOT_FOUND` on an otherwise healthy API means the tenant has never
   // been bootstrapped — that is the guided-setup story (spec §6), not an
-  // error. A genuinely unreachable API (network failure, /ready probe down)
-  // keeps the section-level error wall below.
+  // error. useAxisQuery classifies that response as `tenant_not_found`, never
+  // as `unavailable`. A genuinely unreachable API (network failure, /ready
+  // probe down) keeps the section-level error wall below.
   const tenantEmpty =
     !overviewQuery.data
-    && overviewQuery.source === "unavailable"
-    && overviewQuery.errorStatus === 404
+    && overviewQuery.source === "tenant_not_found"
     && apiStatus.state !== "unavailable";
 
   if (tenantEmpty) {
@@ -236,7 +292,8 @@ export function PlatformOverview() {
   return (
     <div className="grid gap-4">
       <OverviewHero
-        auditEvents={auditEventsQuery}
+        approvals={approvalsQuery}
+        auditEvents={activityQuery}
         overview={overviewQuery}
         snapshot={snapshotQuery}
       />
@@ -248,11 +305,12 @@ export function PlatformOverview() {
             ? { actorId: identityQuery.data.actor_id, scopes: identityQuery.data.scopes }
             : undefined
         }
+        approvals={approvalsQuery}
         identitySession={identityQuery.data ?? null}
         overview={overviewQuery}
         tenantId={tenantId}
       />
-        <SideRail auditEvents={auditEventsQuery} />
+        <SideRail auditEvents={activityQuery} hiddenReadCount={hiddenReadCount} />
       </div>
 
       <OnboardingChecklist tenantId={tenantId} variant="compact" />
@@ -266,7 +324,14 @@ export function PlatformOverview() {
 
       <div className="ops-dashboard-grid grid grid-cols-1 gap-4">
         <section aria-label="Operations evidence" className="ops-dashboard-main grid min-w-0 content-start gap-4">
-          <EvidenceFeed auditEvents={auditEventsQuery} />
+          <EvidenceFeed
+            auditEvents={activityQuery}
+            reads={{
+              showReads,
+              hiddenCount: hiddenReadCount,
+              onShowReadsChange: setShowReads,
+            }}
+          />
           {/* Suspense boundary for useSearchParams inside the artifact panel. */}
           <Suspense fallback={<LoadingPanel layout="detail" />}>
             <ArtifactPanel onArtifactCommitted={triggerRefresh} snapshot={snapshotQuery} />

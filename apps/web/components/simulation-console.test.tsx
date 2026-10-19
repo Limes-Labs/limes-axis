@@ -82,6 +82,11 @@ describe("SimulationConsole tenant and empty states", () => {
 
     expect(screen.getByRole("heading", { name: "No replay history yet" })).toBeInTheDocument();
     expect(screen.queryByText(/unavailable/i)).not.toBeInTheDocument();
+    // Not a dead end: replays come from workflow history.
+    expect(screen.getByRole("link", { name: "Open workflow runs" })).toHaveAttribute(
+      "href",
+      "/workflows",
+    );
   });
 
   it("fails closed when identity cannot be verified", () => {
@@ -94,7 +99,7 @@ describe("SimulationConsole tenant and empty states", () => {
 
     render(<SimulationConsole />);
 
-    expect(screen.getByRole("heading", { name: "Identity API unavailable" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Can't reach Axis" })).toBeInTheDocument();
     expect(mocks.useAxisQuery).toHaveBeenCalledWith(
       expect.stringContaining("tenant_id=tenant_demo_manufacturing"),
       expect.objectContaining({ enabled: false }),

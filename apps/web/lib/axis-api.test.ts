@@ -6,6 +6,7 @@ import {
   AxisApiError,
   axisFetch,
   axisFetchParsedJson,
+  anyAbortSignal,
   resetBrowserSessionState,
   toAxisOperatorError,
 } from "./axis-api";
@@ -67,6 +68,63 @@ describe("Axis API fetch layer", () => {
         method: "GET",
       }),
     );
+  });
+
+  it("rejects with a TimeoutError when the API never answers", async () => {
+    const fetchMock = vi.fn<typeof fetch>(
+      (_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(axisFetch("/identity/session", { timeoutMs: 20 })).rejects.toMatchObject({
+      name: "TimeoutError",
+    });
+  });
+
+  it("keeps the caller's abort distinct from the deadline", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+
+    await axisFetch("/identity/session", { signal: controller.signal });
+    const [, init] = fetchMock.mock.calls[0] as [RequestInfo | URL, RequestInit];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect(init.signal?.aborted).toBe(false);
+
+    controller.abort();
+    expect(init.signal?.aborted).toBe(true);
+    expect((init.signal?.reason as DOMException).name).toBe("AbortError");
+  });
+
+  it("links abort signals without AbortSignal.any", () => {
+    const nativeAny = Object.getOwnPropertyDescriptor(AbortSignal, "any");
+    Object.defineProperty(AbortSignal, "any", { value: undefined, configurable: true });
+    try {
+      const first = new AbortController();
+      const second = new AbortController();
+      const linked = anyAbortSignal([first.signal, second.signal]);
+
+      second.abort(new DOMException("deadline", "TimeoutError"));
+
+      expect(linked.aborted).toBe(true);
+      expect((linked.reason as DOMException).name).toBe("TimeoutError");
+    } finally {
+      if (nativeAny) {
+        Object.defineProperty(AbortSignal, "any", nativeAny);
+      }
+    }
+  });
+
+  it("sends no deadline when the caller opts out", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await axisFetch("/identity/session", { timeoutMs: null });
+    const [, init] = fetchMock.mock.calls[0] as [RequestInfo | URL, RequestInit];
+    expect(init.signal).toBeUndefined();
   });
 
   it("sets JSON content type on POST bodies without dropping credentials", async () => {

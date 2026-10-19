@@ -20,11 +20,12 @@ import { InspectDrawer } from "@/components/ui/inspect-drawer";
 import { MasterDetail } from "@/components/ui/master-detail";
 import type { Metric } from "@/components/ui/metric-strip";
 import { SourcePill } from "@/components/ui/source-pill";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import type { ActionRunList } from "@/lib/action-demo";
 import {
   approvalDecisionLabel,
   approvalRiskClass,
+  isAwaitingDecision,
   type ApprovalDecision,
   type ApprovalDecisionHistoryEntry,
   type ApprovalInboxItem,
@@ -388,6 +389,7 @@ export function ApprovalInbox() {
   const {
     data: inbox,
     errorRequestId: inboxErrorRequestId,
+    refetch: refetchInbox,
     source,
   } = useAxisQuery<ManufacturingApprovalInbox>(
     buildTenantScopedPath(APPROVALS_ENDPOINT, tenantId ?? DEMO_TENANT_ID),
@@ -440,7 +442,8 @@ export function ApprovalInbox() {
         detail="The approval queue is not loaded until the current actor and tenant are verified."
         endpoint="/identity/session"
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -468,10 +471,15 @@ export function ApprovalInbox() {
       );
     }
 
+    if (source === "tenant_not_found") {
+      return <TenantEmptyPanel icon={Inbox} title={strings.approvals.empty.title} />;
+    }
+
     return (
       <ErrorPanel
         detail={strings.approvals.error.detail}
         endpoint={APPROVALS_ENDPOINT}
+        onRetry={refetchInbox}
         reference={inboxErrorRequestId ?? undefined}
         title={strings.approvals.error.title}
       />
@@ -485,7 +493,7 @@ export function ApprovalInbox() {
   // work moves to the decision history instead of lingering in the inbox.
   const actionableApprovals = inbox.approvals.filter(
     (approval) =>
-      approval.status !== "decided" && !decisions[approval.approval_id],
+      isAwaitingDecision(approval) && !decisions[approval.approval_id],
   );
   const filteredApprovals = filterApprovalQueue(actionableApprovals, urlState, labelDomain);
   const detailOpen = Boolean(urlState.approvalId || urlState.actionRunId);

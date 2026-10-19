@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TenantRecord } from "@/lib/platform-tenants";
+import { strings } from "@/lib/strings";
 
 const mocks = vi.hoisted(() => ({
   suspendTenant: vi.fn(),
@@ -38,6 +39,19 @@ const activeTenant: TenantRecord = {
 beforeEach(() => {
   mocks.suspendTenant.mockReset();
   mocks.triggerRefresh.mockReset();
+});
+
+describe("TenantLifecycleActions suspend affordance", () => {
+  it("uses the destructive variant and states the impact before submitting", () => {
+    render(<TenantLifecycleActions tenant={activeTenant} />);
+
+    const suspend = screen.getByRole("button", { name: "Suspend tenant" });
+    expect(suspend).toHaveClass("text-danger");
+    expect(suspend).not.toHaveClass("bg-navy");
+    expect(suspend).toHaveAccessibleDescription(
+      `${strings.tenantLifecycle.suspend.impactTitle} ${strings.tenantLifecycle.suspend.impact}`,
+    );
+  });
 });
 
 describe("TenantLifecycleActions failure references", () => {

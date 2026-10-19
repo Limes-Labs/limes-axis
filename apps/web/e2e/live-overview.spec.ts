@@ -179,10 +179,14 @@ test.describe("Axis live overview demo", () => {
     await expect(page.getByText("no_authenticated_api_actor")).toBeVisible();
     await expect(page.getByText("No authenticated API actor is attached.")).toBeVisible();
     const accountPanel = page.locator('[aria-label="Operator account"]');
-    await expect(accountPanel.getByRole("link", { name: "Sign in with SSO" })).toHaveAttribute(
-      "href",
-      /\/identity\/oidc\/authorize/,
-    );
+    // The live CI API has no OIDC client or cookie signing secret, so
+    // /identity/oidc/readiness reports SSO as not configured and the console
+    // disables the action with an explanation instead of linking to a 503.
+    const ssoAction = accountPanel.getByRole("button", { name: "Sign in with SSO" });
+    await expect(ssoAction).toBeDisabled();
+    await expect(ssoAction).toHaveAttribute("data-sso-not-configured");
+    await expect(ssoAction).toHaveAccessibleDescription(/Single sign-on isn't set up yet\./);
+    await expect(accountPanel.getByRole("link", { name: "Sign in with SSO" })).toHaveCount(0);
     await expect(accountPanel.getByRole("link", { name: "Open SSO setup" })).toHaveAttribute(
       "href",
       /\/identity\/oidc\/onboarding/,

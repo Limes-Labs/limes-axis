@@ -117,6 +117,13 @@ export type AxisJsonDecoder<T> = (value: unknown) => T;
 export type AxisFetchOptions = {
   session?: OidcConsoleSession | null;
   signal?: AbortSignal;
+  /**
+   * Give up after this many milliseconds (default
+   * `AXIS_REQUEST_TIMEOUT_MS`); `null` disables the deadline. The rejection
+   * is a `TimeoutError`, distinct from a caller abort, so queries surface it
+   * as an unavailable source instead of a silent cancellation.
+   */
+  timeoutMs?: number | null;
   method?: string;
   body?: unknown;
   headers?: HeadersInit;
@@ -126,6 +133,39 @@ export const AXIS_BROWSER_SESSION_SIGNED_OUT_EVENT = "limes-axis:browser-session
 
 const SESSION_REFRESH_PATH = "/identity/session/refresh";
 
+/** A hung API must not leave a panel loading forever. */
+export const AXIS_REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * Abort when either signal aborts, keeping the first reason. Falls back to a
+ * manual link where `AbortSignal.any` is missing (Safari before 17.4).
+ */
+export function anyAbortSignal(signals: AbortSignal[]): AbortSignal {
+  if (typeof AbortSignal.any === "function") {
+    return AbortSignal.any(signals);
+  }
+  const controller = new AbortController();
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
+  }
+  return controller.signal;
+}
+
+function withDeadline(
+  signal: AbortSignal | undefined,
+  timeoutMs: number | null,
+): AbortSignal | undefined {
+  if (timeoutMs === null) {
+    return signal;
+  }
+  const deadline = AbortSignal.timeout(timeoutMs);
+  return signal ? anyAbortSignal([signal, deadline]) : deadline;
+}
+
 function browserCookieHeader(): string {
   if (typeof document === "undefined") {
     return "";
@@ -134,12 +174,19 @@ function browserCookieHeader(): string {
 }
 
 function buildRequestInit(
-  { session, signal, method = "GET", body, headers }: AxisFetchOptions,
+  {
+    session,
+    signal,
+    method = "GET",
+    body,
+    headers,
+    timeoutMs = AXIS_REQUEST_TIMEOUT_MS,
+  }: AxisFetchOptions,
 ): RequestInit {
   const init = buildAxisAuthInit(
     {
       method,
-      signal,
+      signal: withDeadline(signal, timeoutMs),
       cache: "no-store",
       credentials: "include",
       headers,
@@ -232,6 +279,7 @@ async function performBrowserSessionRefresh(): Promise<boolean> {
       credentials: "include",
       headers,
       method: "POST",
+      signal: AbortSignal.timeout(AXIS_REQUEST_TIMEOUT_MS),
     });
     return response.ok;
   } catch {

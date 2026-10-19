@@ -11,6 +11,7 @@ import { DemoBadge } from "@/components/demo-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationPanel } from "@/components/topbar/notification-panel";
 import { apiStatusClass } from "@/lib/identity-format";
+import { strings } from "@/lib/strings";
 import { isNavActive } from "@/lib/nav";
 import type {
   ManufacturingNotificationCenter,
@@ -124,10 +125,19 @@ export function ConsoleTopbar({
           <span aria-hidden="true" className={`status-dot ${apiStatusClass(apiStatus.state)}`} />
           API {apiStatus.label}
         </span>
-        <DemoBadge
-          enabled={tenantScope.mode === "demo"}
-          tenantId={tenantId ?? DEMO_TENANT_ID}
-        />
+        {/* Below `sm` this row is a one-line horizontal scroller, so the Demo
+            pill used to sit past its clipped edge. There it moves first and
+            sticks to the left edge on an opaque backing (its own tint is
+            translucent); on wider layouts the slot is `display: contents`. */}
+        <span
+          className="contents empty:hidden max-sm:sticky max-sm:left-0 max-sm:z-1 max-sm:order-first max-sm:flex max-sm:shrink-0 max-sm:rounded-full max-sm:bg-surface"
+          data-demo-badge-slot
+        >
+          <DemoBadge
+            enabled={tenantScope.mode === "demo"}
+            tenantId={tenantId ?? DEMO_TENANT_ID}
+          />
+        </span>
         {sourceLabel ? (
           <span className="status-pill status-checking">{sourceLabel}</span>
         ) : null}
@@ -149,8 +159,8 @@ export function ConsoleTopbar({
         <button
           className="icon-button"
           type="button"
-          aria-label="Search console"
-          title="Search console"
+          aria-label={strings.commandMenu.trigger}
+          title={strings.commandMenu.trigger}
           onClick={() => {
             setActivePanel(null);
             setCommandMenuOpen(true);
@@ -162,8 +172,12 @@ export function ConsoleTopbar({
           className={`icon-button${activePanel === "notifications" ? " icon-button-active" : ""}`}
           type="button"
           aria-expanded={activePanel === "notifications"}
-          aria-label="Open notifications"
-          title="Open notifications"
+          aria-label={
+            notificationCount > 0
+              ? strings.shell.notificationsLabel(String(notificationBadge))
+              : strings.shell.notifications
+          }
+          title={strings.shell.notifications}
           onClick={() =>
             setActivePanel((current) => {
               const next = current === "notifications" ? null : "notifications";

@@ -59,8 +59,10 @@ import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SourcePill } from "@/components/ui/source-pill";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+const routeDetail = strings.models.reference.routeDetail;
 
 const defaultFilters: ModelRoutingFilters = {
   domain: allModelRoutingFilter,
@@ -98,7 +100,8 @@ export function ModelRoutingConsole() {
         detail="Model routing data is not loaded until the current actor and tenant are verified."
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
-        title="Identity API unavailable"
+        onRetry={identity.refetch}
+        title={strings.states.identityUnavailable.title}
       />
     );
   }
@@ -177,6 +180,7 @@ function ReferenceModelRouting({
   const {
     data: routing,
     errorRequestId: routingErrorRequestId,
+    refetch: refetchRouting,
     source,
   } = useAxisQuery<ManufacturingModelRouting>(routingPath, {
     enabled,
@@ -226,10 +230,15 @@ function ReferenceModelRouting({
       return <LoadingPanel layout="detail" />;
     }
 
+    if (source === "tenant_not_found") {
+      return <TenantEmptyPanel icon={Gauge} title={strings.models.reference.noRecords.title} />;
+    }
+
     return (
       <ErrorPanel
         detail={strings.models.reference.error.detail}
         endpoint={routingPath}
+        onRetry={refetchRouting}
         reference={routingErrorRequestId ?? undefined}
         title={strings.models.reference.error.title}
       />
@@ -411,46 +420,52 @@ function ReferenceModelRouting({
 
           <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
             <div>
-              <p className="eyebrow m-0">Provider</p>
+              <p className="eyebrow m-0">{routeDetail.provider}</p>
               <p className="m-0 font-medium text-ink break-words">{selectedRoute.provider_name}</p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRoute.provider_id}</p>
             </div>
             <div>
-              <p className="eyebrow m-0">Model</p>
+              <p className="eyebrow m-0">{routeDetail.model}</p>
               <p className="m-0 font-medium text-ink break-words">{selectedRoute.model}</p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRoute.prompt_classification}</p>
             </div>
             <div>
-              <p className="eyebrow m-0">Estimated Cost</p>
+              <p className="eyebrow m-0">{routeDetail.estimatedCost}</p>
               <p className="m-0 font-medium text-ink break-words">{formatEuroCost(selectedRoute.estimated_cost_eur)}</p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{selectedRoute.cost_center}</p>
             </div>
             <div>
-              <p className="eyebrow m-0">Latency</p>
-              <p className="m-0 font-medium text-ink break-words">{formatNumber(selectedRoute.latency_ms)} ms</p>
+              <p className="eyebrow m-0">{routeDetail.latency}</p>
+              <p className="m-0 font-medium text-ink break-words">
+                {routeDetail.latencyValue(formatNumber(selectedRoute.latency_ms))}
+              </p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                {formatNumber(selectedRoute.input_tokens + selectedRoute.output_tokens)} tokens
+                {routeDetail.totalTokens(
+                  formatNumber(selectedRoute.input_tokens + selectedRoute.output_tokens),
+                )}
               </p>
             </div>
           </div>
 
           <div className="grid gap-4 border-y border-line/60 py-3.5 dark:border-white/10 lg:grid-cols-[minmax(0,0.7fr)_minmax(260px,1fr)] [&>*]:min-w-0">
             <div>
-              <p className="eyebrow m-0">Policy</p>
+              <p className="eyebrow m-0">{routeDetail.policy}</p>
               <h3 className="font-display mx-0 mt-1 mb-0 text-lg text-ink">{selectedRoute.model_policy}</h3>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                Requested external egress: {selectedRoute.external_egress_requested ? "yes" : "no"}
+                {routeDetail.egressRequested(selectedRoute.external_egress_requested)}
               </p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                Allowed external egress: {selectedRoute.external_egress_allowed ? "yes" : "no"}
+                {routeDetail.egressAllowed(selectedRoute.external_egress_allowed)}
               </p>
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Boundary: {selectedRoute.data_boundary}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
+                {routeDetail.boundary(selectedRoute.data_boundary)}
+              </p>
             </div>
             <div>
-              <p className="eyebrow m-0">Required Permissions</p>
+              <p className="eyebrow m-0">{routeDetail.requiredPermissions}</p>
               <div className="flex min-w-0 flex-wrap gap-2">
-                {selectedRoute.required_permissions.map((permission) => (
-                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={permission}>
+                {selectedRoute.required_permissions.map((permission, index) => (
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5" key={`${index}:${permission}`}>
                     {permission}
                   </span>
                 ))}
@@ -458,28 +473,46 @@ function ReferenceModelRouting({
             </div>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
+          {/* Identifiers here are long unbroken tokens: they wrap at any
+              character, clamp to two lines and keep the full value in a
+              title, so they can never spill into the neighbouring column. */}
+          <div
+            className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 [&>*]:min-w-0"
+            data-route-evidence
+          >
             <div>
-              <p className="eyebrow m-0">Observability Events</p>
+              <p className="eyebrow m-0">{routeDetail.observabilityEvents}</p>
               <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
-                {selectedRoute.observability_events.map((event) => (
-                  <li key={event}>{event}</li>
+                {selectedRoute.observability_events.map((event, index) => (
+                  <li className="min-w-0" key={`${index}:${event}`} title={event}>
+                    <span className="line-clamp-2 break-all">{event}</span>
+                  </li>
                 ))}
               </ul>
             </div>
             <div>
-              <p className="eyebrow m-0">Evidence</p>
+              <p className="eyebrow m-0">{routeDetail.evidence}</p>
               <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
-                {selectedRoute.evidence_refs.map((evidence) => (
-                  <li key={evidence}>{evidence}</li>
+                {selectedRoute.evidence_refs.map((evidence, index) => (
+                  <li className="min-w-0" key={`${index}:${evidence}`} title={evidence}>
+                    <span className="line-clamp-2 font-mono text-xs break-all">{evidence}</span>
+                  </li>
                 ))}
               </ul>
             </div>
             <div>
-              <p className="eyebrow m-0">Audit</p>
-              <p className="m-0 font-medium text-ink break-words">{selectedRoute.audit_event_id}</p>
+              <p className="eyebrow m-0">{routeDetail.audit}</p>
+              <p
+                className="m-0 line-clamp-2 font-mono text-xs font-medium break-all text-ink"
+                title={selectedRoute.audit_event_id}
+              >
+                {selectedRoute.audit_event_id}
+              </p>
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                Input {formatNumber(selectedRoute.input_tokens)} / output {formatNumber(selectedRoute.output_tokens)}
+                {routeDetail.tokenSplit(
+                  formatNumber(selectedRoute.input_tokens),
+                  formatNumber(selectedRoute.output_tokens),
+                )}
               </p>
             </div>
           </div>
@@ -522,16 +555,16 @@ function ReferenceModelRouting({
             <FileText size={18} />
           </div>
           <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
-            {routing.budget_notes.map((note) => (
-              <li key={note}>{note}</li>
+            {routing.budget_notes.map((note, index) => (
+              <li key={`${index}:${note}`}>{note}</li>
             ))}
           </ul>
         </section>
 
         <Disclosure title={strings.clarity.modelMonitoring}>
           <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
-            {routing.observability_notes.map((note) => (
-              <li key={note}>{note}</li>
+            {routing.observability_notes.map((note, index) => (
+              <li key={`${index}:${note}`}>{note}</li>
             ))}
           </ul>
         </Disclosure>
@@ -734,8 +767,8 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
 
         {invocations.data && invocations.data.invocation_notes.length > 0 ? (
           <ul className="mx-0 mt-0 mb-0 grid list-disc gap-1.5 pl-5 text-xs leading-relaxed text-muted">
-            {invocations.data.invocation_notes.map((note) => (
-              <li key={note}>{note}</li>
+            {invocations.data.invocation_notes.map((note, index) => (
+              <li key={`${index}:${note}`}>{note}</li>
             ))}
           </ul>
         ) : null}
@@ -842,8 +875,8 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
 
         {endpoints.data && endpoints.data.endpoint_notes.length > 0 ? (
           <ul className="mx-0 mt-0 mb-0 grid list-disc gap-1.5 pl-5 text-xs leading-relaxed text-muted">
-            {endpoints.data.endpoint_notes.map((note) => (
-              <li key={note}>{note}</li>
+            {endpoints.data.endpoint_notes.map((note, index) => (
+              <li key={`${index}:${note}`}>{note}</li>
             ))}
           </ul>
         ) : null}
@@ -853,8 +886,8 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
         <div className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
           <p className="eyebrow m-0">Telemetry Notes</p>
           <ul className="mx-0 mt-2.5 mb-0 grid list-disc gap-2 pl-5 text-sm leading-snug text-muted">
-            {telemetry.data.telemetry_notes.map((note) => (
-              <li key={note}>{note}</li>
+            {telemetry.data.telemetry_notes.map((note, index) => (
+              <li key={`${index}:${note}`}>{note}</li>
             ))}
           </ul>
         </div>

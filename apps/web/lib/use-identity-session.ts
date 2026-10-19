@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 import { AxisApiDecodeError, AxisApiError, axisFetchParsedJson } from "./axis-api";
 import type { OidcConsoleSession } from "./oidc-session";
@@ -272,6 +272,8 @@ export type IdentitySessionQuery = {
   isLoading: boolean;
   isUnavailable: boolean;
   isTenantNotFound: boolean;
+  /** Re-run `/identity/session` for the current principal (ErrorPanel retry). */
+  refetch: () => void;
 };
 
 /**
@@ -298,6 +300,12 @@ export function useIdentitySession(): IdentitySessionQuery {
     void ensureFetch(stateKey, session);
   }, [stateKey, session]);
 
+  const refetch = useCallback(() => {
+    if (stateKey !== null) {
+      void ensureFetch(stateKey, session, { force: true });
+    }
+  }, [stateKey, session]);
+
   const observed = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const current = stateKey !== null && observed.key === stateKey;
 
@@ -317,5 +325,6 @@ export function useIdentitySession(): IdentitySessionQuery {
     isLoading: !current || observed.source === "loading",
     isUnavailable: current && observed.source === "unavailable",
     isTenantNotFound: current && observed.source === "tenant_not_found",
+    refetch,
   };
 }

@@ -17,6 +17,8 @@ export type OverviewQuery<T> = {
   data: T | null;
   errorRequestId?: string | null;
   source: AxisQuerySource;
+  /** Re-run this query only; wired to the section's ErrorPanel retry. */
+  refetch?: () => void;
 };
 
 /** Combine request ids when a section depends on more than one failed query. */
