@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -133,5 +133,46 @@ describe("AppShell enforced-SSO gate", () => {
     renderShell();
     expect(screen.getByTestId("probe")).toBeInTheDocument();
     expect(screen.queryByLabelText("Sign in to Limes Axis")).not.toBeInTheDocument();
+  });
+});
+
+describe("AppShell sidebar navigation overflow", () => {
+  it("cues hidden nav items below the fold and above once scrolled", () => {
+    mocks.identitySession = { data: sessionFixture(), source: "api" };
+    renderShell();
+
+    const nav = screen.getByRole("navigation", { name: "Axis sections" });
+    const frame = nav.parentElement as HTMLElement;
+    Object.defineProperty(nav, "clientHeight", { configurable: true, value: 400 });
+    Object.defineProperty(nav, "scrollHeight", { configurable: true, value: 700 });
+
+    fireEvent.scroll(nav);
+    expect(frame).toHaveAttribute("data-nav-overflow-below");
+    expect(frame).not.toHaveAttribute("data-nav-overflow-above");
+
+    nav.scrollTop = 300;
+    fireEvent.scroll(nav);
+    expect(frame).toHaveAttribute("data-nav-overflow-above");
+    expect(frame).not.toHaveAttribute("data-nav-overflow-below");
+    // Every rail item stays in the DOM and reachable; only the cue changes.
+    expect(screen.getByRole("link", { name: /Tenants/ })).toBeInTheDocument();
+  });
+
+  it("scrolls the current section into the rail's view", () => {
+    const scrollIntoView = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      mocks.identitySession = { data: sessionFixture(), source: "api" };
+      renderShell();
+
+      const nav = screen.getByRole("navigation", { name: "Axis sections" });
+      const current = nav.querySelector("[aria-current='page']");
+      expect(current).toHaveAttribute("href", "/approvals");
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+      expect(scrollIntoView.mock.contexts).toContain(current);
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
   });
 });

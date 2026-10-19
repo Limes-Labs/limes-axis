@@ -3,7 +3,14 @@
 import { HelpCircleIcon, Settings01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 
 import { AccountPanel } from "@/components/topbar/account-panel";
 import { HelpPanel } from "@/components/topbar/help-panel";
@@ -16,6 +23,11 @@ import { strings } from "@/lib/strings";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 type SidebarPanel = "account" | "help";
+
+type RailAnchor = { left: number; bottom: number; maxHeight: number };
+
+const RAIL_PANEL_GAP = 10;
+const RAIL_PANEL_VIEWPORT_MARGIN = 16;
 
 const footerRowClass =
   "flex min-h-[38px] w-full items-center gap-2.5 rounded-xl px-3 text-[13px] font-medium text-muted transition-colors hover:bg-signal/8 hover:text-ink";
@@ -74,6 +86,33 @@ export function SidebarAccount({
     "sidebar-account",
     useCallback(() => setActivePanel(null), []),
   );
+
+  // The rail's <aside> clips overflow so its nav list can scroll; a panel
+  // positioned `absolute` inside it was cut at the 212px edge. A `fixed`
+  // panel's containing block is the viewport (the aside has no transform or
+  // filter), so it escapes the clip while staying in DOM and tab order next
+  // to its trigger. Coordinates come from the footer's live rect.
+  const [railAnchor, setRailAnchor] = useState<RailAnchor | null>(null);
+  const railPanelOpen = variant === "rail" && activePanel !== null;
+  useLayoutEffect(() => {
+    if (!railPanelOpen) {
+      return;
+    }
+    function measure() {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) {
+        return;
+      }
+      setRailAnchor({
+        left: rect.left + 4,
+        bottom: window.innerHeight - rect.top + RAIL_PANEL_GAP,
+        maxHeight: Math.max(rect.top - RAIL_PANEL_GAP - RAIL_PANEL_VIEWPORT_MARGIN, 160),
+      });
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [railPanelOpen]);
 
   const actorId = identitySession?.actor_id ?? session?.actorId ?? null;
   const toggle = (panel: SidebarPanel) =>
@@ -135,7 +174,7 @@ export function SidebarAccount({
 
   return (
     <div
-      className="relative mt-2 grid gap-1 border-t border-line pt-2 dark:border-white/10"
+      className="relative mt-2 grid shrink-0 gap-1 border-t border-line pt-2 dark:border-white/10"
       ref={containerRef}
     >
       <Link
@@ -190,13 +229,32 @@ export function SidebarAccount({
         </span>
       </button>
 
-      {activePanel === "help" ? <HelpPanel className={panelClass} /> : null}
-      {activePanel === "account" ? (
-        <AccountPanel
-          className={panelClass}
-          identitySession={identitySession}
-          identitySessionUnavailable={identitySessionUnavailable}
-        />
+      {activePanel !== null ? (
+        <div
+          className="fixed z-70"
+          data-sidebar-popover
+          style={
+            {
+              left: railAnchor?.left ?? 0,
+              bottom: railAnchor?.bottom ?? 0,
+              // Hidden for the single pre-measure render so it never flashes
+              // at the viewport corner.
+              visibility: railAnchor ? undefined : "hidden",
+              "--sidebar-popover-max-h": railAnchor
+                ? `${railAnchor.maxHeight}px`
+                : undefined,
+            } as CSSProperties
+          }
+        >
+          {activePanel === "help" ? <HelpPanel className={panelClass} /> : null}
+          {activePanel === "account" ? (
+            <AccountPanel
+              className={panelClass}
+              identitySession={identitySession}
+              identitySessionUnavailable={identitySessionUnavailable}
+            />
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { AxisMark } from "@/components/axis-mark";
 import { MobileNavigation } from "@/components/mobile-navigation";
@@ -103,6 +103,59 @@ function NavLink({
   );
 }
 
+type NavOverflow = { above: boolean; below: boolean };
+
+/**
+ * Tracks whether the rail's nav list has items scrolled out of view above or
+ * below. Overlay scrollbars (macOS, touch) give no cue on their own, so the
+ * shell fades whichever edge still has content behind it.
+ */
+function useNavOverflow() {
+  const ref = useRef<HTMLElement>(null);
+  const [overflow, setOverflow] = useState<NavOverflow>({
+    above: false,
+    below: false,
+  });
+
+  const measure = useCallback(() => {
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+    const above = element.scrollTop > 1;
+    const below =
+      element.scrollTop + element.clientHeight < element.scrollHeight - 1;
+    setOverflow((current) =>
+      current.above === above && current.below === below
+        ? current
+        : { above, below },
+    );
+  }, []);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+    measure();
+    element.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", measure);
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    return () => {
+      element.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+    };
+  }, [measure]);
+
+  return { overflow, ref };
+}
+
+const navFadeClass =
+  "pointer-events-none absolute inset-x-0 z-1 h-10 from-surface to-transparent transition-opacity duration-200";
+
 function Navigation({
   badge,
   pathname,
@@ -110,31 +163,77 @@ function Navigation({
   badge: ReactNode;
   pathname: string;
 }) {
+  const { overflow, ref } = useNavOverflow();
+
+  // On a short viewport the current section can sit below the fold (Tenants
+  // at 900px tall); bring it into the rail's view on every route change.
+  useEffect(() => {
+    const active = ref.current?.querySelector<HTMLElement>("[aria-current='page']");
+    active?.scrollIntoView?.({ block: "nearest" });
+  }, [pathname, ref]);
+
   return (
-    <nav
-      className="nav-list grid min-h-0 grow content-start gap-1 overflow-y-auto overscroll-contain pr-1 pb-1"
-      aria-label="Axis sections"
+    <div
+      className="relative flex min-h-0 grow flex-col"
+      data-nav-overflow-above={overflow.above ? "" : undefined}
+      data-nav-overflow-below={overflow.below ? "" : undefined}
     >
-      {desktopNavGroups.map((group, index) => (
-        <section
-          aria-label={group.label}
-          className="grid gap-1"
-          key={group.label}
-        >
-          <span className={cn("eyebrow px-3", index === 0 ? "pt-1" : "pt-3")}>
-            {group.label}
-          </span>
-          {group.items.map((item) => (
-            <NavLink
-              badge={badge}
-              item={item}
-              key={item.href}
-              pathname={pathname}
-            />
-          ))}
-        </section>
-      ))}
-    </nav>
+      <nav
+        // scroll-py matches the fade height so a scrolled-to item is never
+        // left underneath an edge fade.
+        className="nav-list grid min-h-0 grow scroll-py-10 content-start gap-1 overflow-y-auto overscroll-contain pr-1 pb-1"
+        aria-label="Axis sections"
+        ref={ref}
+      >
+        {desktopNavGroups.map((group, index) => (
+          <section
+            aria-label={group.label}
+            className="grid gap-1"
+            key={group.label}
+          >
+            <span className={cn("eyebrow px-3", index === 0 ? "pt-1" : "pt-3")}>
+              {group.label}
+            </span>
+            {group.items.map((item) => (
+              <NavLink
+                badge={badge}
+                item={item}
+                key={item.href}
+                pathname={pathname}
+              />
+            ))}
+          </section>
+        ))}
+      </nav>
+      {/* Edge cues: a top hairline + fade once scrolled, and a bottom fade
+          with a chevron while items remain below the fold. */}
+      <div
+        aria-hidden="true"
+        className={cn(
+          navFadeClass,
+          "top-0 border-t border-line bg-linear-to-b dark:border-white/10",
+          overflow.above ? "opacity-100" : "opacity-0",
+        )}
+      />
+      <div
+        aria-hidden="true"
+        className={cn(
+          navFadeClass,
+          "bottom-0 flex items-end justify-center bg-linear-to-t pb-0.5 text-muted",
+          overflow.below ? "opacity-100" : "opacity-0",
+        )}
+      >
+        <svg fill="none" height="14" viewBox="0 0 12 12" width="14">
+          <path
+            d="M3 4.5 6 7.5l3-3"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.5"
+          />
+        </svg>
+      </div>
+    </div>
   );
 }
 
@@ -188,7 +287,7 @@ function ConsoleShell({ children }: { children: ReactNode }) {
             data-console-sidebar
           >
             <Link
-              className="mb-3.5 flex min-h-[44px] items-center gap-3 border-b border-line px-1.5 pb-3.5 dark:border-white/10"
+              className="mb-3.5 flex min-h-[44px] shrink-0 items-center gap-3 border-b border-line px-1.5 pb-3.5 dark:border-white/10"
               href="/"
               aria-label="Limes Axis home"
             >

@@ -464,6 +464,8 @@ export function WorkflowConsole() {
   if (workflowData.workflow_runs.length === 0) {
     return (
       <EmptyPanel
+        // Approval decisions are what start governed workflow runs.
+        action={{ href: "/approvals", label: strings.workflows.empty.action }}
         detail={strings.workflows.empty.detail}
         icon={Workflow}
         title={strings.workflows.empty.title}

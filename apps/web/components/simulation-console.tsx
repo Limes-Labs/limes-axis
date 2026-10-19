@@ -101,6 +101,8 @@ export function SimulationConsole() {
   if (simulationData.artifacts.length === 0) {
     return (
       <EmptyPanel
+        // Replays are derived from workflow history, so that is where to go next.
+        action={{ href: "/workflows", label: strings.simulation.noArtifacts.action }}
         detail={strings.simulation.noArtifacts.detail}
         icon={History}
         title={strings.simulation.noArtifacts.title}

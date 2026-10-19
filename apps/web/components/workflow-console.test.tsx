@@ -209,6 +209,11 @@ describe("WorkflowConsole states", () => {
 
     expect(screen.getByRole("heading", { name: "No workflow runs yet" })).toBeInTheDocument();
     expect(screen.queryByText(/unavailable/i)).not.toBeInTheDocument();
+    // Not a dead end: approval decisions are what start workflow runs.
+    expect(screen.getByRole("link", { name: "Review pending approvals" })).toHaveAttribute(
+      "href",
+      "/approvals",
+    );
   });
 
   it("does not replace an empty persisted dataset with reference records", () => {

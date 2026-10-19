@@ -221,8 +221,16 @@ const globalError = {
   action: "Reload the console",
 } as const;
 
+/*
+ * The command menu jumps to pages, indexed entities and console actions; it
+ * does not search records yet, so its copy says "Go to" rather than "Search"
+ * (#945). Record search will reuse the migration 0068 index.
+ */
 const commandMenu = {
-  placeholder: "Search pages, entities, actions",
+  trigger: "Go to…",
+  dialogTitle: "Go to…",
+  inputLabel: "Go to a page, entity or action",
+  placeholder: "Go to a page, entity or action…",
   empty: "No matching command.",
   apiStatus: "API status",
   actionsHeading: "Actions",
@@ -504,7 +512,8 @@ const workflows = {
   empty: {
     title: "No workflow runs yet",
     detail:
-      "When a governed workflow starts, its run will appear here with a step-by-step timeline.",
+      "A governed workflow starts when someone decides an approval. Its run will then appear here with a step-by-step timeline.",
+    action: "Review pending approvals",
   },
   noMatch: {
     title: "No workflows match the current filters",
@@ -1421,6 +1430,27 @@ const models = {
       detail: "Adjust or reset the domain, provider and decision filters to see routing telemetry.",
       reset: "Reset filters",
     },
+    /* Selected-route detail panel. Values are API identifiers rendered as-is;
+       only the labels and connective copy live here. */
+    routeDetail: {
+      provider: "Provider",
+      model: "Model",
+      estimatedCost: "Estimated cost",
+      latency: "Latency",
+      latencyValue: (milliseconds: string) => `${milliseconds} ms`,
+      totalTokens: (tokens: string) => `${tokens} tokens`,
+      policy: "Policy",
+      egressRequested: (requested: boolean) =>
+        `Requested external egress: ${requested ? "yes" : "no"}`,
+      egressAllowed: (allowed: boolean) =>
+        `Allowed external egress: ${allowed ? "yes" : "no"}`,
+      boundary: (boundary: string) => `Boundary: ${boundary}`,
+      requiredPermissions: "Required permissions",
+      observabilityEvents: "Observability events",
+      evidence: "Evidence",
+      audit: "Audit",
+      tokenSplit: (input: string, output: string) => `Input ${input} / output ${output}`,
+    },
   },
   live: {
     invocationsError: {
@@ -1511,7 +1541,9 @@ const simulation = {
   },
   noArtifacts: {
     title: "No replay history yet",
-    detail: "Replay previews will appear after this tenant has governed workflow history.",
+    detail:
+      "Replays are built from governed workflow history. Previews will appear here once this tenant has recorded workflow runs.",
+    action: "Open workflow runs",
   },
   noPolicyResult: "No policy result recorded for this replay.",
 } as const;
@@ -1572,7 +1604,8 @@ const onboarding = {
 const settingsPanelUnavailable = "Local fallback settings records are disabled.";
 
 const settings = {
-  pageTitle: "System status",
+  // No page-title override: the h1 is `pages.settings.title`, matching the
+  // "Settings" nav label (#945).
   source: {
     live: "Live system status",
     loading: "Loading system status",
@@ -1700,6 +1733,8 @@ const settings = {
     session_absolute_timeout:
       "Set an absolute session lifetime above zero so sessions always expire.",
     // Deployment readiness checks (/deployment/readiness)
+    registered_tenant_admission:
+      "Switch tenant admission to registered-only, so sign-in requires a tenant registered under Tenants.",
     oidc_enterprise_sso:
       "Resolve the identity checks on the Identity tab to make SSO enterprise-ready.",
     oidc_secure_cookie_session:
@@ -1736,6 +1771,68 @@ const settings = {
       "Configure at least two escalation channel classes for production support.",
   } satisfies Record<string, string>,
   guidanceFallback: "Review the technical detail below and update the platform configuration.",
+  /**
+   * Operator-facing names for readiness check ids, replacing the raw
+   * lowercase ids. Unknown ids fall back to a sentence-cased form of the id.
+   */
+  checkLabels: {
+    // OIDC readiness checks
+    auth_required: "API sign-in required",
+    https_issuer: "HTTPS identity issuer",
+    explicit_jwks_url: "Explicit signing-key (JWKS) URL",
+    asymmetric_algorithms: "Asymmetric token signing",
+    openid_scope: "OpenID scope",
+    tenant_claim: "Tenant claim",
+    actor_claim: "Actor claim",
+    authorization_code_client: "Browser SSO client",
+    authorization_endpoint: "Authorization endpoint",
+    token_endpoint: "Token endpoint",
+    end_session_endpoint: "Sign-out endpoint",
+    post_logout_redirect: "Post-sign-out redirect",
+    session_cookie_signing: "Session cookie signing secret",
+    secure_session_cookie: "Secure session cookies",
+    host_prefixed_session_cookie: "Host-bound session cookies",
+    refresh_credential_encryption: "Refresh credential encryption",
+    session_idle_timeout: "Session idle timeout",
+    session_absolute_timeout: "Session maximum lifetime",
+    // Deployment readiness checks
+    oidc_enterprise_sso: "Enterprise single sign-on",
+    oidc_secure_cookie_session: "Secure browser sessions",
+    registered_tenant_admission: "Registered-tenant admission",
+    external_model_egress_disabled: "External model egress",
+    api_rate_limiting: "API rate limiting",
+    network_egress_restricted: "Network egress restrictions",
+    deployment_tenancy_profile: "Tenancy and isolation profile",
+    live_connector_execution_disabled: "Live connector execution",
+    ontology_graph_mutation_posture: "Ontology graph promotion",
+    audit_ledger_signing_configured: "Audit ledger signing",
+    production_object_store_adapter: "Evidence object storage",
+    observability_instrumentation: "Tracing and metrics",
+    production_dr_procedures: "Disaster recovery runbook",
+    // Support diagnostics checks
+    support_diagnostics_public_safe: "Shareable diagnostics",
+    support_runbook_baseline: "Support runbook baseline",
+    demo_support_ready: "Demo support readiness",
+    deployment_readiness_attached: "Deployment report attached",
+    production_support_model: "Production support model",
+    production_support_commitments: "Support commitments",
+    support_slo_targets: "Support response targets",
+    support_escalation_channels: "Escalation channels",
+  } satisfies Record<string, string>,
+  /** Where an operator can act on a check from inside the console. */
+  checkActions: {
+    identityTab: "Open identity checks",
+    deploymentTab: "Open deployment posture",
+    tenants: "Open tenants",
+    modelRouting: "Open model routing",
+    connectors: "Open connectors",
+    ontology: "Open ontology",
+    audit: "Open audit",
+  },
+  gatesSummary: (count: number) =>
+    count === 1
+      ? "1 gate needs action before production."
+      : `${count} gates need action before production.`,
 } as const;
 
 const ontology = {
@@ -1772,6 +1869,21 @@ const ontology = {
 const demoBadge = {
   label: "Demo",
   tooltip: "This tenant runs the demo manufacturing scenario",
+} as const;
+
+/**
+ * Tenant lifecycle copy. Suspension is destructive for the tenant's users, so
+ * its impact is stated next to the action rather than only after it runs.
+ */
+const tenantLifecycle = {
+  suspend: {
+    title: "Suspend tenant",
+    action: "Suspend tenant",
+    saving: "Suspending",
+    impactTitle: "What suspending does",
+    impact:
+      "Every sign-in and API request made as this tenant is denied until it is reactivated, so its operators, agents and integrations are locked out. Remaining browser sessions are revoked by the next reconciliation sweep. Tenant data and audit evidence are kept.",
+  },
 } as const;
 
 const tenantVocabulary = {
@@ -2073,6 +2185,7 @@ export const strings = {
   policyDetail,
   settings,
   simulation,
+  tenantLifecycle,
   tenantVocabulary,
   workflows,
   states: {

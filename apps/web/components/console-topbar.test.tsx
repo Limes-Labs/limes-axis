@@ -6,6 +6,7 @@ import type {
   IdentitySessionReadModel,
   ManufacturingNotificationCenter,
 } from "@/lib/platform-overview";
+import { strings } from "@/lib/strings";
 import { DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 const mocks = vi.hoisted(() => ({
@@ -157,5 +158,39 @@ describe("ConsoleTopbar notification badge", () => {
 
     expect(screen.getByText("notifications: unavailable")).toBeInTheDocument();
     expect(screen.queryByText("notifications: loading")).not.toBeInTheDocument();
+  });
+});
+
+describe("ConsoleTopbar demo badge", () => {
+  it("pins the Demo pill first and sticky in the mobile status scroller", () => {
+    mocks.useAxisQuery.mockImplementation((path: string) => {
+      if (path === "/identity/session") {
+        return queryResult(identitySession);
+      }
+      if (path.startsWith(`${OPERATIONS_API_PREFIX}/overview`)) {
+        return queryResult({ scenario: "Plant Operations Cockpit" });
+      }
+      return queryResult(null, "loading");
+    });
+    render(<ConsoleTopbar />);
+
+    const slot = screen.getByText(strings.demoBadge.label).closest("[data-demo-badge-slot]");
+    expect(slot).not.toBeNull();
+    expect(slot).toHaveClass(
+      "contents",
+      "max-sm:order-first",
+      "max-sm:sticky",
+      "max-sm:left-0",
+      "max-sm:bg-surface",
+    );
+  });
+
+  it("collapses the slot when the tenant has no demo scenario", () => {
+    mockNotifications(0);
+    const { container } = render(<ConsoleTopbar />);
+
+    const slot = container.querySelector("[data-demo-badge-slot]");
+    expect(slot).toBeEmptyDOMElement();
+    expect(slot).toHaveClass("empty:hidden");
   });
 });
