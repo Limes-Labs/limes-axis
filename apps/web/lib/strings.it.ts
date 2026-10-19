@@ -2508,12 +2508,14 @@ const ui = {
     chartLegend: "Legenda del grafico",
     eventsLeftAxis: "Eventi · asse sinistro",
     attentionShareRightAxis: "Quota da attenzionare · asse destro",
-    eventsAndAttentionShareBy: "Eventi e quota da attenzionare per data UTC; scorra per altre date",
-    eventsAndAttentionShareBy2: "Eventi e quota da attenzionare per data UTC",
-    chooseAUtcDateArrow:
-      "Scelga una data UTC. I tasti freccia spostano la selezione; Invio o Spazio selezionano; Esc annulla.",
+    eventsAndAttentionShareByZoneDense: (zone: string) =>
+      `Eventi e quota da attenzionare per data (${zone}); scorra per altre date`,
+    eventsAndAttentionShareByZone: (zone: string) =>
+      `Eventi e quota da attenzionare per data (${zone})`,
+    chooseAZonedDate: (zone: string) =>
+      `Scelga una data (${zone}). I tasti freccia spostano la selezione; Invio o Spazio selezionano; Esc annulla.`,
     noValidTimestampsToPlot: "Nessun timestamp valido da rappresentare.",
-    onlyOneUtcDateIn: "In questa finestra è presente una sola data UTC.",
+    onlyOneDateIn: (zone: string) => `In questa finestra è presente una sola data (${zone}).`,
     selectADateToInspect: "Selezioni una data da esaminare. Solo date restituite.",
     noDatedActivityInThis: "Nessuna attività datata in questa finestra.",
     dailyValues: "Valori giornalieri",

@@ -2557,12 +2557,14 @@ const ui = {
     chartLegend: "Chart legend",
     eventsLeftAxis: "Events · left axis",
     attentionShareRightAxis: "Attention share · right axis",
-    eventsAndAttentionShareBy: "Events and attention share by UTC date; scroll for more dates",
-    eventsAndAttentionShareBy2: "Events and attention share by UTC date",
-    chooseAUtcDateArrow:
-      "Choose a UTC date. Arrow keys navigate; Enter or Space selects; Escape clears.",
+    /* The chart bins by date in the console time zone, the zone the audit heatmap uses. */
+    eventsAndAttentionShareByZoneDense: (zone: string) =>
+      `Events and attention share by ${zone} date; scroll for more dates`,
+    eventsAndAttentionShareByZone: (zone: string) => `Events and attention share by ${zone} date`,
+    chooseAZonedDate: (zone: string) =>
+      `Choose a ${zone} date. Arrow keys navigate; Enter or Space selects; Escape clears.`,
     noValidTimestampsToPlot: "No valid timestamps to plot.",
-    onlyOneUtcDateIn: "Only one UTC date in this window.",
+    onlyOneDateIn: (zone: string) => `Only one ${zone} date in this window.`,
     selectADateToInspect: "Select a date to inspect. Returned dates only.",
     noDatedActivityInThis: "No dated activity in this window.",
     dailyValues: "Daily values",

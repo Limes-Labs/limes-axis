@@ -3,7 +3,10 @@
 import { useRef, useState } from "react";
 import { Disclosure } from "@/components/ui/disclosure";
 import type { AuditLedgerEvent } from "@/lib/audit-demo";
+import { FALLBACK_TIME_ZONE, getConsoleTimeZone } from "@/lib/console-locale";
+import { consoleDateTimeFormat, consoleNumberFormat } from "@/lib/format";
 import type { ConsoleStrings } from "@/lib/i18n";
+import { civilDay, DAY_MS, zonedInstant } from "@/lib/zoned-calendar";
 import { useStrings } from "@/providers/locale-provider";
 
 type TimelineInput = Pick<AuditLedgerEvent, "occurred_at"> & { severity: string };
@@ -16,7 +19,8 @@ export type ActivityDateBin = {
   attentionShare: number | null;
 };
 
-function utcDate(timestamp: string): string | null {
+/** The calendar date (YYYY-MM-DD) an explicit-zone timestamp falls on in `timeZone`. */
+function zonedDate(timestamp: string, timeZone: string): string | null {
   // Require an explicit timezone: browser-local parsing must not move a bin.
   const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.exec(timestamp);
   if (!parts) return null;
@@ -24,16 +28,33 @@ function utcDate(timestamp: string): string | null {
   const calendar = new Date(0);
   calendar.setUTCFullYear(year, month - 1, day);
   if (calendar.getUTCFullYear() !== year || calendar.getUTCMonth() !== month - 1 || calendar.getUTCDate() !== day || hour > 23 || minute > 59 || second > 59) return null;
-  const instant = new Date(timestamp);
-  return Number.isFinite(instant.getTime()) ? instant.toISOString().slice(0, 10) : null;
+  const instant = new Date(timestamp).getTime();
+  return Number.isFinite(instant) ? new Date(civilDay(instant, timeZone)).toISOString().slice(0, 10) : null;
 }
 
-/** Only observed dates are binned; missing days never become invented zeroes. */
-export function aggregateAuditTimeline(events: readonly TimelineInput[]) {
+/**
+ * The [start, end) instants of a binned date in `timeZone`: local midnight to
+ * the next local midnight, so a DST day spans 23 or 25 hours, as the audit
+ * heatmap's days do.
+ */
+export function activityDateInterval(date: string, timeZone: string = FALLBACK_TIME_ZONE) {
+  const day = Date.parse(`${date}T00:00:00Z`);
+  return { start: zonedInstant(day, 0, timeZone), end: zonedInstant(day + DAY_MS, 0, timeZone) };
+}
+
+/**
+ * Bins events by their calendar date in `timeZone` — the console time zone the
+ * audit heatmap and list use. Only observed dates are binned; missing days
+ * never become invented zeroes.
+ */
+export function aggregateAuditTimeline(
+  events: readonly TimelineInput[],
+  timeZone: string = FALLBACK_TIME_ZONE,
+) {
   const dates = new Map<string, ActivityDateBin>();
   let invalidTimestamps = 0;
   for (const event of events) {
-    const date = utcDate(event.occurred_at);
+    const date = zonedDate(event.occurred_at, timeZone);
     if (!date) { invalidTimestamps += 1; continue; }
     const bin = dates.get(date) ?? { date, count: 0, attention: 0, unknownSeverity: 0, attentionShare: null };
     bin.count += 1;
@@ -46,23 +67,31 @@ export function aggregateAuditTimeline(events: readonly TimelineInput[]) {
   return { bins, invalidTimestamps };
 }
 
-const percent = new Intl.NumberFormat("en", { style: "percent", maximumFractionDigits: 1 });
-const month = new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" });
-const rangeDate = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" });
+/*
+ * A bin's date is a civil date, carried as its UTC midnight, so the formatters
+ * read it in UTC whatever the console zone; the zone is named beside it.
+ */
+const percent = () => consoleNumberFormat({ style: "percent", maximumFractionDigits: 1 });
+const month = () => consoleDateTimeFormat({ month: "short", timeZone: "UTC" });
+const rangeDate = () => consoleDateTimeFormat({ dateStyle: "medium", timeZone: "UTC" });
 const dateInstant = (date: string) => new Date(`${date}T00:00:00Z`);
-const ZONE = "UTC";
 const attentionValue = (bin: ActivityDateBin, copy: ConsoleStrings["ui"]["overviewActivityTimeline"]) => bin.attentionShare === null
   ? copy.attentionUnavailable(bin.unknownSeverity)
-  : copy.attentionValue(percent.format(bin.attentionShare), bin.attention, bin.count);
+  : copy.attentionValue(percent().format(bin.attentionShare), bin.attention, bin.count);
 
-export function ActivityTimeline({ events }: { events: readonly AuditLedgerEvent[] }) {
+export function ActivityTimeline({ events, timeZone }: {
+  events: readonly AuditLedgerEvent[];
+  /** Defaults to the console time zone, which the audit heatmap and list also use. */
+  timeZone?: string;
+}) {
   const strings = useStrings();
   const copy = strings.ui.overviewActivityTimeline;
+  const ZONE = timeZone ?? getConsoleTimeZone();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   const [focusedDate, setFocusedDate] = useState<string | null>(null);
   const dateButtons = useRef<Array<SVGGElement | null>>([]);
-  const { bins, invalidTimestamps } = aggregateAuditTimeline(events);
+  const { bins, invalidTimestamps } = aggregateAuditTimeline(events, ZONE);
   const activeDate = hoveredDate ?? focusedDate ?? selectedDate;
   const active = bins.find((bin) => bin.date === activeDate);
   const focusIndex = Math.max(0, bins.findIndex((bin) => bin.date === (focusedDate ?? selectedDate)));
@@ -100,15 +129,15 @@ export function ActivityTimeline({ events }: { events: readonly AuditLedgerEvent
         <p role="status" className="m-0 text-sm font-medium tabular-nums text-ink">
           {active ? `${copy.eventCount(active.count)} · ${attentionValue(active, copy)}` : copy.returnedSummary(events.length, bins.length, ZONE)}
         </p>
-        {bins.length > 1 ? <p className="m-0 text-xs text-muted">{copy.dateInZone(rangeDate.formatRange(dateInstant(bins[0].date), dateInstant(bins[bins.length - 1].date)), ZONE)}</p> : null}
+        {bins.length > 1 ? <p className="m-0 text-xs text-muted">{copy.dateInZone(rangeDate().formatRange(dateInstant(bins[0].date), dateInstant(bins[bins.length - 1].date)), ZONE)}</p> : null}
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-2 text-xs text-muted" aria-label={copy.chartLegend}>
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm bg-signal" />{copy.eventsLeftAxis}</span>
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-0.5 w-4 bg-warning" />{copy.attentionShareRightAxis}</span>
       </div>
       {bins.length ? (
-        <div className="min-w-0 overflow-x-auto rounded-xl border border-line bg-signal/[0.03] p-1 dark:border-white/10" role="region" aria-label={dense ? copy.eventsAndAttentionShareBy : copy.eventsAndAttentionShareBy2}>
-          <svg role="group" aria-label={copy.chooseAUtcDateArrow} viewBox={`0 0 ${width} 194`} style={{ minWidth: dense ? width : undefined }} className="block h-auto w-full text-muted">
+        <div className="min-w-0 overflow-x-auto rounded-xl border border-line bg-signal/[0.03] p-1 dark:border-white/10" role="region" aria-label={dense ? copy.eventsAndAttentionShareByZoneDense(ZONE) : copy.eventsAndAttentionShareByZone(ZONE)}>
+          <svg role="group" aria-label={copy.chooseAZonedDate(ZONE)} viewBox={`0 0 ${width} 194`} style={{ minWidth: dense ? width : undefined }} className="block h-auto w-full text-muted">
             {[0, 0.5, 1].map((fraction) => {
               const y = plotBottom - fraction * plotHeight;
               return <g key={fraction} aria-hidden="true" pointerEvents="none">
@@ -148,7 +177,7 @@ export function ActivityTimeline({ events }: { events: readonly AuditLedgerEvent
                 <rect x={point.x - Math.min(14, step / 4)} y={plotBottom - barHeight} width={Math.min(28, step / 2)} height={barHeight} rx={4} className="fill-signal transition-opacity" fillOpacity={active && !highlighted ? 0.2 : highlighted ? 1 : 0.72} />
                 <text x={point.x} y={plotBottom - barHeight - 6} textAnchor="middle" className="fill-ink" fontSize={12}>{bin.count}</text>
                 <text x={point.x} y={168} textAnchor="middle" fill="currentColor" fontSize={12}>{Number(bin.date.slice(8))}</text>
-                <text x={point.x} y={182} textAnchor="middle" fill="currentColor" fontSize={11}>{month.format(dateInstant(bin.date))}</text>
+                <text x={point.x} y={182} textAnchor="middle" fill="currentColor" fontSize={11}>{month().format(dateInstant(bin.date))}</text>
               </g>;
             })}
             {points.map((point, index) => {
@@ -163,7 +192,7 @@ export function ActivityTimeline({ events }: { events: readonly AuditLedgerEvent
         </div>
       ) : <p className="m-0 text-sm text-muted">{copy.noValidTimestampsToPlot}</p>}
       <p className="m-0 text-xs leading-relaxed text-muted">
-        {bins.length === 1 ? copy.onlyOneUtcDateIn : bins.length > 1 ? copy.selectADateToInspect : copy.noDatedActivityInThis}
+        {bins.length === 1 ? copy.onlyOneDateIn(ZONE) : bins.length > 1 ? copy.selectADateToInspect : copy.noDatedActivityInThis}
       </p>
       {invalidTimestamps > 0 ? <p className="m-0 text-xs text-warning">{copy.invalidTimestamps(invalidTimestamps)}</p> : null}
       {bins.length > 0 ? <Disclosure className="text-xs text-muted" size="sm" title={copy.dailyValues} variant="plain">
@@ -172,7 +201,7 @@ export function ActivityTimeline({ events }: { events: readonly AuditLedgerEvent
         {bins.map((bin) => <div key={bin.date} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 border-b border-line/60 pb-2 text-xs last:border-0 last:pb-0">
           <time dateTime={bin.date} className="font-medium text-ink">{copy.dateInZone(bin.date, ZONE)}</time>
           <span className="tabular-nums text-ink">{copy.eventCount(bin.count)}</span>
-          <span className="col-span-2 mt-1 text-muted">{bin.attentionShare === null ? copy.attentionShareUnavailable(bin.unknownSeverity) : copy.attentionDaily(bin.attention, bin.count, percent.format(bin.attentionShare))}</span>
+          <span className="col-span-2 mt-1 text-muted">{bin.attentionShare === null ? copy.attentionShareUnavailable(bin.unknownSeverity) : copy.attentionDaily(bin.attention, bin.count, percent().format(bin.attentionShare))}</span>
         </div>)}
         </div>
       </Disclosure> : null}

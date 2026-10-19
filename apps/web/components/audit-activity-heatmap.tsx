@@ -5,11 +5,11 @@ import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FALLBACK_TIME_ZONE, getConsoleTimeZone } from "@/lib/console-locale";
 import { consoleDateTimeFormat } from "@/lib/format";
+import { civilDay, DAY_MS as DAY, wallClock, zonedInstant } from "@/lib/zoned-calendar";
 import { useStrings } from "@/providers/locale-provider";
 
 type TimedEvent = { occurred_at: string };
 export type AuditTimeInterval = { start: number; end: number; label: string };
-const DAY = 86_400_000;
 const hours = ["00:00–06:00", "06:00–12:00", "12:00–18:00", "18:00–24:00"];
 
 function timestamp(value: string) {
@@ -20,47 +20,6 @@ function timestamp(value: string) {
   // Date.parse normalizes some impossible dates, such as 30 February.
   if (!Number.isFinite(midnight.getTime()) || midnight.toISOString().slice(0, 10) !== date) return NaN;
   return Date.parse(value);
-}
-
-type WallClock = { year: number; month: number; day: number; hour: number; minute: number; second: number };
-
-const wallClockFormats = new Map<string, Intl.DateTimeFormat>();
-
-/** The calendar date and clock time an instant shows in `timeZone`. */
-function wallClock(instant: number, timeZone: string): WallClock {
-  let format = wallClockFormats.get(timeZone);
-  if (!format) {
-    format = new Intl.DateTimeFormat("en-US", {
-      timeZone, hourCycle: "h23",
-      year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric",
-    });
-    wallClockFormats.set(timeZone, format);
-  }
-  const parts = Object.fromEntries(format.formatToParts(instant).map((part) => [part.type, Number(part.value)]));
-  return { year: parts.year, month: parts.month, day: parts.day, hour: parts.hour, minute: parts.minute, second: parts.second };
-}
-
-/** Midnight UTC of the instant's calendar date in `timeZone`: a zone-free day number. */
-function civilDay(instant: number, timeZone: string): number {
-  const clock = wallClock(instant, timeZone);
-  return Date.UTC(clock.year, clock.month - 1, clock.day);
-}
-
-/**
- * The instant at which `timeZone` shows `hour`:00 on the civil day `day`
- * (a `civilDay` value). Two passes settle the zone offset across a DST change;
- * hour 24 is the next day's midnight.
- */
-function zonedInstant(day: number, hour: number, timeZone: string): number {
-  const target = day + hour * 3_600_000;
-  const offset = (instant: number) => {
-    const clock = wallClock(instant, timeZone);
-    const shown = Date.UTC(clock.year, clock.month - 1, clock.day, clock.hour, clock.minute, clock.second);
-    return shown - (instant - (((instant % 1000) + 1000) % 1000));
-  };
-  const first = target - offset(target);
-  const second = target - offset(first);
-  return second;
 }
 
 export function filterAuditTimeInterval<T extends TimedEvent>(events: T[], interval: AuditTimeInterval | null): T[] {
