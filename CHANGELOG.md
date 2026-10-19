@@ -12,7 +12,9 @@ release-bound behavior, not the complete commit history.
   support states that keep gaps and limitations visible, freshness
   re-verification against observed facts (expired certificates, wrong
   release/profile, superseded answers cannot pass as current), preflight
-  gating, and a fixed scope note for #871/#879 report citations. Contract
+  gating (required entries without positive support block issuance unless
+  the partial pack lists them), entry disclosure bound to the pack's
+  disclosure class, and a fixed scope note for #871/#879 report citations. Contract
   slice only; no artifact packaging or signing
 - Deterministic assurance pack assembly: released-only packaging of an
   approved manifest into a bounded archive (canonical manifest JSON,

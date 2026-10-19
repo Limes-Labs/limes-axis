@@ -20,9 +20,13 @@ observations and evidence revisions may appear in one customer-facing pack:
 * Any change to answers, evidence or audience after approval invalidates the
   candidate digest — preflight and review must run again.
 * Missing required support blocks issuance; a partial pack must explicitly
-  list its unsupported requirements. Reference-only items carry no artifact;
-  included artifacts carry digests. Hidden evidence never leaks through
-  titles, issuers, filenames or error details.
+  list its unsupported requirements (``unsupported_requirements``).
+* Entry disclosure is bound to the pack's audience disclosure class: an
+  included artifact never exceeds it and internal-only entries never appear
+  in an externally disclosed pack, not even as reference-only citations.
+* Reference-only items carry no artifact; included artifacts carry
+  digests. Hidden evidence never leaks through titles, issuers, filenames
+  or error details.
 
 The digest helper is shared so producers cannot sign non-canonical bytes.
 """
@@ -32,6 +36,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from datetime import date
 from typing import Literal
 
 from axis_sdk.connector_authoring.contracts import ContractModel, Digest
@@ -74,6 +79,12 @@ SupportState = Literal[
 EntryMode = Literal["included_artifact", "reference_only"]
 DisclosureClass = Literal["public", "under_nda", "internal_only"]
 
+#: Disclosure classes ordered from least to most restricted.
+_DISCLOSURE_RANK: dict[str, int] = {"public": 0, "under_nda": 1, "internal_only": 2}
+#: Support states that answer a requirement positively; every other state on a
+#: required entry is an unsupported requirement that must be listed explicitly.
+POSITIVE_SUPPORT = frozenset({"current", "customer_responsibility"})
+
 
 class AssurancePackError(ValueError):
     """Fixed contract codes; raw validation details are never rendered."""
@@ -102,6 +113,13 @@ def _ensure_safe(text: str) -> str:
     if _UNSAFE.search(text):
         raise AssurancePackError(AssurancePackError.UNSAFE_TEXT)
     return text
+
+
+def _calendar_date(value: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        raise ValueError("Dates must be real ISO calendar dates") from None
 
 
 def _parse_major(value: object) -> int:
@@ -157,6 +175,9 @@ class AnswerSelection(ContractModel):
     answer_revision: str = Field(pattern=_REVISION)
     answer_digest: Digest = Field(repr=False)
     support: SupportState
+    #: Required entries without positive support block issuance unless the
+    #: pack lists them in ``unsupported_requirements`` (an allowed partial pack).
+    required: bool = Field(default=True, strict=True)
     responsibility: Literal["axis", "shared", "customer"] = "axis"
     disclosure: DisclosureClass = "under_nda"
     mode: EntryMode = "reference_only"
@@ -168,6 +189,7 @@ class AnswerSelection(ContractModel):
     @model_validator(mode="after")
     def coherent_entry(self) -> AnswerSelection:
         _ensure_safe(self.question_ref)
+        _calendar_date(self.as_of)
         if self.limitation is not None:
             _ensure_safe(self.limitation)
         if self.support in {"partial", "planned", "not_evidenced"} and self.limitation is None:
@@ -196,6 +218,10 @@ class PackManifest(ContractModel):
     context: PackContext
     release_snapshot: ReleaseSnapshot
     entries: tuple[AnswerSelection, ...] = Field(min_length=1, max_length=_MAX_ENTRIES)
+    #: Required entries without positive support that this partial pack
+    #: explicitly discloses as unsupported.
+    unsupported_requirements: tuple[str, ...] = Field(default=(), max_length=_MAX_ENTRIES)
+    issued_on: str = Field(pattern=_DATE, min_length=10, max_length=10)
     valid_through: str = Field(pattern=_DATE, min_length=10, max_length=10)
 
     @model_validator(mode="after")
@@ -204,6 +230,25 @@ class PackManifest(ContractModel):
         entry_ids = [entry.entry_id for entry in self.entries]
         if len(set(entry_ids)) != len(entry_ids):
             raise AssurancePackError(AssurancePackError.DUPLICATE_ENTRY)
+        if _calendar_date(self.valid_through) < _calendar_date(self.issued_on):
+            raise ValueError("valid_through cannot precede issued_on")
+        pack_rank = _DISCLOSURE_RANK[self.context.disclosure_class]
+        for entry in self.entries:
+            entry_rank = _DISCLOSURE_RANK[entry.disclosure]
+            if entry.disclosure == "internal_only" and pack_rank < entry_rank:
+                raise ValueError("Internal-only entries cannot appear in a disclosed pack")
+            if entry.mode == "included_artifact" and entry_rank > pack_rank:
+                raise ValueError("Included artifacts cannot exceed the pack disclosure class")
+        listed = self.unsupported_requirements
+        if len(set(listed)) != len(listed):
+            raise AssurancePackError(AssurancePackError.DUPLICATE_ENTRY)
+        by_id = {entry.entry_id: entry for entry in self.entries}
+        for entry_id in listed:
+            entry = by_id.get(entry_id)
+            if entry is None or not entry.required or entry.support in POSITIVE_SUPPORT:
+                raise ValueError(
+                    "unsupported_requirements must name required entries without positive support"
+                )
         return self
 
     def digest(self) -> Digest:
@@ -236,15 +281,25 @@ def check_support_freshness(
 def pack_readiness(manifest: PackManifest) -> tuple[Digest, bool, tuple[str, ...]]:
     """Deterministic preflight: required support and partial disclosures.
 
-    Missing support on an entry without an explicit ``not_evidenced``/``planned``
-    state blocks issuance; a pack that is not fully ``current`` must list its
-    limitations (validated at construction) — the blocking list names them.
+    A required entry without positive support (``current`` or
+    ``customer_responsibility``) blocks issuance unless the pack explicitly
+    lists it in ``unsupported_requirements`` — an allowed partial pack names
+    its gaps instead of degrading them to a positive answer. Limitations on
+    ``partial``/``planned``/``not_evidenced`` entries are re-checked for
+    parsed candidates (construction already enforces them).
     """
 
     blocking: list[str] = []
+    listed = set(manifest.unsupported_requirements)
     for entry in manifest.entries:
-        if entry.support in {"not_evidenced", "planned"} and entry.limitation is None:
+        if entry.support in {"partial", "not_evidenced", "planned"} and entry.limitation is None:
             blocking.append(f"{entry.entry_id}:limitation_required")
+        if (
+            entry.required
+            and entry.support not in POSITIVE_SUPPORT
+            and entry.entry_id not in listed
+        ):
+            blocking.append(f"{entry.entry_id}:{AssurancePackError.REQUIRED_SUPPORT_MISSING}")
     if not any(entry.support == "current" for entry in manifest.entries):
         blocking.append("no_current_support_in_pack")
     return manifest.digest(), not blocking, tuple(blocking)
