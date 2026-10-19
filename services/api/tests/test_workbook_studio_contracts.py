@@ -213,7 +213,7 @@ def test_local_values_are_labeled_and_cannot_masquerade_as_source() -> None:
 def test_schema_drift_becomes_missing_source_without_remap() -> None:
     workbook = _workbook()
     drifted = reconcile_binding(
-        workbook, "bnd-oee", observed_fields=("fields.period",)
+        workbook, "bnd-oee", observed_fields={"fields.period": "string"}
     )
     binding = next(b for b in drifted.bindings if b.binding_id == "bnd-oee")
     states = {entry.column_id: entry.compatibility for entry in binding.mapping}
@@ -228,15 +228,17 @@ def test_schema_drift_becomes_missing_source_without_remap() -> None:
 def test_reconciliation_preserves_everything_else() -> None:
     workbook = _workbook()
     drifted = reconcile_binding(
-        workbook, "bnd-oee", observed_fields=("fields.period", "fields.oee")
+        workbook, "bnd-oee", observed_fields={"fields.period": "string", "fields.oee": "number"}
     )
     assert drifted.digest() == workbook.digest()
 
 
 def test_reconcile_unknown_binding_is_rejected() -> None:
     with pytest.raises(WorkbookStudioError) as blocked:
-        reconcile_binding(_workbook(), "bnd-ghost", observed_fields=("fields.period",))
-    assert blocked.value.code == WorkbookStudioError.DUPLICATE_IDENTITY
+        reconcile_binding(
+            _workbook(), "bnd-ghost", observed_fields={"fields.period": "string"}
+        )
+    assert blocked.value.code == WorkbookStudioError.UNKNOWN_REFERENCE
 
 
 # --- AC: shareable export without rows, credentials or cached data ------------
@@ -338,7 +340,7 @@ def test_huge_range_is_rejected_by_pattern() -> None:
         )
 
 
-def test_cross_tenant_sheet_reference_is_rejected() -> None:
+def test_named_range_on_unknown_sheet_is_rejected() -> None:
     with pytest.raises(ValidationError):
         _workbook(
             named_ranges=(
@@ -369,7 +371,7 @@ def test_local_value_on_unknown_table_or_column_is_rejected() -> None:
 
 def test_round_trip_is_byte_stable_and_deterministic() -> None:
     workbook = _workbook()
-    parsed = parse_workbook_contract(json.loads(workbook.model_dump_json()))
+    parsed = parse_workbook_contract(json.loads(workbook.model_dump_json()), tenant_scope=_TENANT)
     assert parsed == workbook
     assert parsed.digest() == workbook.digest()
 
@@ -388,11 +390,84 @@ def test_parse_rejects_future_major_with_dedicated_code() -> None:
     raw = json.loads(_workbook().model_dump_json())
     raw["schema_version"] = {"major": 2, "minor": 0}
     with pytest.raises(WorkbookStudioError) as blocked:
-        parse_workbook_contract(raw)
+        parse_workbook_contract(raw, tenant_scope=_TENANT)
     assert blocked.value.code == WorkbookStudioError.INCOMPATIBLE_VERSION
 
 
 def test_parse_reports_malformed_payload_with_safe_code() -> None:
     with pytest.raises(WorkbookStudioError) as blocked:
-        parse_workbook_contract("not-a-workbook")
+        parse_workbook_contract("not-a-workbook", tenant_scope=_TENANT)
     assert blocked.value.code == WorkbookStudioError.INVALID_WORKBOOK
+
+
+# --- review hardening ---------------------------------------------------------
+
+
+def test_schema_retype_surfaces_incompatible_state() -> None:
+    drifted = reconcile_binding(
+        _workbook(),
+        "bnd-oee",
+        observed_fields={"fields.period": "string", "fields.oee": "string"},
+    )
+    binding = next(b for b in drifted.bindings if b.binding_id == "bnd-oee")
+    states = {entry.column_id: entry.compatibility for entry in binding.mapping}
+    assert states == {"col-period": "current", "col-oee": "incompatible"}
+
+
+def test_imported_workbook_is_bound_to_the_caller_tenant() -> None:
+    # A payload that declares another tenant's scope passes its own internal
+    # cross-tenant check; only the caller's authenticated scope can refuse it.
+    foreign = json.loads(_workbook().model_dump_json())
+    with pytest.raises(WorkbookStudioError) as blocked:
+        parse_workbook_contract(foreign, tenant_scope="tenant-other")
+    assert blocked.value.code == WorkbookStudioError.CROSS_TENANT
+
+
+@pytest.mark.parametrize("extent", ["A1:ZZ999999", "A1:CA2", "C5:A1"])
+def test_in_grammar_huge_or_inverted_ranges_are_rejected(extent: str) -> None:
+    with pytest.raises(ValidationError):
+        NamedRange(range_id="rng-big", name="Big", sheet_id="sh-summary", extent=extent)
+
+
+def test_huge_range_reports_dedicated_code() -> None:
+    with pytest.raises(ValidationError, match="workbook_range_too_large"):
+        NamedRange(range_id="rng-big", name="Big", sheet_id="sh-summary", extent="A1:A20000")
+
+
+def test_local_values_are_unique_and_within_table_rows() -> None:
+    value = LocalCellValue(table_id="tbl-inputs", row=0, column_id="col-assumption", value="a")
+    with pytest.raises(ValidationError, match="duplicate_workbook_identity"):
+        _workbook(local_values=(value, value))
+    with pytest.raises(ValidationError, match="unknown_workbook_reference"):
+        _workbook(
+            local_values=(
+                LocalCellValue(
+                    table_id="tbl-inputs", row=2, column_id="col-assumption", value="a"
+                ),
+            )
+        )
+
+
+def test_sheet_named_ranges_must_belong_to_the_sheet() -> None:
+    sheets = _workbook().sheets
+    with pytest.raises(ValidationError, match="unknown_workbook_reference"):
+        _workbook(
+            sheets=(
+                sheets[0],
+                sheets[1].model_copy(update={"named_range_ids": ("rng-oee",)}),
+            )
+        )
+
+
+def test_projection_drops_named_ranges_of_removed_sheets() -> None:
+    workbook = _workbook(
+        named_ranges=(
+            NamedRange(
+                range_id="rng-assets", name="Assets", sheet_id="sh-assets", extent="A2:A5"
+            ),
+        )
+    )
+    restricted = authorized_projection(workbook, viewer="auditor", visible_table_ids=("tbl-oee",))
+    assert restricted.named_ranges == ()
+    with pytest.raises(WorkbookStudioError):
+        authorized_projection(workbook, viewer="nobody", visible_table_ids=())

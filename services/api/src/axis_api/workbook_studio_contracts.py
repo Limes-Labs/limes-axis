@@ -28,7 +28,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Literal
+import re
+from collections.abc import Mapping
+from typing import Annotated, Literal
 
 from axis_sdk.connector_authoring.contracts import ContractModel, Digest
 from pydantic import Field, ValidationError, model_validator
@@ -55,7 +57,8 @@ _IDENTIFIER = r"^[a-z][a-z0-9-]{2,47}$"
 # no credentials. Colons/whitespace/quotes are outside the grammar.
 _RESOURCE_PREFIX = r"^[a-z][a-z0-9._-]{2,63}$"
 _RANGE = r"^[A-Z]{1,2}[1-9][0-9]{0,5}:[A-Z]{1,2}[1-9][0-9]{0,5}$"
-_TIMESTAMP = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
+_RANGE_PARTS = re.compile(r"([A-Z]{1,2})([0-9]+):([A-Z]{1,2})([0-9]+)")
+_MAX_LOCAL_TEXT = 32_767
 
 BindingKind = Literal["analytical_query", "entity_projection", "data_product", "workbook_local"]
 BindingStatus = Literal["current", "incompatible", "missing_source", "unauthorized"]
@@ -75,6 +78,7 @@ class WorkbookStudioError(ValueError):
     CROSS_TENANT = "cross_tenant_workbook_reference"
     DRIFT_UNMAPPED = "source_drift_unmapped"
     NOT_LOCAL = "local_override_not_labeled"
+    UNKNOWN_REFERENCE = "unknown_workbook_reference"
 
     def __init__(self, code: str) -> None:
         self.code = code
@@ -109,6 +113,28 @@ class ManifestVersion(ContractModel):
         return self
 
 
+def _column_number(letters: str) -> int:
+    number = 0
+    for letter in letters:
+        number = number * 26 + (ord(letter) - ord("A") + 1)
+    return number
+
+
+def _bounded_extent(extent: str) -> str:
+    """Reject inverted or oversized ranges that the grammar alone admits."""
+
+    parts = _RANGE_PARTS.fullmatch(extent)
+    if parts is None:
+        raise WorkbookStudioError(WorkbookStudioError.INVALID_WORKBOOK)
+    start_col, start_row = _column_number(parts[1]), int(parts[2])
+    end_col, end_row = _column_number(parts[3]), int(parts[4])
+    if end_col < start_col or end_row < start_row:
+        raise WorkbookStudioError(WorkbookStudioError.INVALID_WORKBOOK)
+    if end_row - start_row + 1 > _MAX_ROWS or end_col - start_col + 1 > _MAX_COLUMNS_PER_TABLE:
+        raise WorkbookStudioError(WorkbookStudioError.RANGE_TOO_LARGE)
+    return extent
+
+
 class NamedRange(ContractModel):
     """A named, bounded cell range scoped to the workbook."""
 
@@ -116,6 +142,11 @@ class NamedRange(ContractModel):
     name: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_.]{0,63}$")
     sheet_id: str = Field(pattern=_IDENTIFIER)
     extent: str = Field(pattern=_RANGE)
+
+    @model_validator(mode="after")
+    def bounded_range(self) -> NamedRange:
+        _bounded_extent(self.extent)
+        return self
 
 
 class WorkbookColumn(ContractModel):
@@ -153,6 +184,8 @@ class WorkbookTable(ContractModel):
         headers = [column.header for column in self.columns]
         if len(set(headers)) != len(headers):
             raise ValueError("Column headers must be unique within a table")
+        if self.extent is not None:
+            _bounded_extent(self.extent)
         return self
 
 
@@ -191,7 +224,7 @@ class LocalCellValue(ContractModel):
     table_id: str = Field(pattern=_IDENTIFIER)
     row: int = Field(ge=0, strict=True, le=_MAX_ROWS_PER_TABLE)
     column_id: str = Field(pattern=_IDENTIFIER)
-    value: str | int | float | bool | None
+    value: Annotated[str, Field(max_length=_MAX_LOCAL_TEXT)] | int | float | bool | None
     note: str | None = Field(default=None, max_length=_MAX_TEXT)
 
 
@@ -215,7 +248,8 @@ class WorkbookDefinition(ContractModel):
     format: Literal["axis.workbook-studio.workbook"] = WORKBOOK_FORMAT
     schema_version: ManifestVersion
     workbook_id: str = Field(pattern=_IDENTIFIER)
-    revision: str = Field(pattern=r"^\d+$")
+    # ASCII digits only; ``\d`` would admit other Unicode digit spellings.
+    revision: str = Field(pattern=r"^[1-9][0-9]{0,8}$")
     tenant_scope: str = Field(pattern=_RESOURCE_PREFIX)
     title: str = Field(min_length=1, max_length=_MAX_TITLE)
     description: str | None = Field(default=None, max_length=_MAX_TITLE)
@@ -240,10 +274,28 @@ class WorkbookDefinition(ContractModel):
                 raise ValueError("Sheets must reference existing tables")
         for table in self.tables:
             if not any(table.table_id in sheet.table_ids for sheet in self.sheets):
-                raise ValueError("Every table must appear on exactly its declared sheets")
+                raise ValueError("Every table must appear on at least one sheet")
+        range_ids = [named_range.range_id for named_range in self.named_ranges]
+        if len(set(range_ids)) != len(range_ids):
+            raise WorkbookStudioError(WorkbookStudioError.DUPLICATE_IDENTITY)
+        range_names = [named_range.name.casefold() for named_range in self.named_ranges]
+        if len(set(range_names)) != len(range_names):
+            raise WorkbookStudioError(WorkbookStudioError.DUPLICATE_IDENTITY)
+        range_sheet = {
+            named_range.range_id: named_range.sheet_id for named_range in self.named_ranges
+        }
         for named_range in self.named_ranges:
             if named_range.sheet_id not in set(sheet_ids):
-                raise WorkbookStudioError(WorkbookStudioError.DUPLICATE_IDENTITY)
+                raise WorkbookStudioError(WorkbookStudioError.UNKNOWN_REFERENCE)
+        for sheet in self.sheets:
+            if any(
+                range_sheet.get(range_id) != sheet.sheet_id
+                for range_id in sheet.named_range_ids
+            ):
+                raise WorkbookStudioError(WorkbookStudioError.UNKNOWN_REFERENCE)
+        binding_ids = [binding.binding_id for binding in self.bindings]
+        if len(set(binding_ids)) != len(binding_ids):
+            raise WorkbookStudioError(WorkbookStudioError.DUPLICATE_IDENTITY)
         binding_tables = [binding.table_id for binding in self.bindings]
         if len(set(binding_tables)) != len(binding_tables):
             raise WorkbookStudioError(WorkbookStudioError.DUPLICATE_IDENTITY)
@@ -258,7 +310,7 @@ class WorkbookDefinition(ContractModel):
             column_ids = {column.column_id for column in table.columns}
             for entry in binding.mapping:
                 if entry.column_id not in column_ids:
-                    raise WorkbookStudioError(WorkbookStudioError.DUPLICATE_IDENTITY)
+                    raise WorkbookStudioError(WorkbookStudioError.UNKNOWN_REFERENCE)
             bound_fields = {
                 column.column_id: column.source_field
                 for column in table.columns
@@ -269,12 +321,17 @@ class WorkbookDefinition(ContractModel):
             for entry in binding.mapping:
                 if bound_fields[entry.column_id] != entry.source_field:
                     raise WorkbookStudioError(WorkbookStudioError.DRIFT_UNMAPPED)
+        cells = [(value.table_id, value.row, value.column_id) for value in self.local_values]
+        if len(set(cells)) != len(cells):
+            raise WorkbookStudioError(WorkbookStudioError.DUPLICATE_IDENTITY)
         for value in self.local_values:
             table = next((t for t in self.tables if t.table_id == value.table_id), None)
             if table is None:
                 raise ValueError("Local values must reference existing tables")
             if value.column_id not in {column.column_id for column in table.columns}:
-                raise WorkbookStudioError(WorkbookStudioError.DUPLICATE_IDENTITY)
+                raise WorkbookStudioError(WorkbookStudioError.UNKNOWN_REFERENCE)
+            if value.row >= table.row_count:
+                raise WorkbookStudioError(WorkbookStudioError.UNKNOWN_REFERENCE)
             column = next(c for c in table.columns if c.column_id == value.column_id)
             if column.kind != "local_only":
                 raise WorkbookStudioError(WorkbookStudioError.NOT_LOCAL)
@@ -303,23 +360,30 @@ def reconcile_binding(
     workbook: WorkbookDefinition,
     binding_id: str,
     *,
-    observed_fields: tuple[str, ...],
+    observed_fields: Mapping[str, str],
 ) -> WorkbookDefinition:
     """Surface schema drift as explicit compatibility state; never remaps.
 
+    ``observed_fields`` maps each current source field to its source kind.
     Mapping was frozen at bind time. Columns whose source field disappeared
-    become ``missing_source``; unknown observed fields are ignored on the
+    become ``missing_source``; fields that still exist with a different kind
+    become ``incompatible``; unknown observed fields are ignored on the
     workbook side (they belong to the source registry's change feed, #592)
     instead of silently shifting columns.
     """
 
     binding = next((b for b in workbook.bindings if b.binding_id == binding_id), None)
     if binding is None:
-        raise WorkbookStudioError(WorkbookStudioError.DUPLICATE_IDENTITY)
-    observed = set(observed_fields)
+        raise WorkbookStudioError(WorkbookStudioError.UNKNOWN_REFERENCE)
     updated: list[BindingMapping] = []
     for entry in binding.mapping:
-        state = "current" if entry.source_field in observed else "missing_source"
+        observed_kind = observed_fields.get(entry.source_field)
+        if observed_kind is None:
+            state = "missing_source"
+        elif observed_kind != entry.source_kind:
+            state = "incompatible"
+        else:
+            state = "current"
         updated.append(BindingMapping.model_validate(
             {**entry.model_dump(mode="json"), "compatibility": state}
         ))
@@ -359,10 +423,18 @@ def authorized_projection(
         for sheet in workbook.sheets
         if set(sheet.table_ids) & allowed
     )
+    if not sheets:
+        raise WorkbookStudioError(WorkbookStudioError.UNKNOWN_REFERENCE)
+    kept_sheets = {sheet.sheet_id for sheet in sheets}
     return WorkbookDefinition.model_validate(
         {
             **workbook.model_dump(mode="json"),
             "sheets": sheets,
+            "named_ranges": tuple(
+                named_range
+                for named_range in workbook.named_ranges
+                if named_range.sheet_id in kept_sheets
+            ),
             "tables": tuple(t for t in workbook.tables if t.table_id in allowed),
             "bindings": tuple(b for b in workbook.bindings if b.table_id in allowed),
             "local_values": (),
@@ -370,14 +442,23 @@ def authorized_projection(
     )
 
 
-def parse_workbook_contract(value: object) -> WorkbookDefinition:
-    """Parse an untrusted workbook payload with fixed safe error codes."""
+def parse_workbook_contract(value: object, *, tenant_scope: str) -> WorkbookDefinition:
+    """Parse an untrusted workbook payload with fixed safe error codes.
+
+    ``tenant_scope`` is the caller's authenticated tenant scope. The payload's
+    own ``tenant_scope`` is untrusted: without this binding an imported
+    workbook could declare another tenant's scope and its resource prefixes
+    would then pass the internal cross-tenant check.
+    """
 
     if isinstance(value, dict):
         major = _parse_major(value)
         if major not in SUPPORTED_MAJOR_VERSIONS:
             raise WorkbookStudioError(WorkbookStudioError.INCOMPATIBLE_VERSION)
     try:
-        return WorkbookDefinition.model_validate(value)
+        workbook = WorkbookDefinition.model_validate(value)
     except ValidationError:
         raise WorkbookStudioError(WorkbookStudioError.INVALID_WORKBOOK) from None
+    if workbook.tenant_scope != tenant_scope:
+        raise WorkbookStudioError(WorkbookStudioError.CROSS_TENANT)
+    return workbook

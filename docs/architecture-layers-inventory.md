@@ -42,9 +42,9 @@ collaborations, not permission to import a vertical into shared core.
 | model-provider-port | intelligence | trust | [`services/api/src/axis_api/model_providers.py`](../services/api/src/axis_api/model_providers.py) |
 | model-invocations | intelligence | trust, operational-model, experience | [`services/api/src/axis_api/model_invocations.py`](../services/api/src/axis_api/model_invocations.py) |
 | agent-runs | intelligence | trust, workflow, operational-model, experience | [`services/api/src/axis_api/agent_runs.py`](../services/api/src/axis_api/agent_runs.py) |
+| workbook-studio-contracts | experience | trust | [`services/api/src/axis_api/workbook_studio_contracts.py`](../services/api/src/axis_api/workbook_studio_contracts.py) |
 | reference-vertical | experience | trust, data, operational-model, workflow, intelligence | [`services/api/src/axis_api/manufacturing_operations.py`](../services/api/src/axis_api/manufacturing_operations.py) |
 | legacy-response-contracts | experience | trust, data, operational-model, workflow, intelligence | [`services/api/src/axis_api/demo.py`](../services/api/src/axis_api/demo.py) |
-| workbook-studio-contracts | experience | trust | [`services/api/src/axis_api/workbook_studio_contracts.py`](../services/api/src/axis_api/workbook_studio_contracts.py) |
 
 ## Issue snapshot
 

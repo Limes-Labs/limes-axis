@@ -14,7 +14,10 @@ without becoming a hidden database or credential container.
 strict round-trips. Incompatible major versions get the dedicated
 `incompatible_workbook_contract_version` code; everything else degrades to
 the single `invalid_workbook_contract` code — raw validation details are
-never rendered.
+never rendered. `parse_workbook_contract` also takes the caller's
+authenticated `tenant_scope` and refuses a payload declaring any other scope
+(`cross_tenant_workbook_reference`): the payload's own scope is untrusted, so
+the internal prefix check alone cannot stop an imported foreign workbook.
 
 ## Structure with stable identities
 
@@ -25,7 +28,13 @@ never rendered.
   from source private storage IDs.
 - Referential integrity is construction-enforced: sheets reference existing
   tables, bindings reference existing tables and cover exactly the bound
-  columns, duplicate IDs (sheets/tables/columns/mappings) are rejected.
+  columns, duplicate IDs (sheets/tables/columns/mappings/bindings/named
+  ranges/local cells) are rejected with `duplicate_workbook_identity`, and
+  dangling references (unknown sheet, column, binding, row beyond the
+  table's `row_count`, a sheet listing another sheet's named range) with
+  `unknown_workbook_reference`.
+- Range extents must be ordered and bounded (at most 10,000 rows and 64
+  columns, `workbook_range_too_large`), not just match the A1 grammar.
 
 ## Bindings reference, never contain
 
@@ -51,8 +60,9 @@ never rendered.
 ## Drift never silently remaps
 
 Mapping is frozen at bind time (`BindingMapping` pairs column↔source field).
-`reconcile_binding` only updates the per-column `compatibility` state
-(`current` / `missing_source`) from observed source fields; unknown fields
+`reconcile_binding` only updates the per-column `compatibility` state from
+observed source fields and their kinds: `current`, `missing_source` (field
+gone) or `incompatible` (field present with a different kind); unknown fields
 are left to the source registry's change feed (#592) and columns never
 shift by display name or order.
 
@@ -61,5 +71,6 @@ shift by display name or order.
 Forged cross-tenant resource prefixes (`cross_tenant_workbook_reference`),
 hidden-field bindings (a bound column without a declared source field is
 unrepresentable), duplicate table/column/mapping identities, out-of-grammar
-huge ranges, local values on unknown tables/columns, and workbook-local
+huge ranges, in-grammar ranges over the size bound, foreign tenant scopes at
+parse time, local values on unknown tables/columns/rows, and workbook-local
 binding kinds are all rejected before a workbook can exist.
