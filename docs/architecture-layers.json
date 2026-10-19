@@ -78,6 +78,7 @@
     {"id": "public-release-manifest", "owner": "data", "dependencies": ["trust"], "kind": "module", "path": "services/api/src/axis_api/public_release_manifest.py"},
     {"id": "operational-persistence", "owner": "operational-model", "dependencies": ["trust", "data", "workflow", "intelligence"], "kind": "module", "path": "services/api/src/axis_api/persistence.py"},
     {"id": "search-index-projection", "owner": "intelligence", "dependencies": ["trust", "data"], "kind": "module", "path": "services/api/src/axis_api/search_index.py"},
+    {"id": "search-queries", "owner": "intelligence", "dependencies": ["trust", "data"], "kind": "module", "path": "services/api/src/axis_api/search_queries.py"},
     {"id": "portability-manifest", "owner": "deployment", "dependencies": ["trust"], "kind": "module", "path": "services/api/src/axis_api/portability_manifest.py"},
     {"id": "portability-validator", "owner": "deployment", "dependencies": ["trust"], "kind": "module", "path": "services/api/src/axis_api/portability_validator.py"},
     {"id": "portability-restore-runner", "owner": "deployment", "dependencies": ["trust", "operational-model"], "kind": "module", "path": "services/api/src/axis_api/portability_restore_runner.py"},

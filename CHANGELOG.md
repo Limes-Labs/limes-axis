@@ -41,6 +41,17 @@ release-bound behavior, not the complete commit history.
   Contract slice only; no distribution, API or storage is enabled
   ([#838](https://github.com/Limes-Labs/limes-axis/issues/838)).
 
+- Authorized full-text search over the #873 index projection: one bounded query
+  service and `GET /operations/search` that re-evaluate current authorization
+  before any representation, omit denied and non-evaluable records entirely,
+  paginate by keyset with re-authorized cursors that never count hidden
+  candidates and are bound to the principal, query, policy revision and
+  index generation, and report authorized-subset counts/facets plus explicit
+  index freshness. Python SDK
+  `search.query(...)` and a public `search-result-page` JSON Schema contract
+  are included
+  ([#874](https://github.com/Limes-Labs/limes-axis/issues/874)).
+
 - An optional authenticated public institutional context reader (GovCore),
   absent unless `create_app(public_context=...)` opts in, with current
   tenant/scope and separate fixed-origin policy checks before and after the
