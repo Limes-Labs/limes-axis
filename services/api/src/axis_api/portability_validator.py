@@ -12,12 +12,13 @@ What it does:
 * Verifies bundle archive safety *without inspecting member contents*:
   bounded member counts and sizes, path-escape rejection, executable
   serialization formats rejected by name.
-* Verifies the bundle signature against **operator-supplied** trusted signer
-  key ids — a public key embedded in an untrusted bundle is never its own
-  trust anchor.
-* Verifies every component payload digest against the #876 manifest and
-  rejects duplicate identities, missing required components and unsupported
-  source versions.
+* Verifies the bundle's Ed25519 signature over the manifest digest against
+  **operator-supplied** trusted public keys — a key id or public key embedded
+  in an untrusted bundle is never its own trust anchor.
+* Verifies every carried component payload against the #876 manifest digest
+  and object count, rejects payloads for undeclared or excluded components,
+  duplicate identities, missing required components and unsupported source
+  versions.
 * Produces a deterministic restore plan: explicit identity mappings only
   (never email/display-name matching; two sources mapping to one target is
   an ambiguous merge and is refused), unknown principals stay
@@ -29,10 +30,16 @@ What it does:
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Mapping
 from typing import Literal
 
 from axis_sdk.connector_authoring.contracts import ContractModel, Digest, Identifier
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
 from pydantic import Field, ValidationError, model_validator
 
 from axis_api.portability_manifest import (
@@ -75,6 +82,8 @@ class PortabilityValidationError(ValueError):
     INCOMPATIBLE_AXIS_VERSION = "incompatible_source_axis_version"
     AMBIGUOUS_IDENTITY_MAPPING = "ambiguous_identity_mapping"
     UNACKNOWLEDGED_EXCLUSION = "unacknowledged_exclusion"
+    UNDECLARED_COMPONENT_PAYLOAD = "undeclared_component_payload"
+    INVALID_IDENTITY_MAPPING = "invalid_identity_mapping"
 
     def __init__(self, code: str) -> None:
         self.code = code
@@ -103,6 +112,14 @@ class BundleArchive(ContractModel):
             lowered = member.path.lower()
             if member.path.startswith(("/", "\\")) or ".." in member.path or "\\" in member.path:
                 raise PortabilityValidationError(PortabilityValidationError.UNSAFE_ARCHIVE_MEMBER)
+            # Drive letters/URL schemes, empty or dot segments and control or
+            # format characters never name a plain relative member.
+            if (
+                ":" in member.path
+                or any(segment in {"", "."} for segment in member.path.split("/"))
+                or any(unicodedata.category(char)[0] == "C" for char in member.path)
+            ):
+                raise PortabilityValidationError(PortabilityValidationError.UNSAFE_ARCHIVE_MEMBER)
             if lowered.endswith(_FORBIDDEN_SUFFIXES):
                 raise PortabilityValidationError(PortabilityValidationError.UNSAFE_ARCHIVE_MEMBER)
             total += member.size_bytes
@@ -119,10 +136,54 @@ class PayloadRecord(ContractModel):
 
 
 class BundleSignature(ContractModel):
-    """Who signed the manifest digest — never a self-asserted trust anchor."""
+    """An Ed25519 signature over the manifest digest.
 
+    The key id only selects which operator-supplied public key verifies the
+    signature; it is never a self-asserted trust anchor.
+    """
+
+    algorithm: Literal["ed25519"] = "ed25519"
     signer_key_id: str = Field(pattern=_KEY_ID)
     signed_manifest_digest: Digest
+    signature: str = Field(pattern=r"^[0-9a-f]{128}$")
+
+
+def _signature_message(manifest_digest: Digest) -> bytes:
+    # Domain-separated so a portability signature never verifies as any
+    # other signed artifact over the same digest.
+    return f"{BUNDLE_FORMAT}:manifest:{manifest_digest}".encode()
+
+
+def sign_portability_manifest(
+    manifest: PortabilityManifest,
+    *,
+    signer_key_id: str,
+    private_key: Ed25519PrivateKey,
+) -> BundleSignature:
+    """Producer-side helper: sign the canonical manifest digest."""
+
+    digest = manifest.digest()
+    return BundleSignature(
+        signer_key_id=signer_key_id,
+        signed_manifest_digest=digest,
+        signature=private_key.sign(_signature_message(digest)).hex(),
+    )
+
+
+def _verify_signature(
+    signature: BundleSignature,
+    manifest_digest: Digest,
+    trusted_signer_keys: Mapping[str, bytes],
+) -> None:
+    public_key = trusted_signer_keys.get(signature.signer_key_id)
+    if public_key is None or signature.signed_manifest_digest != manifest_digest:
+        raise PortabilityValidationError(PortabilityValidationError.UNTRUSTED_SIGNER)
+    try:
+        Ed25519PublicKey.from_public_bytes(public_key).verify(
+            bytes.fromhex(signature.signature), _signature_message(manifest_digest)
+        )
+    except (InvalidSignature, ValueError):
+        raise PortabilityValidationError(PortabilityValidationError.UNTRUSTED_SIGNER) from None
 
 
 class PortabilityBundle(ContractModel):
@@ -191,13 +252,15 @@ def _plan_digest(plan_parts: dict[str, object]) -> Digest:
 def validate_bundle(
     bundle: PortabilityBundle,
     *,
-    trusted_signer_key_ids: frozenset[str],
+    trusted_signer_keys: Mapping[str, bytes],
     supported_axis_versions: tuple[str, ...],
     identity_map: Mapping[str, tuple[str, str]] | None = None,
 ) -> RestorePlan:
     """Verify a bundle offline and derive its deterministic restore plan.
 
-    ``identity_map`` maps a payload principal to ``(target_subject,
+    ``trusted_signer_keys`` maps a signer key id to its raw 32-byte Ed25519
+    public key, supplied by the operator out of band. ``identity_map`` maps a
+    payload principal to ``(target_subject,
     source_kind)`` where kind is ``user``/``group``/``service``; principals
     absent from the map stay ``unmapped_disabled``. Raises
     :class:`PortabilityValidationError` with a fixed code before any plan
@@ -209,20 +272,29 @@ def validate_bundle(
     """
 
     manifest = bundle.manifest
-    if bundle.signature.signer_key_id not in trusted_signer_key_ids:
-        raise PortabilityValidationError(PortabilityValidationError.UNTRUSTED_SIGNER)
-    if bundle.signature.signed_manifest_digest != manifest.digest():
-        raise PortabilityValidationError(PortabilityValidationError.UNTRUSTED_SIGNER)
+    _verify_signature(bundle.signature, manifest.digest(), trusted_signer_keys)
     if manifest.source_axis_version not in supported_axis_versions:
         raise PortabilityValidationError(PortabilityValidationError.INCOMPATIBLE_AXIS_VERSION)
 
+    # Every carried payload must belong to a declared, non-excluded component
+    # so that no unsigned record reaches the plan or a later restore step.
+    carriable = {
+        component.component_id
+        for component in manifest.components
+        if component.decision != "exclude"
+    }
+    if set(bundle.component_payloads) - carriable:
+        raise PortabilityValidationError(
+            PortabilityValidationError.UNDECLARED_COMPONENT_PAYLOAD
+        )
+
     for component in manifest.components:
         records = bundle.component_payloads.get(component.component_id)
-        if component.decision == "restore":
-            if records is None:
-                raise PortabilityValidationError(
-                    PortabilityValidationError.MISSING_COMPONENT_PAYLOAD
-                )
+        if component.decision == "restore" and records is None:
+            raise PortabilityValidationError(
+                PortabilityValidationError.MISSING_COMPONENT_PAYLOAD
+            )
+        if records is not None:
             if len(records) != component.object_count:
                 raise PortabilityValidationError(
                     PortabilityValidationError.PAYLOAD_DIGEST_MISMATCH
@@ -239,6 +311,18 @@ def validate_bundle(
                 raise PortabilityValidationError(PortabilityValidationError.DUPLICATE_IDENTITY)
 
     mapping = dict(identity_map or {})
+    try:
+        for source_subject, (target_subject, source_kind) in mapping.items():
+            IdentityMapping(
+                source_subject=source_subject,
+                source_kind=source_kind,  # type: ignore[arg-type]
+                target_subject=target_subject,
+                target_state="mapped",
+            )
+    except (TypeError, ValueError):
+        raise PortabilityValidationError(
+            PortabilityValidationError.INVALID_IDENTITY_MAPPING
+        ) from None
     targets = [target for target, _kind in mapping.values()]
     if len(set(targets)) != len(targets):
         raise PortabilityValidationError(PortabilityValidationError.AMBIGUOUS_IDENTITY_MAPPING)
