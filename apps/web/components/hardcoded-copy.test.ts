@@ -44,6 +44,7 @@ function isCopy(text: string): boolean {
 
 /** Attributes whose value is read or announced to the user. */
 const COPY_ATTRIBUTES = new Set([
+  "labelPrefix",
   "aria-label",
   "aria-description",
   "alt",
@@ -65,24 +66,10 @@ function isSampleIdentifier(text: string): boolean {
 /*
  * Copy-bearing attribute literals that predate this guard, keyed by
  * "file|attribute|text". This list may only shrink: a new literal fails the
- * test, and so does an entry here that no longer matches anything. Most are
- * SourcePill `subject` names, whose state labels are composed in
- * components/ui/source-pill.tsx and still need a catalogue of their own.
+ * test, and so does an entry here that no longer matches anything. It is
+ * empty: keep it that way by moving new copy into the catalogue instead.
  */
-const ATTRIBUTE_DEBT = new Set([
-  "components/connector-console/governance.tsx|title|… invariant",
-  "components/connector-console/runs.tsx|aria-label|… error",
-  "components/connector-console/runs.tsx|title|… failed",
-  "components/model-routing-console.tsx|detail|This tenant has no registered model endpoints. Register an endpoint through POST /platform/models/endpoints to enable deterministic, fail-closed routing.",
-  "components/overview/needs-attention.tsx|detail|… / due …",
-  "components/platform-settings-console.tsx|title|… report",
-  "components/policy-condition-fields.tsx|aria-label|… action domains",
-  "components/policy-condition-fields.tsx|aria-label|… amount threshold",
-  "components/policy-condition-fields.tsx|label|… autonomy levels",
-  "components/policy-condition-fields.tsx|label|… risk levels",
-  "components/tenant-usage-panel.tsx|detail|… … in window",
-  "components/ui/page-header.tsx|aria-label|Page actions",
-]);
+const ATTRIBUTE_DEBT = new Set<string>([]);
 
 type Finding = { file: string; line: number; kind: string; text: string };
 

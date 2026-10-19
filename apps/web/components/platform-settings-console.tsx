@@ -188,6 +188,7 @@ function SettingsPanel({
   inspect?: Record<string, unknown>;
   children: ReactNode;
 }) {
+  const strings = useStrings();
   return (
     <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
@@ -197,7 +198,7 @@ function SettingsPanel({
         </div>
         <div className="flex items-center gap-3">
           {status ? <SettingsStatusPill status={status} /> : null}
-          {inspect ? <InspectDrawer record={inspect} title={`${title} report`} /> : null}
+          {inspect ? <InspectDrawer record={inspect} title={strings.ui.platformSettings.reportTitle(title)} /> : null}
         </div>
       </div>
       {children}

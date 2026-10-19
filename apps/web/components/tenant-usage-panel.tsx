@@ -104,7 +104,7 @@ export function TenantUsagePanel({ tenantId }: { tenantId: string }) {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0" aria-label={strings.ui.tenantUsagePanel.perMetricConsumption} role="list">
           {rows.map((row) => (
             <StatCard
-              detail={`${row.periodCount} ${row.periodCount === 1 ? "period" : "periods"} in window`}
+              detail={strings.ui.tenantUsagePanel.periodsInWindow(row.periodCount)}
               key={row.metricKey}
               label={row.label}
               value={formatNumber(row.total)}

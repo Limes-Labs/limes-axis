@@ -171,7 +171,7 @@ function ApprovalAttentionRow({
             </button>
           </span>
         }
-        detail={`${approval.domain} / due ${approval.due}`}
+        detail={strings.ui.overviewNeedsAttention.approvalDetail(approval.domain, approval.due)}
         title={approval.action}
         tone={<StatusDot status={approval.risk_level === "high" ? "action_required" : "watch"} />}
       />

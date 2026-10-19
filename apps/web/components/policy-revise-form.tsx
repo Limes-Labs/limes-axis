@@ -251,7 +251,7 @@ export function PolicyReviseForm({
         <PolicyConditionFields
           conditions={draft.conditions}
           errors={fieldErrors}
-          labelPrefix="Revision"
+          labelPrefix={strings.ui.policyReviseForm.conditionsPrefix}
           onChange={updateConditions}
         />
         <Field className="col-span-full" label={strings.ui.common.notesOnePerLine}>

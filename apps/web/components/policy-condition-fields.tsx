@@ -69,7 +69,7 @@ export function PolicyConditionFields({
     <>
       <Field className="col-span-full" label={strings.ui.common.actionDomains}>
         <Input
-          aria-label={`${labelPrefix} action domains`}
+          aria-label={strings.ui.policyConditionFields.actionDomainsFor(labelPrefix)}
           onChange={(event) => update({ actionDomainsText: event.target.value })}
           placeholder={strings.ui.policyConditionFields.operationsFinanceCommaSeparated}
           type="text"
@@ -77,13 +77,13 @@ export function PolicyConditionFields({
         />
       </Field>
       <ConditionToggleGroup
-        label={`${labelPrefix} risk levels`}
+        label={strings.ui.policyConditionFields.riskLevelsFor(labelPrefix)}
         onToggle={(value) => update({ riskLevels: toggleValue(conditions.riskLevels, value) })}
         options={platformPolicyRiskLevels}
         selected={conditions.riskLevels}
       />
       <ConditionToggleGroup
-        label={`${labelPrefix} autonomy levels`}
+        label={strings.ui.policyConditionFields.autonomyLevelsFor(labelPrefix)}
         onToggle={(value) =>
           update({ autonomyLevels: toggleValue(conditions.autonomyLevels, value) })
         }
@@ -92,7 +92,7 @@ export function PolicyConditionFields({
       />
       <Field label={strings.ui.common.amountThreshold}>
         <Input
-          aria-label={`${labelPrefix} amount threshold`}
+          aria-label={strings.ui.policyConditionFields.amountThresholdFor(labelPrefix)}
           min="0"
           onChange={(event) => update({ requestedAmount: event.target.value })}
           placeholder={strings.ui.common.optional}

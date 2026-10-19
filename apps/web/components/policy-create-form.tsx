@@ -266,7 +266,7 @@ export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
         <PolicyConditionFields
           conditions={draft.conditions}
           errors={fieldErrors}
-          labelPrefix="New policy"
+          labelPrefix={strings.ui.policyCreateForm.conditionsPrefix}
           onChange={updateConditions}
         />
         <Field className="col-span-full" label={strings.ui.common.notesOnePerLine}>

@@ -2308,6 +2308,7 @@ const ui = {
     boundary: "Perimetro",
     profile: "Profilo",
     rotationEvery: (status: string, days: number) => `${status} / ogni ${days} giorni`,
+    invariantTitle: (evidenceType: string) => `Invariante ${evidenceType}`,
   },
   connectorConsoleList: {
     connectorPages: "Pagine dei connettori",
@@ -2323,6 +2324,8 @@ const ui = {
   connectorConsoleRuns: {
     liveRefreshFailedShowingThe:
       "Aggiornamento non riuscito. Vengono mostrati gli ultimi dati di esecuzione convalidati.",
+    stageError: (stage: string) => `Errore: ${stage}`,
+    stageFailed: (stage: string) => `Fase non riuscita: ${stage}`,
   },
   connectorConsoleSourceIngestionPanel: {
     off: "Disattivata",
@@ -2399,6 +2402,8 @@ const ui = {
     deferredFlagGated: (value: number) =>
       value === 1 ? "1 differita (subordinata a flag)" : `${count(value)} differite (subordinate a flag)`,
     enabledOf: (enabled: number, total: number) => `${count(enabled)} di ${count(total)} abilitati`,
+    noModelEndpointsDetail:
+      "Questo tenant non ha endpoint di modello registrati. Registri un endpoint tramite POST /platform/models/endpoints per abilitare un routing deterministico e fail-closed.",
   },
   modelRoutingFlow: {
     routingDependencies: "Dipendenze del routing",
@@ -2548,6 +2553,7 @@ const ui = {
   overviewNeedsAttention: {
     openTheFullApprovalInbox: "Aprire l'elenco completo delle approvazioni",
     needsAttentionDataSources: "Fonti dati degli elementi da esaminare",
+    approvalDetail: (domain: string, due: string) => `${domain} / scadenza ${due}`,
   },
   overviewPostureCards: {
     platformPosture: "Stato della piattaforma",
@@ -2573,6 +2579,10 @@ const ui = {
   },
   policyConditionFields: {
     operationsFinanceCommaSeparated: "Operazioni, Finanza (separati da virgola)",
+    actionDomainsFor: (prefix: string) => `Domini delle azioni (${prefix})`,
+    riskLevelsFor: (prefix: string) => `Livelli di rischio (${prefix})`,
+    autonomyLevelsFor: (prefix: string) => `Livelli di autonomia (${prefix})`,
+    amountThresholdFor: (prefix: string) => `Soglia di importo (${prefix})`,
   },
   policyCreateForm: {
     authorPolicy: "Creazione della policy",
@@ -2596,6 +2606,7 @@ const ui = {
     policyCreated: (revision: number, version: string) => `Policy creata come r${revision} / ${version}.`,
     previewEvaluationDetail:
       "Esegue POST /platform/policies/evaluate sulle policy già persistite per questo tenant, oltre a una verifica lato client che le condizioni redatte corrispondano al contesto di esempio. Solo indicativo: l'API valuta la bozza solo dopo la sua creazione.",
+    conditionsPrefix: "nuova policy",
   },
   policyDetail: {
     policyRevisionHistory: "Cronologia delle revisioni della policy",
@@ -2703,6 +2714,7 @@ const ui = {
       `Revisione già applicata: l'API ha riprodotto r${revision} / ${version} per questa chiave di idempotenza senza scrivere una nuova revisione.`,
     revisionConflict: "Conflitto di revisione",
     policyRevisionFailed: "Revisione della policy non riuscita",
+    conditionsPrefix: "revisione",
   },
   policyRevisionCompare: {
     changed: "Modificato",
@@ -2959,6 +2971,8 @@ const ui = {
     meteringIsCumulativeConsumptionAccounting:
       "La misurazione è una contabilizzazione cumulativa dei consumi; le quote restano i limiti applicati.",
     consumptionOverDays: (days: number) => `Consumi degli ultimi ${days} giorni`,
+    periodsInWindow: (periods: number) =>
+      `${periods} ${periods === 1 ? "periodo" : "periodi"} nella finestra`,
   },
   tenantVocabularyEditor: {
     vocabularyTechnicalDetails: "Dettagli tecnici del vocabolario",
@@ -3074,9 +3088,13 @@ const ui = {
   },
   platformSettings: {
     requestId: (requestId: string) => `Richiesta ${requestId}.`,
+    reportTitle: (title: string) => `Report: ${title}`,
   },
   signInGate: {
     identityProvider: (host: string) => `Provider di identità: ${host}.`,
+  },
+  pageHeader: {
+    pageActions: "Azioni della pagina",
   },
 } as const;
 

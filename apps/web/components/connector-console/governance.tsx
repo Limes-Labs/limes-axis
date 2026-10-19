@@ -249,7 +249,7 @@ export function ConnectorGovernance({
                   </div>
                   <InspectDrawer
                     record={invariant}
-                    title={`${invariant.evidence_type} invariant`}
+                    title={strings.ui.connectorConsoleGovernance.invariantTitle(invariant.evidence_type)}
                   />
                 </div>
               ))}

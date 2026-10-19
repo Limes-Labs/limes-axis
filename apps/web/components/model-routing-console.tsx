@@ -805,7 +805,7 @@ function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenan
           />
         ) : endpoints.data.endpoints.length === 0 ? (
           <EmptyPanel
-            detail="This tenant has no registered model endpoints. Register an endpoint through POST /platform/models/endpoints to enable deterministic, fail-closed routing."
+            detail={strings.ui.modelRoutingConsole.noModelEndpointsDetail}
             title={strings.ui.modelRoutingConsole.noModelEndpointsRegistered}
           />
         ) : (

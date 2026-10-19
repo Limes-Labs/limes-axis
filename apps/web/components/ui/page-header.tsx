@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { useStrings } from "@/providers/locale-provider";
+
 export interface PageHeaderProps {
   title: string;
   description?: string;
@@ -13,6 +15,7 @@ export interface PageHeaderProps {
 
 /** The single page header — one per page, fed from `strings.pages`. */
 export function PageHeader({ title, description, status, actions, meta }: PageHeaderProps) {
+  const strings = useStrings();
   return (
     <header className="flex min-w-0 flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
@@ -39,7 +42,7 @@ export function PageHeader({ title, description, status, actions, meta }: PageHe
         ) : null}
       </div>
       {actions ? (
-        <div aria-label="Page actions" className="flex flex-wrap items-center justify-end gap-2">
+        <div aria-label={strings.ui.pageHeader.pageActions} className="flex flex-wrap items-center justify-end gap-2">
           {actions}
         </div>
       ) : null}

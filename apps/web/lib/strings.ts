@@ -2363,6 +2363,7 @@ const ui = {
     boundary: "Boundary",
     profile: "Profile",
     rotationEvery: (status: string, days: number) => `${status} / every ${days} days`,
+    invariantTitle: (evidenceType: string) => `${evidenceType} invariant`,
   },
   connectorConsoleList: {
     connectorPages: "Connector pages",
@@ -2376,6 +2377,8 @@ const ui = {
   },
   connectorConsoleRuns: {
     liveRefreshFailedShowingThe: "Live refresh failed. Showing the last validated run data.",
+    stageError: (stage: string) => `${stage} error`,
+    stageFailed: (stage: string) => `${stage} failed`,
   },
   connectorConsoleSourceIngestionPanel: {
     off: "Off",
@@ -2451,6 +2454,8 @@ const ui = {
     recordedCount: (value: number) => `${count(value)} recorded`,
     deferredFlagGated: (value: number) => `${count(value)} deferred (flag-gated)`,
     enabledOf: (enabled: number, total: number) => `${count(enabled)} of ${count(total)} enabled`,
+    noModelEndpointsDetail:
+      "This tenant has no registered model endpoints. Register an endpoint through POST /platform/models/endpoints to enable deterministic, fail-closed routing.",
   },
   modelRoutingFlow: {
     routingDependencies: "Routing dependencies",
@@ -2596,6 +2601,7 @@ const ui = {
   overviewNeedsAttention: {
     openTheFullApprovalInbox: "Open the full approval inbox",
     needsAttentionDataSources: "Needs attention data sources",
+    approvalDetail: (domain: string, due: string) => `${domain} / due ${due}`,
   },
   overviewPostureCards: {
     platformPosture: "Platform posture",
@@ -2620,6 +2626,10 @@ const ui = {
   },
   policyConditionFields: {
     operationsFinanceCommaSeparated: "Operations, Finance (comma separated)",
+    actionDomainsFor: (prefix: string) => `${prefix} action domains`,
+    riskLevelsFor: (prefix: string) => `${prefix} risk levels`,
+    autonomyLevelsFor: (prefix: string) => `${prefix} autonomy levels`,
+    amountThresholdFor: (prefix: string) => `${prefix} amount threshold`,
   },
   policyCreateForm: {
     authorPolicy: "Author Policy",
@@ -2643,6 +2653,7 @@ const ui = {
     policyCreated: (revision: number, version: string) => `Policy created as r${revision} / ${version}.`,
     previewEvaluationDetail:
       "Runs POST /platform/policies/evaluate against the policies already persisted for this tenant, plus a client-side check of whether the drafted conditions would match the sample context. Advisory only: the draft is not evaluated by the API until it is authored.",
+    conditionsPrefix: "New policy",
   },
   policyDetail: {
     policyRevisionHistory: "Policy revision history",
@@ -2747,6 +2758,7 @@ const ui = {
       `Revision already applied: the API replayed r${revision} / ${version} for this idempotency key without writing a new revision.`,
     revisionConflict: "Revision conflict",
     policyRevisionFailed: "Policy revision failed",
+    conditionsPrefix: "Revision",
   },
   policyRevisionCompare: {
     changed: "Changed",
@@ -2997,6 +3009,7 @@ const ui = {
     meteringIsCumulativeConsumptionAccounting:
       "Metering is cumulative consumption accounting; quotas remain the enforcement ceilings.",
     consumptionOverDays: (days: number) => `Consumption over the last ${days} days`,
+    periodsInWindow: (periods: number) => `${periods} ${periods === 1 ? "period" : "periods"} in window`,
   },
   tenantVocabularyEditor: {
     vocabularyTechnicalDetails: "Vocabulary technical details",
@@ -3108,9 +3121,13 @@ const ui = {
   },
   platformSettings: {
     requestId: (requestId: string) => `Request ${requestId}.`,
+    reportTitle: (title: string) => `${title} report`,
   },
   signInGate: {
     identityProvider: (host: string) => `Identity provider: ${host}.`,
+  },
+  pageHeader: {
+    pageActions: "Page actions",
   },
 } as const;
 
