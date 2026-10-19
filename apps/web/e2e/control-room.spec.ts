@@ -66,6 +66,7 @@ test.describe("approval review workspace", () => {
     await expect(page.getByText("No pending approvals match these filters. Try another search or clear the filters.")).toBeVisible();
     await page.getByRole("button", { name: "Clear filters", exact: true }).click();
     await expect(search).toHaveValue("");
+    await expect(page.getByRole("combobox", { name: "Risk", exact: true })).toHaveValue("all");
     await page.getByRole("combobox", { name: "Domain", exact: true }).selectOption({ label: "Quality" });
     const row = page.getByRole("button", { name: /Place Batch Q-1842/ });
     await row.click();
@@ -82,19 +83,25 @@ test.describe("approval review workspace", () => {
       await page.goBack();
       await expect(page).not.toHaveURL(/approval_id=/);
     }
+    await expect(page).not.toHaveURL(/approval_id=/);
     await expect(page.getByRole("combobox", { name: "Domain", exact: true })).toHaveValue(/quality/i);
     await row.click();
     await expect(page).toHaveURL(/approval_id=/);
     await page.goBack();
     await expect(page).not.toHaveURL(/approval_id=/);
-    await expect(search).toBeVisible();
+    // The queue remounts behind a data-bound loading surface; under a slow
+    // live API that hand-off can exceed the default 5s expectation budget.
+    await expect(search).toBeVisible({ timeout: 15_000 });
     await row.click();
+    await expect(page).toHaveURL(/approval_id=[^&]+/);
     if (compact(page)) await page.getByRole("button", { name: "Back to approval inbox" }).click();
     await search.fill("quality");
     await expect(page).toHaveURL(/q=quality/);
     await page.goBack();
     await expect(page).not.toHaveURL(/q=quality/);
-    await expect(search).toHaveValue("");
+    // Same remount budget as above: the queue refetches before the uncontrolled
+    // search input is remounted with the cleared filter value.
+    await expect(search).toHaveValue("", { timeout: 15_000 });
     await expectNoHorizontalOverflow(page);
   });
 

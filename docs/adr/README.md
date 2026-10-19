@@ -36,3 +36,4 @@ sequence remains in [the architecture changelog](../architecture-changelog.md).
 - [`0017-s3-source-host-mapping.md`](./0017-s3-source-host-mapping.md) — Accepted
 - [`0018-temporary-ci-runners.md`](./0018-temporary-ci-runners.md) — Accepted
 - [`0019-runtime-dependency-inventory.md`](./0019-runtime-dependency-inventory.md) — Proposed
+- [`0020-public-institutional-context.md`](./0020-public-institutional-context.md) — Proposed

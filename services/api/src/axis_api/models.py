@@ -8,6 +8,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    ForeignKey,
     Index,
     Integer,
     Numeric,
@@ -2267,4 +2268,93 @@ class SearchIndexRecord(Base):
             name="ck_search_index_records_text_state",
         ),
         CheckConstraint("index_generation >= 1", name="ck_search_index_records_generation"),
+    )
+
+
+class PortabilityRestoreRunRecord(Base):
+    """One persisted restore-plan execution into an isolated target tenant."""
+
+    __tablename__ = "portability_restore_runs"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    target_tenant_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    bundle_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    plan_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    generation: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    state: Mapped[str] = mapped_column(String(24), nullable=False)
+    acknowledged_by: Mapped[str] = mapped_column(String(160), nullable=False)
+    acknowledged_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    authorized_by: Mapped[str] = mapped_column(String(160), nullable=False)
+    authorized_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    current_step: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    steps_completed: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    steps_failed: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    fenced: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    fenced_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('pending', 'running', 'suspended_quarantined', 'completed', 'aborted')",
+            name="ck_portability_restore_runs_state",
+        ),
+        UniqueConstraint(
+            "target_tenant_id",
+            "bundle_digest",
+            "plan_digest",
+            "generation",
+            name="uq_portability_restore_runs_target_bundle_plan_generation",
+        ),
+        Index(
+            "ix_portability_restore_runs_target_state",
+            "target_tenant_id",
+            "state",
+        ),
+    )
+
+
+class PortabilityRestoreStepRecord(Base):
+    """One component restore step with its exact evidence."""
+
+    __tablename__ = "portability_restore_steps"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    run_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("portability_restore_runs.id"), nullable=False
+    )
+    component_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    state: Mapped[str] = mapped_column(String(24), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    evidence_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    failure_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('pending', 'in_progress', 'completed', 'failed', 'blocked')",
+            name="ck_portability_restore_steps_state",
+        ),
+        UniqueConstraint(
+            "run_id",
+            "component_id",
+            name="uq_portability_restore_steps_run_component",
+        ),
+        UniqueConstraint(
+            "run_id",
+            "sequence",
+            name="uq_portability_restore_steps_run_sequence",
+        ),
     )
