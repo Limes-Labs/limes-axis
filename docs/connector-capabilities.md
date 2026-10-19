@@ -36,7 +36,7 @@ binding. Supported today, with executable evidence:
 | Mode | Supported | Evidence |
 | --- | --- | --- |
 | Pagination | `opaque_cursor` and same-endpoint `next_link`; repeated cursors are terminal | `services/api/tests/test_rest_connector_conformance.py::test_full_traversal_commits_bounded_payloads_and_reports_completion`, `...::test_repeated_cursor_is_terminal_without_storing_the_loop` |
-| Auth | Lease-scoped `env://` bearer reference resolved server-side; 401 is terminal for the lease | `services/api/tests/test_connector_rest_ingestion.py::test_revoked_lease_blocks_before_any_read` |
+| Auth | Lease-scoped `env://` bearer reference resolved server-side; 401 is terminal for the lease | `services/api/tests/test_connector_rest_ingestion.py::test_revoked_lease_blocks_before_any_read`, `...::test_provider_unauthorized_is_terminal_for_the_lease_and_never_retried` |
 | Consistency | `mutable_traversal` only: bounded pages, no snapshot, no CDC and no general change-feed | `services/api/tests/test_rest_connector_conformance.py::test_full_traversal_commits_bounded_payloads_and_reports_completion` |
 | Throttling | 429 defers through durable retry state with a bounded `Retry-After` floor; the worker never sleeps | `services/api/tests/test_rest_connector_conformance.py::test_throttle_retries_durably_then_completes` |
 | Failure containment | Malformed JSON, changed schema, truncated pages and cross-tenant cursors fail closed without advancing | `services/api/tests/test_rest_connector_conformance.py::test_malformed_json_dead_letters_without_advancing`, `...::test_schema_change_blocks_before_any_request` |

@@ -184,7 +184,13 @@ def build_rest_support_evidence(
     for batch in batches:
         watermark = batch.cursor_watermark or {}
         pages = max(pages, int(watermark.get("page_number") or 0))
-    last_error = _ERROR_CODES.get((row.last_error or "").split("+")[0]) if row else None
+    last_error_code = (row.last_error or "").split("+")[0] if row is not None else ""
+    # A recorded code without a dedicated category (no_progress, limit_exceeded,
+    # a sanitized exception name, ...) is still an unresolved error; dropping it
+    # would make an exhausted retry incoherent and hide the failure.
+    last_error = (
+        _ERROR_CODES.get(last_error_code, OperationalError.UNKNOWN) if last_error_code else None
+    )
     reasons: list[str] = []
     if not batches:
         reasons.append(NO_COMMITTED_EVIDENCE)

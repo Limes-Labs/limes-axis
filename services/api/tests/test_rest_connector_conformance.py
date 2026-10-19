@@ -588,6 +588,25 @@ def test_health_reports_scheduled_retry_as_degraded_not_ready(host):
     assert "throttled" in health.reasons
 
 
+def test_health_projects_every_dead_lettered_terminal_code(host):
+    budgets = HealthBudgets(
+        max_freshness_seconds=3600, max_lag_seconds=3600, max_checkpoint_age_seconds=3600
+    )
+    host.service.queue_json(page(ORDER_IDS[:1], next_token="A"))
+    host.service.queue_json(page(ORDER_IDS[1:2], next_token="A"))
+    submit(host, "request-0")
+    assert dispatch(host).completed == 1
+    submit(host, "request-1")
+    assert dispatch(host).dead_lettered == 1
+    evidence = evidence_for(host, "request-1", VerificationScope.LOCAL_WIRE_LEVEL)
+    # A terminal code without a dedicated health category must still surface as
+    # an unresolved error, never as a crash or a silently healthy binding.
+    assert evidence.retry_state == "exhausted"
+    assert evidence.last_error is not None
+    health = project_rest_health(evidence, observed_at=datetime.now(UTC), budgets=budgets)
+    assert health.status == "unavailable"
+
+
 def test_loopback_endpoint_digest_binds_the_actual_origin(host):
     expected = hashlib.sha256(f"127.0.0.1:{host.service.port}".encode()).hexdigest()
     assert host.profile.endpoint_target_sha256 == expected
