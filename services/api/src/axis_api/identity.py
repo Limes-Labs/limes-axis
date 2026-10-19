@@ -1,4 +1,5 @@
 import json
+import logging
 import threading
 import time
 from urllib.error import URLError
@@ -6,6 +7,8 @@ from urllib.request import urlopen
 
 from jose import JWTError, jwt
 from pydantic import BaseModel, Field
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class OidcAuthenticationError(ValueError):
@@ -228,6 +231,8 @@ class RemoteJwksOidcVerifier(StaticJwksOidcVerifier):
         self._refresh_lock = threading.Lock()
         self._last_forced_refresh_at = 0.0
         self._forced_refresh_cooldown_seconds = min(5.0, max(1.0, cache_seconds / 10))
+        self._last_success_at = 0.0
+        self._stale_retry_seconds = min(30.0, max(1.0, cache_seconds / 10))
 
     def _key_for_token(self, token: str) -> dict:
         if time.time() < self._cache_expires_at:
@@ -244,8 +249,23 @@ class RemoteJwksOidcVerifier(StaticJwksOidcVerifier):
             now = time.time()
             cache_was_valid = now < self._cache_expires_at
             if not cache_was_valid:
-                self.jwks = self._fetch_jwks()
-                self._cache_expires_at = now + self.cache_seconds
+                try:
+                    self.jwks = self._fetch_jwks()
+                except OidcAuthenticationError:
+                    if not self._can_serve_stale(now):
+                        raise
+                    # Stale-if-error: an unreachable IdP must not reject every
+                    # token signed by a key fetched moments ago. Keep the last
+                    # good keys and retry after a brief backoff instead of on
+                    # every request; past the stale window, fail closed.
+                    _LOGGER.warning(
+                        "JWKS refresh failed; serving last good keys for up to %.0f s.",
+                        self._last_success_at + 2 * self.cache_seconds - now,
+                    )
+                    self._cache_expires_at = now + self._stale_retry_seconds
+                else:
+                    self._last_success_at = now
+                    self._cache_expires_at = now + self.cache_seconds
             try:
                 return super()._key_for_token(token)
             except OidcAuthenticationError as exc:
@@ -260,8 +280,17 @@ class RemoteJwksOidcVerifier(StaticJwksOidcVerifier):
                 # traffic to force one blocking network fetch per request.
                 self._last_forced_refresh_at = now
                 self.jwks = self._fetch_jwks()
+                self._last_success_at = now
                 self._cache_expires_at = now + self.cache_seconds
                 return super()._key_for_token(token)
+
+    def _can_serve_stale(self, now: float) -> bool:
+        """Last good keys stay usable for one further cache period at most."""
+        return (
+            self._last_success_at > 0
+            and bool(self.jwks.get("keys"))
+            and now - self._last_success_at <= 2 * self.cache_seconds
+        )
 
     def _fetch_jwks(self) -> dict:
         try:

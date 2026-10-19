@@ -373,6 +373,14 @@ release-bound behavior, not the complete commit history.
 
 ### Changed
 
+- Bearer-token verification keeps the last good JWKS when a scheduled refresh
+  fails (stale-if-error) and retries after a short backoff (a tenth of
+  `AXIS_OIDC_JWKS_CACHE_SECONDS`, 1 to 30 s) instead of on every request.
+  Previously an unreachable JWKS endpoint rejected every token once the cache
+  expired, even ones signed by a cached key. Stale keys are served for at most
+  one further cache period after the last successful fetch; past that, and when
+  no fetch has ever succeeded, verification still fails closed with
+  `jwks_fetch_failed`.
 - The S3-compatible export store's MinIO client now uses a bounded transport
   (new `AXIS_CONNECTOR_EXPORT_S3_CONNECT_TIMEOUT_SECONDS` default `5`,
   `AXIS_CONNECTOR_EXPORT_S3_READ_TIMEOUT_SECONDS` default `30`,
