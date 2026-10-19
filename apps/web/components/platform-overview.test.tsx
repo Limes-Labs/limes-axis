@@ -290,6 +290,22 @@ describe("PlatformOverview hero", () => {
       .toHaveAttribute("title", "Risks: reference scenario · Approvals: reference scenario · Outcomes: live");
   });
 
+  it("puts secondary sections behind phone-only disclosures after the hero and attention items", () => {
+    mockQueriesByPath();
+    renderOverview();
+
+    const triggers = Array.from(document.querySelectorAll("[data-mobile-disclosure-trigger]"));
+    expect(triggers.map((trigger) => trigger.textContent)).toEqual(
+      Object.values(strings.overview.mobileSections),
+    );
+    const attention = screen.getByRole("region", { name: strings.overview.needsAttention.eyebrow });
+    for (const trigger of triggers) {
+      // Every collapsed section comes after the attention strip in page order.
+      expect(attention.compareDocumentPosition(trigger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+    expect(screen.getByLabelText("Platform posture").closest("[data-mobile-disclosure]")).not.toBeNull();
+  });
+
   it("shows no example banner when every overview source is live", () => {
     mockQueriesByPath([], {
       overview: { ...overviewFixture, provenance: "live", scenario: null },

@@ -13,6 +13,7 @@ import { type OverviewQuery } from "@/components/overview/overview-shared";
 import { PostureCards } from "@/components/overview/posture-cards";
 import { ScenarioBanner, type OverviewSource } from "@/components/overview/scenario-banner";
 import { SideRail } from "@/components/overview/side-rail";
+import { MobileDisclosure } from "@/components/ui/disclosure";
 import { SourcePill, sourceStateLabel } from "@/components/ui/source-pill";
 import { StatCard } from "@/components/ui/stat-card";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
@@ -373,19 +374,25 @@ export function PlatformOverview() {
         overview={overviewQuery}
         tenantId={tenantId}
       />
-        <SideRail auditEvents={activityQuery} hiddenReadCount={hiddenReadCount} />
+        {/* On a phone the first screen is the hero and the attention items;
+            secondary sections wait behind a disclosure (always open from md). */}
+        <MobileDisclosure title={strings.overview.mobileSections.activity}>
+          <SideRail auditEvents={activityQuery} hiddenReadCount={hiddenReadCount} />
+        </MobileDisclosure>
       </div>
 
       <OnboardingChecklist tenantId={tenantId} variant="compact" />
 
-      <PostureCards
-        overview={overviewQuery}
-        routing={routingQuery}
-        snapshot={snapshotQuery}
-        tenantId={tenantId}
-      />
+      <MobileDisclosure title={strings.overview.mobileSections.posture}>
+        <PostureCards
+          overview={overviewQuery}
+          routing={routingQuery}
+          snapshot={snapshotQuery}
+          tenantId={tenantId}
+        />
+      </MobileDisclosure>
 
-      <div className="ops-dashboard-grid grid grid-cols-1 gap-4">
+      <MobileDisclosure className="ops-dashboard-grid grid-cols-1" title={strings.overview.mobileSections.evidence}>
         <section aria-label={strings.ui.platformOverview.operationsEvidence} className="ops-dashboard-main grid min-w-0 content-start gap-4">
           <EvidenceFeed
             auditEvents={activityQuery}
@@ -400,8 +407,7 @@ export function PlatformOverview() {
             <ArtifactPanel onArtifactCommitted={triggerRefresh} snapshot={snapshotQuery} />
           </Suspense>
         </section>
-
-      </div>
+      </MobileDisclosure>
     </div>
   );
 }

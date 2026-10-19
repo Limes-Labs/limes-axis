@@ -1276,6 +1276,11 @@ const connectors = {
 } as const;
 
 const overview = {
+  mobileSections: {
+    activity: "Ripartizione delle attività",
+    posture: "Stato della piattaforma",
+    evidence: "Evidenze e artefatti governati",
+  },
   scenarioBanner: {
     title: "Scenario di esempio",
     detail:

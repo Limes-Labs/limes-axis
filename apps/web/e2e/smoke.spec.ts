@@ -228,6 +228,16 @@ test.describe("Axis console smoke", () => {
     await expect(
       page.getByRole("heading", { name: "Attention items unavailable" }),
     ).toBeVisible();
+    // On a phone the secondary sections start collapsed under the hero and
+    // attention items; open them to check each one degrades on its own.
+    if ((page.viewportSize()?.width ?? 1024) < 768) {
+      for (const title of Object.values(strings.overview.mobileSections)) {
+        const trigger = page.getByRole("button", { name: title, exact: true });
+        await expect(trigger).toHaveAttribute("aria-expanded", "false");
+        await trigger.click();
+        await expect(trigger).toHaveAttribute("aria-expanded", "true");
+      }
+    }
     await expect(
       page.getByRole("heading", { name: "Audit evidence API unavailable" }),
     ).toBeVisible();
@@ -556,8 +566,11 @@ test.describe("Axis console smoke", () => {
       );
 
     expect(utilityRects.length).toBeGreaterThanOrEqual(4);
+    // Touch screens get 44px targets; a mouse keeps the compact 34px controls.
+    const coarsePointer = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+    const side = coarsePointer ? 44 : 34;
     for (const rect of utilityRects) {
-      expect(rect).toEqual({ height: 34, width: 34 });
+      expect(rect).toEqual({ height: side, width: side });
     }
 
     const accountButton = page.getByRole("button", { name: "Open operator account" });

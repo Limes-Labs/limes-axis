@@ -1300,6 +1300,12 @@ const connectors = {
 
 /** Overview control-room copy: hero, needs-attention strip, posture, feed. */
 const overview = {
+  /* Secondary overview sections collapse behind these on a phone. */
+  mobileSections: {
+    activity: "Activity breakdown",
+    posture: "Platform posture",
+    evidence: "Evidence and governed artifacts",
+  },
   /* One page-level notice replaces a provenance chip on every panel. Each
      panel still names its own source in its tooltip. */
   scenarioBanner: {

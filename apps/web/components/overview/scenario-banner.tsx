@@ -47,8 +47,9 @@ export function ScenarioBanner({
       <div className="grid min-w-0 gap-0.5">
         <h2 className="m-0 text-sm font-medium text-ink">{copy.title}</h2>
         <p className="m-0 text-xs leading-snug text-muted">
-          {subjects.length > 0 ? copy.detail : copy.demoDetail}
-          {subjects.length > 0 ? ` ${copy.sections(subjects)}` : null}
+          {/* On a phone the section list alone carries the message. */}
+          {subjects.length > 0 ? <span className="max-sm:hidden">{copy.detail} </span> : copy.demoDetail}
+          {subjects.length > 0 ? copy.sections(subjects) : null}
         </p>
       </div>
     </section>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { Collapsible as CollapsiblePrimitive } from "radix-ui";
 
@@ -76,7 +76,7 @@ export function Disclosure({
     >
       <CollapsiblePrimitive.Trigger
         className={cn(
-          "inline-flex min-h-6 max-w-full min-w-0 cursor-pointer items-center bg-transparent p-0 text-left transition-colors",
+          "inline-flex min-h-6 max-w-full min-w-0 cursor-pointer items-center bg-transparent p-0 text-left transition-colors pointer-coarse:min-h-11",
           triggerSizes[size],
         )}
         type="button"
@@ -101,5 +101,50 @@ export function Disclosure({
         {children}
       </CollapsiblePrimitive.Content>
     </CollapsiblePrimitive.Root>
+  );
+}
+
+/**
+ * The same disclosure, applied only below the `md` breakpoint: on a phone the
+ * section starts collapsed behind a full-width trigger; from `md` up the
+ * trigger is not rendered and the section is always shown. The breakpoint is
+ * pure CSS, so server and client markup match and nothing flashes on
+ * hydration. Content stays mounted (its queries keep running) while collapsed.
+ */
+export function MobileDisclosure({
+  title,
+  children,
+  className,
+}: {
+  title: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const contentId = useId();
+
+  return (
+    <div className={cn("group/disclosure grid min-w-0 gap-3", className)} data-mobile-disclosure="" data-state={open ? "open" : "closed"}>
+      <button
+        aria-controls={contentId}
+        aria-expanded={open}
+        className={cn(
+          "flex min-h-11 w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-2xl border border-line bg-surface px-4 text-left md:hidden dark:border-white/10",
+          triggerSizes.md,
+        )}
+        data-mobile-disclosure-trigger=""
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <span className="min-w-0 break-words">{title}</span>
+        <ChevronRight
+          aria-hidden="true"
+          className="shrink-0 text-muted transition-transform duration-150 group-data-[state=open]/disclosure:rotate-90 motion-reduce:transition-none"
+        />
+      </button>
+      <div className={cn("grid min-w-0 gap-4", !open && "max-md:hidden")} id={contentId}>
+        {children}
+      </div>
+    </div>
   );
 }

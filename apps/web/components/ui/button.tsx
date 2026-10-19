@@ -33,6 +33,9 @@ const base = cn(
   // Disabled controls keep pointer events so a `title` can still explain why;
   // hover and press states are scoped to enabled controls instead.
   "disabled:cursor-not-allowed disabled:opacity-50",
+  // Touch screens get a 44px target (WCAG 2.5.5) without changing the
+  // compact desktop control height.
+  "pointer-coarse:min-h-11",
   "[&_svg]:shrink-0",
 );
 

@@ -53,7 +53,7 @@ export function MobileNavigation({
   return (
     <nav
       aria-label={strings.ui.mobileNavigation.navigationLabel(currentLabel)}
-      className="sticky top-0 z-20 block h-14 border-b border-line bg-surface/95 px-3 backdrop-blur-xl min-[921px]:hidden dark:border-white/10"
+      className="sticky top-0 z-20 block h-12 border-b border-line bg-surface/95 px-3 backdrop-blur-xl min-[921px]:hidden dark:border-white/10"
       data-mobile-navigation
     >
       <div className="flex h-full min-w-0 items-center gap-2.5">
