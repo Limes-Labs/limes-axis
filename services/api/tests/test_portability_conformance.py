@@ -197,6 +197,7 @@ def test_modified_restore_bytes_fail_the_digest_row() -> None:
     source = Deployment("source")
     _seed_full(source)
     bundle = export_bundle(source, captured_at="2026-09-17T08:00:00Z")
+    trust_anchor = source.export_trust_anchor()
     disconnect_source(source)
     destination = Deployment("destination", source_reachable=False)
     destination.identities.update(_IDENTITY_DIRECTORY)
@@ -204,6 +205,7 @@ def test_modified_restore_bytes_fail_the_digest_row() -> None:
         destination,
         bundle,
         session_factory=tmp,
+        trusted_signer_keys=trust_anchor,
         handlers={"ontology": tampering_handler(destination)},
     )
     rows = evaluate_scenario(
@@ -335,21 +337,57 @@ def test_missing_destination_handler_is_blocked_never_portable() -> None:
     assert _row(report, "activation_gate_honest_after_restore")["state"] == "BLOCKED"
 
 
-def test_validation_failure_report_is_not_portable() -> None:
+def test_corrupt_or_foreign_bundles_fail_validation() -> None:
     from axis_api.portability_conformance import BundleBytes
-    from axis_api.portability_manifest import PortabilityManifest
+    from axis_api.portability_validator import PayloadRecord, PortabilityValidationError
 
     source = Deployment("source")
     _seed_full(source)
     bundle = export_bundle(source, captured_at="2026-09-17T08:00:00Z")
-    corrupted = BundleBytes(
-        bundle.manifest, dict(bundle.component_payloads)
+    trust_anchor = source.export_trust_anchor()
+    # The untampered bundle validates against the pinned source key.
+    assert (
+        supported_profile_plan(bundle, trusted_signer_keys=trust_anchor).manifest_digest
+        == bundle.manifest.digest()
     )
-    assert isinstance(corrupted.manifest, PortabilityManifest)
-    # Corrupt the archive surface the validator sees: member sizes are part
-    # of the signed archive description.
-    plan = supported_profile_plan(corrupted)
-    assert plan.manifest_digest == bundle.manifest.digest()
+    # A modified payload no longer matches the signed manifest digest.
+    payloads = dict(bundle.component_payloads)
+    payloads["ontology"] = (
+        PayloadRecord(identity="user:planner", data={"entity": "tampered"}),
+        *payloads["ontology"][1:],
+    )
+    corrupted = BundleBytes(bundle.manifest, payloads, bundle.signature)
+    with pytest.raises(PortabilityValidationError) as blocked:
+        supported_profile_plan(corrupted, trusted_signer_keys=trust_anchor)
+    assert blocked.value.code == PortabilityValidationError.PAYLOAD_DIGEST_MISMATCH
+    # A bundle signed by another deployment is not trusted by this anchor.
+    other = Deployment("other-source")
+    _seed_full(other)
+    foreign = export_bundle(other, captured_at="2026-09-17T08:00:00Z")
+    with pytest.raises(PortabilityValidationError) as blocked:
+        supported_profile_plan(foreign, trusted_signer_keys=trust_anchor)
+    assert blocked.value.code == PortabilityValidationError.UNTRUSTED_SIGNER
+
+
+def test_active_destination_tenant_is_never_restored_into() -> None:
+    source = Deployment("source")
+    _seed_full(source)
+    bundle = export_bundle(source, captured_at="2026-09-17T08:00:00Z")
+    trust_anchor = source.export_trust_anchor()
+    disconnect_source(source)
+    destination = Deployment("destination", source_reachable=False)
+    from axis_api.portability_restore_runner import PortabilityRestoreError
+
+    with pytest.raises(PortabilityRestoreError) as blocked:
+        restore_into_destination(
+            destination,
+            bundle,
+            session_factory=next(_session_factory()),
+            trusted_signer_keys=trust_anchor,
+            target_tenant_status="active",
+        )
+    assert blocked.value.code == PortabilityRestoreError.TARGET_NOT_SUSPENDED
+    assert destination.stores == {}
 
 
 def test_partial_restore_cannot_claim_portable() -> None:

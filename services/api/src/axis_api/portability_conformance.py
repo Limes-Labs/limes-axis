@@ -25,8 +25,11 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
 from axis_sdk.connector_authoring.contracts import ContractModel, Digest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from pydantic import Field
 
+from axis_api.models import Tenant
 from axis_api.portability_manifest import (
     ComponentInventory,
     ConsistencyPoint,
@@ -57,6 +60,7 @@ from axis_api.portability_validator import (
     PortabilityValidationError,
     RestorePlan,
     acknowledge_restore_plan,
+    sign_portability_manifest,
     validate_bundle,
 )
 
@@ -75,8 +79,9 @@ OUTCOME_NOT_PORTABLE = "not_portable"
 OUTCOME_NOT_EVALUATED = "not_evaluated"
 
 DEFAULT_AXIS_VERSION = "1.14.0"
-# The harness declares its own verification trust anchor explicitly, the
-# same way a deployment pins the export-signing keys it accepts.
+# The source signs its export with an ephemeral Ed25519 key; the destination
+# trusts only the public half handed over out of band, the same way a
+# deployment pins the export-signing keys it accepts.
 HARNESS_TRUSTED_KEY_ID = "signing/2026/portability"
 
 SOURCE_HISTORY_ORIGIN = "source_history"
@@ -122,6 +127,22 @@ class Deployment:
         self.stores: dict[str, dict[str, dict[str, object]]] = {}
         self.identities: dict[str, str] = {}
         self.source_reachable = source_reachable
+        # Deployment-local export-signing key; never exported or shared.
+        self._signing_key = Ed25519PrivateKey.generate()
+
+    def sign(self, manifest: PortabilityManifest) -> BundleSignature:
+        return sign_portability_manifest(
+            manifest, signer_key_id=HARNESS_TRUSTED_KEY_ID, private_key=self._signing_key
+        )
+
+    def export_trust_anchor(self) -> dict[str, bytes]:
+        """The public verification key an operator pins on a destination."""
+
+        return {
+            HARNESS_TRUSTED_KEY_ID: self._signing_key.public_key().public_bytes(
+                Encoding.Raw, PublicFormat.Raw
+            )
+        }
 
     def load(self, store: str, records: Iterable[Mapping[str, object]]) -> None:
         table = self.stores.setdefault(store, {})
@@ -202,8 +223,10 @@ class BundleBytes:
         self,
         manifest: PortabilityManifest,
         component_payloads: Mapping[str, Sequence[PayloadRecord]],
+        signature: BundleSignature,
     ) -> None:
         self.manifest = manifest
+        self.signature = signature
         self.component_payloads = {
             component_id: tuple(records)
             for component_id, records in component_payloads.items()
@@ -253,7 +276,7 @@ def export_bundle(
         for component in manifest.components
         if component.decision != "exclude"
     }
-    return BundleBytes(manifest, component_payloads)
+    return BundleBytes(manifest, component_payloads, source.sign(manifest))
 
 
 # Component ids are free-form identifiers; the manifest ``store`` field is a
@@ -331,6 +354,7 @@ def _source_manifest(
 def supported_profile_plan(
     bundle: BundleBytes,
     *,
+    trusted_signer_keys: Mapping[str, bytes],
     axis_versions: Sequence[str] = (DEFAULT_AXIS_VERSION,),
 ) -> RestorePlan:
     """Validate the bundle through the real #877 validator."""
@@ -344,14 +368,11 @@ def supported_profile_plan(
             )
         ),
         component_payloads=bundle.component_payloads,
-        signature=BundleSignature(
-            signer_key_id=HARNESS_TRUSTED_KEY_ID,
-            signed_manifest_digest=bundle.manifest.digest(),
-        ),
+        signature=bundle.signature,
     )
     return validate_bundle(
         portability_bundle,
-        trusted_signer_key_ids=frozenset({HARNESS_TRUSTED_KEY_ID}),
+        trusted_signer_keys=trusted_signer_keys,
         supported_axis_versions=tuple(axis_versions),
     )
 
@@ -383,6 +404,7 @@ def restore_into_destination(
     bundle: BundleBytes,
     *,
     session_factory: Callable[[], Any],
+    trusted_signer_keys: Mapping[str, bytes],
     handlers: Mapping[str, Callable[[StepContext], Digest]] | None = None,
     handler_component_ids: Sequence[str] | None = None,
     axis_versions: Sequence[str] = (DEFAULT_AXIS_VERSION,),
@@ -396,10 +418,16 @@ def restore_into_destination(
     ``handler_component_ids`` declares which components the destination
     actually has handlers for; a declared restore component outside the
     set stays a #878 blocked step (missing handler), never a fabricated
-    success."""
+    success.
+
+    The destination operator admits the target tenant itself (status
+    ``target_tenant_status``, suspended by default) before the runner, which
+    reads that persisted row and refuses anything but a suspended target."""
 
     DestinationView(destination).require_source_disconnected()
-    plan = supported_profile_plan(bundle, axis_versions=axis_versions)
+    plan = supported_profile_plan(
+        bundle, trusted_signer_keys=trusted_signer_keys, axis_versions=axis_versions
+    )
     acknowledgement = acknowledge_restore_plan(
         plan,
         acknowledged_exclusions=plan.exclusions(),
@@ -416,14 +444,24 @@ def restore_into_destination(
         }
         | dict(handlers or {})
     )
+    target_tenant_id = f"tenant-{destination.name}"
     with session_factory() as session:
+        if session.get(Tenant, target_tenant_id) is None:
+            session.add(
+                Tenant(
+                    id=target_tenant_id,
+                    name=target_tenant_id,
+                    status=target_tenant_status,
+                    created_by="portability-conformance",
+                )
+            )
+            session.flush()
         run = start_restore_run(
             session,
             plan=plan,
             acknowledgement=acknowledgement,
-            target_tenant_id=f"tenant-{destination.name}",
-            target_tenant_status=target_tenant_status,
-            manifest_components=bundle.manifest.components,
+            target_tenant_id=target_tenant_id,
+            manifest=bundle.manifest,
             acknowledged_by=operator,
             authorized_by=operator,
             authorize=lambda _subject: True,
@@ -454,7 +492,7 @@ def restore_into_destination(
                     StepContext(
                         run_id=str(run.id),
                         component_id=component_id,
-                        target_tenant_id=f"tenant-{destination.name}",
+                        target_tenant_id=target_tenant_id,
                         object_prefix=f"portability/{run.id}/{component_id}",
                         payload_digest=bundle.payload_digest(component_id),
                         records=tuple(
@@ -694,7 +732,7 @@ def evaluate_scenario(
                     "one_restored_flow_works_after_activation",
                     ROW_PASS,
                     owner="axis_api.portability_restore_runner:activation",
-                    reason=f"flow completed: {flow_result}",
+                    reason=f"flow completed: {flow_result}"[:500],
                 )
             )
         except Exception as error:  # noqa: BLE001 — reported, never swallowed
@@ -703,7 +741,7 @@ def evaluate_scenario(
                     "one_restored_flow_works_after_activation",
                     ROW_FAIL,
                     owner="axis_api.portability_restore_runner:activation",
-                    reason=f"flow failed: {error}",
+                    reason=f"flow failed: {error}"[:500],
                 )
             )
         appended = [
@@ -738,13 +776,22 @@ def evaluate_scenario(
                 ),
             )
         )
+    # This row checks the declared restore posture carried by the plan; the
+    # harness has no pending-effect executor to observe directly.
+    inert = bool(plan.suspended_operations) and all(
+        operation.endswith((":suspended", ":review_required"))
+        for operation in plan.suspended_operations
+    )
     rows.append(
         _row(
             "pending_old_external_effects_remain_inert",
-            ROW_PASS,
+            ROW_PASS if inert else ROW_FAIL,
             owner="axis_api.portability_validator:RestorePlan.suspended_operations",
-            reason="; ".join(plan.suspended_operations)
-            or "no pending external operations declared",
+            reason=(
+                "declared restore posture: " + "; ".join(plan.suspended_operations)
+                if plan.suspended_operations
+                else "plan declares no suspended-operation posture"
+            )[:500],
         )
     )
 
@@ -878,6 +925,9 @@ def run_conformance_scenario(
     bundle = export_bundle(
         source, captured_at=captured_at, decisions=export_decisions
     )
+    # The operator pins the source's public export-signing key out of band
+    # before the cutoff; nothing else crosses from source to destination.
+    trust_anchor = source.export_trust_anchor()
     disconnect_source(source)
 
     destination = Deployment("destination", source_reachable=False)
@@ -887,6 +937,7 @@ def run_conformance_scenario(
             destination,
             bundle,
             session_factory=destination_session_factory,
+            trusted_signer_keys=trust_anchor,
             handlers=handlers,
             handler_component_ids=handler_component_ids,
             axis_versions=axis_versions,
@@ -898,6 +949,22 @@ def run_conformance_scenario(
                     "bundle_validates_against_supported_profile",
                     ROW_FAIL,
                     owner="axis_api.portability_validator:validate_bundle",
+                    reason=str(error)[:500],
+                )
+            ],
+            plan=None,
+            restore_result=None,
+            profile=profile,
+            release=release,
+            profile_supported=DEFAULT_AXIS_VERSION in axis_versions,
+        )
+    except PortabilityRestoreError as error:
+        return build_conformance_report(
+            [
+                _row(
+                    "restore_run_admitted_into_suspended_target",
+                    ROW_FAIL,
+                    owner="axis_api.portability_restore_runner:start_restore_run",
                     reason=str(error)[:500],
                 )
             ],

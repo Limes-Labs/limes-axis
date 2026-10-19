@@ -19,13 +19,16 @@ validation logic of its own, and no new export/restore format.
    approved ontology records, object artifacts and a representative audit
    trail, only where export/restore handlers exist).
 2. **Export** at the declared consistency point (#324 producer role): the
-   signed #876 manifest plus per-component payload records.
+   #876 manifest signed with the source's deployment-local Ed25519 key, plus
+   per-component payload records. The operator pins only the source's public
+   verification key on the destination, before the cutoff.
 3. **Disconnect** the source — permanently. From here the destination view
    refuses any read while a source path exists (`source_deployment_reachable`),
    so AC "zero runtime access to source credentials, database, identity,
    object store or application service" is enforced by construction, not
    asserted after the fact.
-4. **Restore** into a clean, independently initialized destination through
+4. **Admit** the destination tenant as `suspended` and **restore** into a
+   clean, independently initialized destination through
    the real #877 `validate_bundle` → `acknowledge_restore_plan` → #878
    `start_restore_run`/`claim_step`/`complete_step` path on the
    destination's own database. Components without a destination handler
@@ -45,8 +48,10 @@ validation logic of its own, and no new export/restore format.
 - **Audit attribution**: imported evidence keeps its `source_history` origin;
   the activated destination flow appends `destination_action` evidence, so
   source history and new actions stay separately attributable forever.
-- **One activated flow** plus the #878 suspended-operations list proving
-  pre-export notifications/writeback/schedules remain inert.
+- **One activated flow** plus a check that the plan's declared restore
+  posture keeps every pending-effect class `suspended`/`review_required`.
+  This is the declared #876/#877 posture; the facades have no pending-effect
+  executor, so the row does not observe a real scheduler or outbox.
 - **Search is rebuilt, never imported**: the report carries the outcome the
   caller passes in from the #875 rebuild owner (its dedicated conformance
   lives in PR #908). Without that outcome the row is NOT RUN with the exact
@@ -96,15 +101,19 @@ suitable for later assurance references (#883 family).
 No guarantee for arbitrary historic versions (same-version profile only; the
 adjacent-version fixture waits for its handlers), no copied credentials or
 private signing keys (rebinding references stay `fresh_local_resolution_required`),
-no restoration-from-mocks claim (the restore path is the real #878 runner on
-a real database), and missing infrastructure is NOT RUN with a reason, never
+no restoration-from-mocks claim beyond what runs: the #877 validator and the
+#878 runner state machine are the real modules on a real (SQLite) database,
+while component data lands in the destination facade's in-memory stores
+through a harness handler — no PostgreSQL, object store or identity provider
+is exercised, and the report is not production portability evidence. Missing infrastructure is NOT RUN with a reason, never
 a skip and never a destructive test.
 
 ## Tests
 
-`services/api/tests/test_portability_conformance.py` — 20 tests mapping the
-acceptance criteria: enforced source disconnect, plan matching (identities,
-digests, permissions), tampering detection, audit attribution, activated
-flow + inert effects, search-owner row semantics, the negative matrix
-(unsupported version, missing handlers, partial restore) and reproducibility
-(identical digests and rows across runs).
+`services/api/tests/test_portability_conformance.py` maps the acceptance
+criteria: enforced source disconnect, plan matching (identities, digests,
+permissions), tampering detection (handler bytes, payload records, foreign
+signer), refusal of an active destination tenant, audit attribution,
+activated flow + declared inert posture, search-owner row semantics, the
+negative matrix (unsupported version, missing handlers, partial restore) and
+reproducibility (identical digests and rows across runs).
