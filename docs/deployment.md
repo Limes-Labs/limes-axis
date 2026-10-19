@@ -1011,7 +1011,7 @@ runtime state.
 The workflow also generates `HIGH` and `CRITICAL` vulnerability SARIF reports
 for each image and uploads them to GitHub code scanning with
 `github/codeql-action/upload-sarif` pinned to
-`b96794f015dfd88f77b49b1c93e0fa7110f94c63`. This requires the workflow-scoped
+`1c5b675653bb5c22dbe9b12b556ec555138e09fd`. This requires the workflow-scoped
 `security-events: write` permission. SARIF upload is skipped for pull requests
 from forks because GitHub does not grant the same code-scanning write capability
 to untrusted fork contexts.
