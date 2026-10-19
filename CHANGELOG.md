@@ -10,8 +10,8 @@ release-bound behavior, not the complete commit history.
 - Authorized full-text search over the #873 index projection: one bounded query
   service and `GET /operations/search` that re-evaluate current authorization
   before any representation, omit denied and non-evaluable records entirely,
-  paginate over examined candidates with re-authorized cursors bound to the
-  principal, query, policy revision and index generation, and report
+  paginate by keyset with re-authorized cursors that never count hidden
+  candidates and are bound to the principal, query, policy revision and index generation, and report
   authorized-subset counts/facets plus explicit index freshness. Python SDK
   `search.query(...)` and a public `search-result-page` JSON Schema contract
   are included

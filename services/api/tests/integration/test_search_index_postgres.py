@@ -234,7 +234,7 @@ def test_authorized_search_isolation_on_real_postgres(migrated_postgres_engine):
                 searcher_ref="actor:outsider",
             )
         rows, _, _ = repository.list_search_index_records(
-            tenant_id=tenant_id,
+            tenant_id="tenant-search-pg-other",
             query_terms=["isolation"],
             offset=0,
             limit=5,

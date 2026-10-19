@@ -70,18 +70,20 @@ MAX_CURSOR_AGE_SECONDS = 15 * 60
 #: candidates are invisible to the searcher.
 MAX_CANDIDATE_WINDOWS = 4
 
-#: Upper bound on a continuation's candidate position; larger values are
-#: rejected as invalid instead of reaching the database as an OFFSET.
+#: Upper bound on a continuation's skip count; larger values are rejected as
+#: invalid instead of reaching the database as an OFFSET.
 MAX_CURSOR_OFFSET = 1_000_000
 
 #: Cursor MAC key. It is a published constant, not a secret: the MAC detects
 #: accidental corruption only and the cursor is **not** an authority. Every
 #: bound field that matters (tenant, searcher, query digest, policy revision,
 #: generation) is compared against the presenting request on every
-#: continuation, the offset is bounded, and authorization re-runs per
+#: continuation, the skip is bounded, and authorization re-runs per
 #: candidate, so a hand-crafted cursor can only choose where an already
-#: authorized scan resumes.
-CURSOR_SECRET = "axis-search-cursor-v1"
+#: authorized scan resumes. The cursor is readable by its holder, so it
+#: carries no position that counts invisible candidates (see
+#: ``run_authorized_search``).
+CURSOR_SECRET = "axis-search-cursor-v2"
 
 #: Deployment default for the *current* search ACL policy revision. Records
 #: indexed under a different revision are omitted until re-indexed.
@@ -284,6 +286,14 @@ def _cursor_mac(payload: dict) -> str:
     ).hexdigest()
 
 
+def _digest(value: object) -> str:
+    return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def _cursor_binding_digest(*, tenant_id: str, searcher_ref: str, query_digest: str) -> str:
+    return _digest({"query": query_digest, "searcher": searcher_ref, "tenant": tenant_id})
+
+
 def encode_search_cursor(
     *,
     tenant_id: str,
@@ -291,32 +301,42 @@ def encode_search_cursor(
     query_digest: str,
     index_generation: int,
     issued_at: int,
-    offset: int,
+    after: str | None = None,
+    skip: int = 0,
     policy_revision_ref: str | None = None,
 ) -> str:
     """Opaque, self-verifying continuation token.
 
     ``searcher_ref`` is an opaque caller identity string; the service never
     trusts it alone — every continuation re-runs authorization against the
-    presenting principal and rejects the cursor on mismatch.
+    presenting principal and rejects the cursor on mismatch. Tenant, searcher
+    and query travel as one digest and the policy revision as another, so the
+    token stays inside the published length bound.
+
+    ``after`` is the identity of the last hit already emitted to this
+    searcher (never an invisible candidate) and ``skip`` the number of
+    candidates after it to pass over; ``skip`` is only ever a whole number of
+    scan budgets, so it does not count individual invisible records.
     """
 
     payload = {
+        "after": after,
+        "bind": _cursor_binding_digest(
+            tenant_id=tenant_id, searcher_ref=searcher_ref, query_digest=query_digest
+        ),
         "generation": index_generation,
         "issued_at": issued_at,
-        "offset": offset,
-        "policy": policy_revision_ref,
-        "query": query_digest,
-        "searcher": searcher_ref,
-        "tenant": tenant_id,
+        "policy": _digest(policy_revision_ref),
+        "skip": skip,
     }
     return _canonical_json({"mac": _cursor_mac(payload), "payload": payload})
 
 
 class SearchCursorBinding(ContractModel):
-    """What a decoded cursor binds, plus the resume offset."""
+    """What a decoded cursor binds, plus the resume position."""
 
-    offset: int = Field(ge=0, strict=True)
+    after: str | None = None
+    skip: int = Field(default=0, ge=0, strict=True)
     index_generation: int = Field(ge=0, strict=True)
 
 
@@ -329,7 +349,7 @@ def decode_search_cursor(
     policy_revision_ref: str | None = None,
     now: int | None = None,
 ) -> SearchCursorBinding:
-    """Return the bound offset and generation or raise a fixed-code error.
+    """Return the bound resume position and generation or a fixed-code error.
 
     Tenant, presenting searcher and query/filter digest must match exactly
     (``search_cursor_invalid``); a cursor minted under another effective
@@ -340,25 +360,26 @@ def decode_search_cursor(
         blob = json.loads(cursor)
         payload = blob["payload"]
         mac = blob["mac"]
-        offset = payload["offset"]
+        skip = payload["skip"]
+        after = payload["after"]
         if (
-            not isinstance(offset, int)
-            or isinstance(offset, bool)
-            or offset < 0
-            or offset > MAX_CURSOR_OFFSET
+            not isinstance(skip, int)
+            or isinstance(skip, bool)
+            or skip < 0
+            or skip > MAX_CURSOR_OFFSET
         ):
-            raise ValueError("offset")
+            raise ValueError("skip")
+        if after is not None and (not isinstance(after, str) or not 0 < len(after) <= 200):
+            raise ValueError("after")
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise SearchQueryError(SearchQueryError.INVALID_CURSOR) from exc
     if not hmac.compare_digest(_cursor_mac(payload), str(mac)):
         raise SearchQueryError(SearchQueryError.INVALID_CURSOR)
-    if (
-        payload.get("tenant") != tenant_id
-        or payload.get("searcher") != searcher_ref
-        or payload.get("query") != query_digest
+    if payload.get("bind") != _cursor_binding_digest(
+        tenant_id=tenant_id, searcher_ref=searcher_ref, query_digest=query_digest
     ):
         raise SearchQueryError(SearchQueryError.INVALID_CURSOR)
-    if payload.get("policy") != policy_revision_ref:
+    if payload.get("policy") != _digest(policy_revision_ref):
         # The effective policy changed since the cursor was minted (for
         # example a revocation): continue only from a fresh query.
         raise SearchQueryError(SearchQueryError.CURSOR_EXPIRED)
@@ -373,7 +394,7 @@ def decode_search_cursor(
     generation = payload.get("generation")
     if not isinstance(generation, int) or isinstance(generation, bool) or generation < 0:
         raise SearchQueryError(SearchQueryError.INVALID_CURSOR)
-    return SearchCursorBinding(offset=offset, index_generation=generation)
+    return SearchCursorBinding(after=after, skip=skip, index_generation=generation)
 
 
 def _snippet_for(text: str, query: str) -> str:
@@ -440,29 +461,37 @@ def run_authorized_search(
     request: SearchQueryRequest,
     *,
     authority: SearcherAuthority,
-    fetch_page: Callable[[int, int], SearchCandidatePage],
+    fetch_page: Callable[[str | None, int, int], SearchCandidatePage],
     searcher_ref: str,
     now: int | None = None,
 ) -> SearchResultPage:
     """Execute one bounded, authorized search page.
 
     ``fetch_page`` is the host-supplied candidate provider
-    ``(offset, limit) -> SearchCandidatePage`` — the repository stays the
-    storage owner and this service owns authorization, representation and
-    continuation. Candidate positions are authorization-independent (the
-    repository orders and filters by tenant, state and query only), so the
-    cursor records the next unexamined candidate position:
+    ``(after, skip, limit) -> SearchCandidatePage``: up to ``limit``
+    candidates strictly after the identity ``after`` (``None`` is the start)
+    in the provider's stable identity order, passing over the first ``skip``.
+    The repository stays the storage owner and this service owns
+    authorization, representation and continuation. Candidate order is
+    authorization-independent (the repository orders and filters by tenant,
+    state and query only).
 
-    * each examined candidate advances the position exactly once, whether it
-      is emitted or invisible, so a continuation never repeats an emitted
-      hit and never skips an unexamined candidate;
+    The cursor is readable by its holder, so it never records a position
+    that counts invisible candidates; the gap between two emitted hits
+    would otherwise say how many restricted records match the query:
+
+    * when one more visible hit is seen after the page filled, the cursor
+      resumes after the last *emitted* hit, an identity the searcher already
+      holds; the continuation re-examines (and again omits) any invisible
+      candidates between it and the next visible hit;
     * invisible candidates do not shorten a page: further windows of
       ``page_size + 1`` candidates are scanned, up to
       ``MAX_CANDIDATE_WINDOWS`` per request;
-    * a cursor is emitted only when one more visible hit was seen after the
-      page filled, or when the scan budget ran out with candidates remaining
-      (a bounded partial page; the continuation resumes after every examined
-      candidate).
+    * when that scan budget runs out with candidates remaining, the page is
+      a bounded partial page. If it emitted hits, the cursor resumes after
+      the last one; if it emitted none, the cursor keeps its resume identity
+      and adds one whole scan budget to ``skip``, so every request makes
+      progress and ``skip`` only ever counts whole budgets.
 
     Metadata covers the emitted subset only. A continuation cursor bound to
     an older index generation or a different policy revision is expired, not
@@ -482,18 +511,22 @@ def run_authorized_search(
             policy_revision_ref=authority.policy_revision_ref,
             now=now,
         )
-    position = binding.offset if binding is not None else 0
+    resume_after = binding.after if binding is not None else None
+    resume_skip = binding.skip if binding is not None else 0
+    scan_after, scan_skip = resume_after, resume_skip
     window_size = request.page_size + 1
 
     hits: list[SearchHit] = []
     withheld = 0
     facets: dict[str, int] = {}
     generation: int | None = None
-    resume_at: int | None = None
+    last_emitted: str | None = None
+    examined = 0
+    look_ahead = False
     exhausted = False
 
     for _ in range(MAX_CANDIDATE_WINDOWS):
-        candidates = fetch_page(position, window_size)
+        candidates = fetch_page(scan_after, scan_skip, window_size)
         if generation is None:
             generation = candidates.index_generation
             if binding is not None and binding.index_generation != generation:
@@ -503,29 +536,33 @@ def run_authorized_search(
             raise SearchQueryError(SearchQueryError.CURSOR_EXPIRED)
         for record in candidates.records:
             hit = _authorized_hit(record, authority=authority, query=request.query)
-            if hit is None:
-                position += 1
-                continue
-            if len(hits) == request.page_size:
-                # Look-ahead: a further visible hit exists; resume on it.
-                resume_at = position
+            if hit is not None and len(hits) == request.page_size:
+                # Look-ahead: a further visible hit exists.
+                look_ahead = True
                 break
-            position += 1
+            examined += 1
+            if hit is None:
+                continue
             hits.append(hit)
+            last_emitted = record.source_object_id
             if hit.metadata_only:
                 withheld += 1
             facets[hit.kind] = facets.get(hit.kind, 0) + 1
-        if resume_at is not None:
+        if look_ahead:
             break
-        if not candidates.has_more:
+        if not candidates.has_more or not candidates.records:
             exhausted = True
             break
-    if resume_at is None and not exhausted:
-        # Scan budget spent with candidates remaining: bounded partial page.
-        resume_at = position
+        # Internal progress only: never exposed in a cursor.
+        scan_after, scan_skip = candidates.records[-1].source_object_id, 0
 
     next_cursor = None
-    if resume_at is not None:
+    if look_ahead or not exhausted:
+        if last_emitted is not None:
+            cursor_after, cursor_skip = last_emitted, 0
+        else:
+            # Scan budget spent on invisible candidates only.
+            cursor_after, cursor_skip = resume_after, resume_skip + examined
         next_cursor = encode_search_cursor(
             tenant_id=request.tenant_id,
             searcher_ref=searcher_ref,
@@ -533,7 +570,8 @@ def run_authorized_search(
             index_generation=generation or 0,
             policy_revision_ref=authority.policy_revision_ref,
             issued_at=int(time.time()) if now is None else now,
-            offset=resume_at,
+            after=cursor_after,
+            skip=cursor_skip,
         )
     return SearchResultPage(
         hits=hits,
@@ -596,7 +634,7 @@ def run_repository_search(
     if authority.tenant_id != request.tenant_id:
         raise SearchAuthorizationDenied()
 
-    def fetch(offset: int, limit: int) -> SearchCandidatePage:
+    def fetch(after: str | None, skip: int, limit: int) -> SearchCandidatePage:
         rows, next_offset, generation = repository.list_search_index_records(
             tenant_id=request.tenant_id,
             query_terms=request.query_terms(),
@@ -610,7 +648,8 @@ def run_repository_search(
                 if request.source_locator_contains is not None
                 else None
             ),
-            offset=offset,
+            after_source_object_id=after,
+            offset=skip,
             limit=limit,
         )
         views = [

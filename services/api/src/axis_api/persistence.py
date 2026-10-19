@@ -6359,6 +6359,7 @@ class AxisPersistenceRepository:
         query_terms: Sequence[str],
         kinds: Sequence[str] | None = None,
         locator_contains: str | None = None,
+        after_source_object_id: str | None = None,
         offset: int = 0,
         limit: int = 11,
     ) -> tuple[Sequence[SearchIndexRecord], int, int]:
@@ -6369,6 +6370,9 @@ class AxisPersistenceRepository:
         case-insensitive containment terms — the bounded, leak-free subset of
         SQL LIKE the service needs; no user text reaches the statement
         unbound. ``kinds`` and the optional locator filter narrow further.
+        ``after_source_object_id`` is a keyset bound in the window order
+        (descending identity; the identity is unique per tenant) and
+        ``offset`` skips candidates after it.
         Returned rows are candidates only: the query service re-evaluates
         current effective access before anything becomes user-visible.
         Returns the candidate window, the offset of the next window (0 when
@@ -6393,6 +6397,10 @@ class AxisPersistenceRepository:
                 func.lower(SearchIndexRecord.source_locator).contains(
                     locator_contains.casefold(), autoescape=True
                 )
+            )
+        if after_source_object_id is not None:
+            statement = statement.where(
+                SearchIndexRecord.source_object_id < after_source_object_id
             )
         statement = statement.order_by(
             SearchIndexRecord.source_object_id.desc(),

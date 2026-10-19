@@ -9361,9 +9361,14 @@ def create_app(
             ) from exc
         except ValidationError as exc:
             # Request-bound violations surface through the shared model
-            # validator; the fixed code travels in the error message.
-            first_error = exc.errors()[0].get("ctx", {}).get("error", "")
-            reason = str(first_error) or "invalid_search_request"
+            # validator; only a fixed search code is echoed, never the
+            # validator's message.
+            first_error = exc.errors()[0].get("ctx", {}).get("error")
+            reason = (
+                first_error.code
+                if isinstance(first_error, SearchQueryError)
+                else "invalid_search_request"
+            )
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={
