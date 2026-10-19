@@ -75,6 +75,7 @@
     {"id": "data-quality-contracts", "owner": "data", "dependencies": ["trust"], "kind": "module", "path": "services/api/src/axis_api/data_asset_contracts.py"},
     {"id": "data-provenance", "owner": "data", "dependencies": ["trust", "operational-model"], "kind": "module", "path": "services/api/src/axis_api/data_asset_lineage.py"},
     {"id": "connector-authoring-contracts", "owner": "data", "dependencies": ["trust"], "kind": "module", "path": "packages/sdk-python/src/axis_sdk/connector_authoring"},
+    {"id": "public-release-manifest", "owner": "data", "dependencies": ["trust"], "kind": "module", "path": "services/api/src/axis_api/public_release_manifest.py"},
     {"id": "operational-persistence", "owner": "operational-model", "dependencies": ["trust", "data", "workflow", "intelligence"], "kind": "module", "path": "services/api/src/axis_api/persistence.py"},
     {"id": "portability-manifest", "owner": "deployment", "dependencies": ["trust"], "kind": "module", "path": "services/api/src/axis_api/portability_manifest.py"},
     {"id": "portability-validator", "owner": "deployment", "dependencies": ["trust"], "kind": "module", "path": "services/api/src/axis_api/portability_validator.py"},

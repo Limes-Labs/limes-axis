@@ -33,6 +33,14 @@ release-bound behavior, not the complete commit history.
   only; no dataset binding, query engine or compute
   ([#855](https://github.com/Limes-Labs/limes-axis/issues/855)).
 
+- Versioned public dataset release manifest contract: sealed immutable release
+  revisions with opaque public IDs, closed frozen-source modes (no live query),
+  deterministic digests with tamper-checked withdrawal evidence, private
+  internal-lineage ledger kept structurally out of public manifests, and a
+  deterministic readiness classifier over disclosure/license review evidence.
+  Contract slice only; no distribution, API or storage is enabled
+  ([#838](https://github.com/Limes-Labs/limes-axis/issues/838)).
+
 - An optional authenticated public institutional context reader (GovCore),
   absent unless `create_app(public_context=...)` opts in, with current
   tenant/scope and separate fixed-origin policy checks before and after the
