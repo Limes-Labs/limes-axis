@@ -6,6 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { platformStatusLabel, type PlatformStatus } from "@/lib/platform-overview";
 import type { AxisQuerySource } from "@/lib/use-axis-query";
+import { consoleDateTimeFormat } from "@/lib/format";
 
 /*
  * Small shared pieces for the overview control-room sections. Each section
@@ -41,7 +42,7 @@ export function normalizeLabel(value: string): string {
 }
 
 export function shortTime(value: string): string {
-  return new Intl.DateTimeFormat("en", {
+  return consoleDateTimeFormat({
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));

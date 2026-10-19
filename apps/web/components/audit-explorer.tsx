@@ -39,7 +39,7 @@ import {
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { buildConnectorSnapshotHref } from "@/lib/connectors-demo";
-import { formatContextPath, formatDateTime, formatNumber } from "@/lib/format";
+import { formatContextPath, formatDateTime, formatNumber, formatTimeZoneLabel } from "@/lib/format";
 import { deriveSourceState } from "@/lib/source-state";
 import {
   formatOverviewTimestamp,
@@ -505,10 +505,16 @@ export function AuditExplorer() {
               <p className="eyebrow m-0">{strings.ui.auditExplorer.events}</p>
               <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink" aria-live="polite">{formatNumber(visibleEvents.length)} visible</h2>
             </div>
-            <span className="status-pill signal-ready">
-              <Filter size={15} />
-              {formatNumber(auditData.events.length)} returned
-            </span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {/* The heatmap bins in this same zone, so a bin and its rows agree. */}
+              <span className="text-xs text-muted" data-audit-time-zone>
+                {strings.ui.auditExplorer.timesInZone(formatTimeZoneLabel())}
+              </span>
+              <span className="status-pill signal-ready">
+                <Filter size={15} />
+                {formatNumber(auditData.events.length)} returned
+              </span>
+            </div>
           </div>
           {visibleEvents.length === 0 ? (
             <EmptyPanel

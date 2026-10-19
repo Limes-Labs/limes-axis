@@ -5,6 +5,7 @@ import type { ModelRouteTelemetry } from "@/lib/model-routing-demo";
 import type { SourceState } from "@/lib/source-state";
 import { SourcePill } from "@/components/ui/source-pill";
 import { useStrings } from "@/providers/locale-provider";
+import { formatNumber } from "@/lib/format";
 
 type RouteDependency = Pick<ModelRouteTelemetry, "provider_id" | "provider_name" | "model">;
 export type RoutingFlowSelection = { providerId: string; model?: string };
@@ -33,7 +34,7 @@ export function groupRoutingDependencies(routes: RouteDependency[]): ProviderGro
   })).sort((a, b) => b.count - a.count || a.id.localeCompare(b.id));
 }
 
-const routeCount = (count: number) => `${count.toLocaleString("en")} ${count === 1 ? "route" : "routes"}`;
+const routeCount = (count: number) => `${formatNumber(count)} ${count === 1 ? "route" : "routes"}`;
 
 function buildDependencyLayout(providers: ProviderGroup[]) {
   const palette = ["rgb(var(--signal))", "rgb(var(--positive))", "rgb(var(--warning))", "rgb(var(--muted))"];
@@ -108,7 +109,7 @@ export function ModelRoutingFlow({ routes, sourceState, onInspect }: {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
           <h2 className="m-0 font-display text-xl text-ink">{strings.ui.modelRoutingFlow.routingDependencies}</h2>
-          <p className="m-0 text-sm text-muted">{routes.length.toLocaleString("en")} configured {routes.length === 1 ? "route" : "routes"} · {providers.length} {providers.length === 1 ? "provider" : "providers"}</p>
+          <p className="m-0 text-sm text-muted">{formatNumber(routes.length)} configured {routes.length === 1 ? "route" : "routes"} · {providers.length} {providers.length === 1 ? "provider" : "providers"}</p>
         </div>
         <SourcePill state={sourceState} subject="model routing" />
       </div>

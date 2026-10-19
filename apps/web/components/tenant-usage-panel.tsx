@@ -18,6 +18,7 @@ import {
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 import { useStrings } from "@/providers/locale-provider";
+import { formatNumber } from "@/lib/format";
 
 type UsageSource = "loading" | "api" | "unavailable" | "missing";
 
@@ -106,7 +107,7 @@ export function TenantUsagePanel({ tenantId }: { tenantId: string }) {
               detail={`${row.periodCount} ${row.periodCount === 1 ? "period" : "periods"} in window`}
               key={row.metricKey}
               label={row.label}
-              value={row.total.toLocaleString()}
+              value={formatNumber(row.total)}
             />
           ))}
         </div>

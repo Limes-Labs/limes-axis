@@ -1,26 +1,66 @@
 "use client";
 
 import { useId, useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import { FALLBACK_TIME_ZONE, getConsoleTimeZone } from "@/lib/console-locale";
+import { consoleDateTimeFormat } from "@/lib/format";
 import { useStrings } from "@/providers/locale-provider";
 
 type TimedEvent = { occurred_at: string };
 export type AuditTimeInterval = { start: number; end: number; label: string };
 const DAY = 86_400_000;
-const SIX_HOURS = DAY / 4;
-const dateLabel = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
-});
-const weekdayLabel = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" });
 const hours = ["00:00–06:00", "06:00–12:00", "12:00–18:00", "18:00–24:00"];
 
 function timestamp(value: string) {
-  // Require an explicit zone: a browser-local timestamp would shift the UTC bins.
+  // Require an explicit zone: a timestamp without one names no instant.
   if (!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) return NaN;
   const date = value.slice(0, 10);
   const midnight = new Date(`${date}T00:00:00Z`);
   // Date.parse normalizes some impossible dates, such as 30 February.
   if (!Number.isFinite(midnight.getTime()) || midnight.toISOString().slice(0, 10) !== date) return NaN;
   return Date.parse(value);
+}
+
+type WallClock = { year: number; month: number; day: number; hour: number; minute: number; second: number };
+
+const wallClockFormats = new Map<string, Intl.DateTimeFormat>();
+
+/** The calendar date and clock time an instant shows in `timeZone`. */
+function wallClock(instant: number, timeZone: string): WallClock {
+  let format = wallClockFormats.get(timeZone);
+  if (!format) {
+    format = new Intl.DateTimeFormat("en-US", {
+      timeZone, hourCycle: "h23",
+      year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric",
+    });
+    wallClockFormats.set(timeZone, format);
+  }
+  const parts = Object.fromEntries(format.formatToParts(instant).map((part) => [part.type, Number(part.value)]));
+  return { year: parts.year, month: parts.month, day: parts.day, hour: parts.hour, minute: parts.minute, second: parts.second };
+}
+
+/** Midnight UTC of the instant's calendar date in `timeZone`: a zone-free day number. */
+function civilDay(instant: number, timeZone: string): number {
+  const clock = wallClock(instant, timeZone);
+  return Date.UTC(clock.year, clock.month - 1, clock.day);
+}
+
+/**
+ * The instant at which `timeZone` shows `hour`:00 on the civil day `day`
+ * (a `civilDay` value). Two passes settle the zone offset across a DST change;
+ * hour 24 is the next day's midnight.
+ */
+function zonedInstant(day: number, hour: number, timeZone: string): number {
+  const target = day + hour * 3_600_000;
+  const offset = (instant: number) => {
+    const clock = wallClock(instant, timeZone);
+    const shown = Date.UTC(clock.year, clock.month - 1, clock.day, clock.hour, clock.minute, clock.second);
+    return shown - (instant - (((instant % 1000) + 1000) % 1000));
+  };
+  const first = target - offset(target);
+  const second = target - offset(first);
+  return second;
 }
 
 export function filterAuditTimeInterval<T extends TimedEvent>(events: T[], interval: AuditTimeInterval | null): T[] {
@@ -31,13 +71,23 @@ export function filterAuditTimeInterval<T extends TimedEvent>(events: T[], inter
   });
 }
 
-export function buildAuditActivity(events: TimedEvent[], returnedEvents: TimedEvent[]) {
+/**
+ * Seven calendar days of six-hour bins in `timeZone`, ending on the date of
+ * the newest returned event. Each day carries the instant it starts; a bin is
+ * a half-open [start, end) interval of real instants, so filtering a list by
+ * a bin and counting the bin always agree.
+ */
+export function buildAuditActivity(
+  events: TimedEvent[],
+  returnedEvents: TimedEvent[],
+  timeZone: string = FALLBACK_TIME_ZONE,
+) {
   const validReturned = returnedEvents.map((event) => timestamp(event.occurred_at)).filter(Number.isFinite);
   const latest = validReturned.length ? Math.max(...validReturned) : null;
-  const end = latest === null ? null : Math.floor(latest / DAY) * DAY + DAY;
-  const start = end === null ? null : end - 7 * DAY;
-  const days = start === null ? [] : Array.from({ length: 7 }, (_, day) => ({
-    timestamp: start + day * DAY,
+  const lastDay = latest === null ? null : civilDay(latest, timeZone);
+  const firstDay = lastDay === null ? null : lastDay - 6 * DAY;
+  const days = firstDay === null ? [] : Array.from({ length: 7 }, (_, day) => ({
+    timestamp: zonedInstant(firstDay + day * DAY, 0, timeZone),
     bins: [0, 0, 0, 0],
   }));
   let invalid = 0;
@@ -45,14 +95,22 @@ export function buildAuditActivity(events: TimedEvent[], returnedEvents: TimedEv
   for (const event of events) {
     const at = timestamp(event.occurred_at);
     if (!Number.isFinite(at)) { invalid += 1; continue; }
-    if (start === null || end === null || at < start || at >= end) continue;
-    const offset = at - start;
-    days[Math.floor(offset / DAY)].bins[Math.floor((offset % DAY) / SIX_HOURS)] += 1;
+    if (firstDay === null) continue;
+    const clock = wallClock(at, timeZone);
+    const index = (Date.UTC(clock.year, clock.month - 1, clock.day) - firstDay) / DAY;
+    if (index < 0 || index > 6) continue;
+    days[index].bins[Math.floor(clock.hour / 6)] += 1;
     inRange += 1;
   }
   return { days, inRange, invalid, outsideRange: events.length - invalid - inRange,
     filteredCount: events.length, returnedCount: returnedEvents.length,
     maximum: Math.max(0, ...days.flatMap((day) => day.bins)) };
+}
+
+/** The [start, end) instants of a day's six-hour bin in `timeZone`. */
+export function auditBinInterval(dayStart: number, bin: number, timeZone: string = FALLBACK_TIME_ZONE) {
+  const day = civilDay(dayStart, timeZone);
+  return { start: zonedInstant(day, bin * 6, timeZone), end: zonedInstant(day, bin * 6 + 6, timeZone) };
 }
 
 function intensity(count: number, maximum: number) {
@@ -64,21 +122,27 @@ function intensity(count: number, maximum: number) {
   return "bg-signal/8 text-ink dark:bg-signal/10";
 }
 
-export function AuditActivityHeatmap({ events, returnedEvents, selectedInterval = null, onSelectInterval, controlsId }: {
+export function AuditActivityHeatmap({ events, returnedEvents, selectedInterval = null, onSelectInterval, controlsId, timeZone }: {
   events: TimedEvent[];
   returnedEvents: TimedEvent[];
   selectedInterval?: AuditTimeInterval | null;
   onSelectInterval?: (interval: AuditTimeInterval | null) => void;
   controlsId?: string;
+  /** Defaults to the console time zone, which the audit list also prints in. */
+  timeZone?: string;
 }) {
   const strings = useStrings();
   const id = useId();
   const [inspected, setInspected] = useState<string | null>(null);
-  const activity = buildAuditActivity(events, returnedEvents);
+  const zone = timeZone ?? getConsoleTimeZone();
+  const dateLabel = consoleDateTimeFormat({ day: "numeric", month: "short", year: "numeric", timeZone: zone });
+  const weekdayLabel = consoleDateTimeFormat({ weekday: "short", timeZone: zone });
+  const dayNumber = consoleDateTimeFormat({ day: "numeric", timeZone: zone });
+  const activity = buildAuditActivity(events, returnedEvents, zone);
   const cells = activity.days.flatMap((day) => day.bins.map((count, bin) => ({
     key: `${day.timestamp}-${bin}`, count,
-    start: day.timestamp + bin * SIX_HOURS,
-    label: `${dateLabel.format(day.timestamp)}, ${hours[bin]} UTC`,
+    start: auditBinInterval(day.timestamp, bin, zone).start,
+    label: `${dateLabel.format(day.timestamp)}, ${hours[bin]} ${zone}`,
   })));
   const selected = cells.find((cell) => cell.key === inspected)
     ?? cells.find((cell) => cell.start === selectedInterval?.start)
@@ -86,14 +150,14 @@ export function AuditActivityHeatmap({ events, returnedEvents, selectedInterval 
   const completeWindow = activity.inRange === activity.filteredCount
     && activity.filteredCount === activity.returnedCount;
   const range = activity.days.length > 0
-    ? `${dateLabel.formatRange(activity.days[0].timestamp, activity.days[6].timestamp)} UTC`
+    ? `${dateLabel.formatRange(activity.days[0].timestamp, activity.days[6].timestamp)} ${zone}`
     : "No valid dated events to plot";
 
   return (
     <section aria-labelledby={`${id}-title`} className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <h2 id={`${id}-title`} className="font-display m-0 text-lg text-ink">{strings.ui.auditActivityHeatmap.activityByTime}</h2>
-        <span className="rounded-full bg-ink/4 px-2.5 py-1 text-xs tabular-nums text-muted dark:bg-white/5">{strings.ui.auditActivityHeatmap.utc6HourBins}</span>
+        <span className="rounded-full bg-ink/4 px-2.5 py-1 text-xs tabular-nums text-muted dark:bg-white/5">{strings.ui.auditActivityHeatmap.zoneSixHourBins(zone)}</span>
       </div>
       <p className="mb-2 mt-2 text-xs leading-relaxed text-muted">
         {completeWindow ? (
@@ -104,14 +168,14 @@ export function AuditActivityHeatmap({ events, returnedEvents, selectedInterval 
       </p>
       {activity.days.length > 0 ? (
         <>
-          <table className="w-full table-fixed border-separate border-spacing-1" aria-label={strings.ui.auditActivityHeatmap.auditEventsByUtcDate}>
+          <table className="w-full table-fixed border-separate border-spacing-1" aria-label={strings.ui.auditActivityHeatmap.auditEventsByZonedDate(zone)}>
             <thead>
               <tr>
-                <th scope="col" className="w-12 text-left text-[11px] font-normal text-muted">UTC</th>
+                <th scope="col" className="w-12 text-left text-[11px] font-normal break-words text-muted" title={zone}>{zone.split("/").pop()?.replaceAll("_", " ")}</th>
                 {activity.days.map((day) => (
                   <th scope="col" key={day.timestamp} className="pb-1 text-center text-xs font-normal text-muted" aria-label={dateLabel.format(day.timestamp)}>
                     <span className="block">{weekdayLabel.format(day.timestamp)}</span>
-                    <span className="mt-0.5 block tabular-nums text-ink">{new Date(day.timestamp).getUTCDate()}</span>
+                    <span className="mt-0.5 block tabular-nums text-ink">{dayNumber.format(day.timestamp)}</span>
                   </th>
                 ))}
               </tr>
@@ -123,20 +187,20 @@ export function AuditActivityHeatmap({ events, returnedEvents, selectedInterval 
                   {activity.days.map((day) => {
                     const count = day.bins[bin];
                     const key = `${day.timestamp}-${bin}`;
-                    const start = day.timestamp + bin * SIX_HOURS;
+                    const { start, end } = auditBinInterval(day.timestamp, bin, zone);
                     const isActive = selectedInterval?.start === start;
                     return (
                       <td key={key} className="p-0">
                         <button type="button"
-                          aria-label={`${dateLabel.format(day.timestamp)}, ${hour} UTC: ${count} ${count === 1 ? "event" : "events"} in returned window`}
+                          aria-label={`${dateLabel.format(day.timestamp)}, ${hour} ${zone}: ${count} ${count === 1 ? "event" : "events"} in returned window`}
                           aria-describedby={`${id}-detail`}
                           aria-pressed={onSelectInterval ? isActive : undefined}
                           aria-controls={controlsId}
                           onFocus={() => setInspected(key)} onClick={() => {
                             setInspected(key);
                             onSelectInterval?.(isActive ? null : {
-                              start, end: start + SIX_HOURS,
-                              label: `${dateLabel.format(day.timestamp)}, ${hour} UTC`,
+                              start, end,
+                              label: `${dateLabel.format(day.timestamp)}, ${hour} ${zone}`,
                             });
                           }}
                           className={`min-h-8 w-full cursor-pointer rounded-md border-0 px-0.5 text-xs font-medium tabular-nums focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal active:scale-[0.97] ${intensity(count, activity.maximum)} ${isActive ? "ring-2 ring-ink ring-offset-1 ring-offset-surface" : ""}`}>
@@ -164,10 +228,9 @@ export function AuditActivityHeatmap({ events, returnedEvents, selectedInterval 
           {selectedInterval && onSelectInterval ? (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line/60 pt-3 dark:border-white/10">
               <p className="m-0 text-xs font-medium text-ink">Time filter: {selectedInterval.label}</p>
-              <button type="button" onClick={() => onSelectInterval(null)} aria-controls={controlsId}
-                className="min-h-8 cursor-pointer rounded-lg border border-line bg-transparent px-2.5 text-xs font-medium text-ink hover:bg-ink/4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal dark:border-white/15">
+              <Button aria-controls={controlsId} onClick={() => onSelectInterval(null)} size="sm" variant="secondary">
                 {strings.ui.auditActivityHeatmap.clearTimeFilter}
-              </button>
+              </Button>
             </div>
           ) : null}
         </>

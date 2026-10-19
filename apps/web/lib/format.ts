@@ -12,8 +12,7 @@
  * `Intl.DateTimeFormat` is expensive and these run once per table row.
  */
 
-import { getConsoleLocale } from "@/lib/console-locale";
-import type { Locale } from "@/lib/locale";
+import { getConsoleLocale, getConsoleTimeZone } from "@/lib/console-locale";
 
 /** Shown when a value is absent or unparseable. Never invent a date. */
 export const NOT_RECORDED = "Not recorded";
@@ -21,43 +20,60 @@ export const NOT_RECORDED = "Not recorded";
 /** Shown for a numeric value that is absent or not finite. */
 export const NO_VALUE = "—";
 
-/*
- * One formatter per locale and style, built on first use. The locale follows
- * the console language (`getConsoleLocale`), which is fixed for the lifetime
- * of a document because switching language reloads the page.
+const dateTimeFormats = new Map<string, Intl.DateTimeFormat>();
+const numberFormats = new Map<string, Intl.NumberFormat>();
+
+/**
+ * The console's date/time formatter for `options`: the console locale
+ * (`getConsoleLocale`), the console time zone (`getConsoleTimeZone`) and,
+ * whenever a time is shown, a 24-hour clock — operations teams read "16:30",
+ * not "04:30 PM", in every language. Locale and zone are fixed for the
+ * lifetime of a document (a language switch reloads the page), so instances
+ * are cached per locale, zone and options. Pass `timeZone` only to pin a
+ * different zone on purpose.
  */
-function cachedFormatter<T>(build: (locale: Locale) => T): () => T {
-  const cache = new Map<Locale, T>();
-  return () => {
-    const locale = getConsoleLocale();
-    let formatter = cache.get(locale);
-    if (!formatter) {
-      formatter = build(locale);
-      cache.set(locale, formatter);
-    }
-    return formatter;
+export function consoleDateTimeFormat(options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const locale = getConsoleLocale();
+  const showsTime = options.timeStyle !== undefined || options.hour !== undefined;
+  const resolved: Intl.DateTimeFormatOptions = {
+    timeZone: getConsoleTimeZone(),
+    ...options,
+    ...(showsTime ? { hourCycle: "h23" } : {}),
   };
+  const key = `${locale}|${JSON.stringify(resolved)}`;
+  let formatter = dateTimeFormats.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, resolved);
+    dateTimeFormats.set(key, formatter);
+  }
+  return formatter;
 }
 
-const timestampFormat = cachedFormatter(
-  (locale) => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }),
-);
+/** The console's number formatter, in the console locale. */
+export function consoleNumberFormat(options: Intl.NumberFormatOptions = {}): Intl.NumberFormat {
+  const locale = getConsoleLocale();
+  const key = `${locale}|${JSON.stringify(options)}`;
+  let formatter = numberFormats.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, options);
+    numberFormats.set(key, formatter);
+  }
+  return formatter;
+}
 
-const dateTimeFormat = cachedFormatter(
-  (locale) =>
-    new Intl.DateTimeFormat(locale, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-);
+/** The zone name to print beside compared times, e.g. "Europe/Rome". */
+export function formatTimeZoneLabel(): string {
+  return getConsoleTimeZone();
+}
 
-const clockFormat = cachedFormatter(
-  (locale) => new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }),
-);
+const timestampFormat = () => consoleDateTimeFormat({ dateStyle: "medium", timeStyle: "short" });
 
-const numberFormat = cachedFormatter((locale) => new Intl.NumberFormat(locale));
+const dateTimeFormat = () =>
+  consoleDateTimeFormat({ month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+const clockFormat = () => consoleDateTimeFormat({ hour: "2-digit", minute: "2-digit" });
+
+const numberFormat = () => consoleNumberFormat();
 
 /** Join available context labels without rendering empty or null path segments. */
 export function formatContextPath(
@@ -93,12 +109,12 @@ export function formatTimestamp(value: string | null | undefined): string {
   return format(value, timestampFormat);
 }
 
-/** Compact date and time — "Jun 21, 04:30 PM". For dense table and list rows. */
+/** Compact date and time — "Jun 21, 16:30". For dense table and list rows. */
 export function formatDateTime(value: string | null | undefined): string {
   return format(value, dateTimeFormat);
 }
 
-/** Time only — "04:30 PM". For same-day event feeds. */
+/** Time only — "16:30". For same-day event feeds. */
 export function formatClockTime(value: string | null | undefined): string {
   return format(value, clockFormat);
 }

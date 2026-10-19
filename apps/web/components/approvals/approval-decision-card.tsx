@@ -40,6 +40,7 @@ import { parseApprovalDecisionPersistenceResult } from "@/lib/runtime-contracts/
 import { buildTenantScopedPath, DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useTenantVocabulary } from "@/providers/tenant-vocabulary-provider";
+import { consoleDateTimeFormat } from "@/lib/format";
 
 /*
  * The decision block of the approval flow: option buttons with their
@@ -308,7 +309,7 @@ export function ApprovalDecisionCard({
     setPendingOption(null);
 
     const approvalId = approval.approval_id;
-    const decidedAt = new Intl.DateTimeFormat("en", {
+    const decidedAt = consoleDateTimeFormat({
       dateStyle: "medium",
       timeStyle: "short",
     }).format(new Date());

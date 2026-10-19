@@ -22,7 +22,7 @@ import {
   stringUrlField,
   useConsoleUrlState,
 } from "@/lib/console-url-state";
-import { formatContextPath, formatNumber } from "@/lib/format";
+import { consoleDateTimeFormat, formatContextPath, formatNumber } from "@/lib/format";
 import { platformStatusClass, platformStatusLabel } from "@/lib/platform-overview";
 import { deriveSourceState } from "@/lib/source-state";
 import type { ConsoleStrings } from "@/lib/i18n";
@@ -101,7 +101,7 @@ function buildMetrics(
 }
 
 function formatUpdatedAt(updatedAt: Date): string {
-  return new Intl.DateTimeFormat("en", {
+  return consoleDateTimeFormat({
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",

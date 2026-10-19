@@ -2186,6 +2186,10 @@ const ui = {
     activityByTime: "Activity by time",
     utc6HourBins: "UTC · 6-hour bins",
     auditEventsByUtcDate: "Audit events by UTC date and six-hour interval",
+    /* The heatmap bins in the console time zone, the same zone the list prints. */
+    zoneSixHourBins: (zone: string) => `${zone} · 6-hour bins`,
+    auditEventsByZonedDate: (zone: string) =>
+      `Audit events by date and six-hour interval, ${zone} time`,
     clearTimeFilter: "Clear time filter",
   },
   auditExplorer: {
@@ -2200,6 +2204,8 @@ const ui = {
     events: "Events",
     eventsInTheReturnedWindow: "Events in the returned window",
     eventsMarkedForAttention: "Events marked for attention",
+    /* Labels the list's time zone so it can be read against the heatmap. */
+    timesInZone: (zone: string) => `Times in ${zone}`,
     auditExplorer: "Audit explorer",
     allTenants: "All tenants",
     allEvents: "All events",

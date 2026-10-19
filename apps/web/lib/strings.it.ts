@@ -2134,6 +2134,9 @@ const ui = {
     activityByTime: "Attività per fascia oraria",
     utc6HourBins: "UTC · fasce di 6 ore",
     auditEventsByUtcDate: "Eventi di audit per data UTC e fascia di sei ore",
+    zoneSixHourBins: (zone: string) => `${zone} · fasce di 6 ore`,
+    auditEventsByZonedDate: (zone: string) =>
+      `Eventi di audit per data e fascia di sei ore, ora ${zone}`,
     clearTimeFilter: "Cancellare il filtro temporale",
   },
   auditExplorer: {
@@ -2148,6 +2151,7 @@ const ui = {
     events: "Eventi",
     eventsInTheReturnedWindow: "Eventi nella finestra restituita",
     eventsMarkedForAttention: "Eventi segnalati per attenzione",
+    timesInZone: (zone: string) => `Orari nel fuso ${zone}`,
     auditExplorer: "Esplorazione dell'audit",
     allTenants: "Tutti i tenant",
     allEvents: "Tutti gli eventi",

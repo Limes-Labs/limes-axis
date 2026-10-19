@@ -4,6 +4,7 @@ import {
   axisResponseRequestId,
   type AxisFetchOptions,
 } from "./axis-api";
+import { consoleDateTimeFormat } from "@/lib/format";
 
 export const IDENTITY_SESSION_ADMIN_SCOPE = "identity:sessions:admin";
 
@@ -83,7 +84,7 @@ export function formatSessionInstant(value: string | null | undefined): string {
   if (Number.isNaN(parsed.getTime())) {
     return "Not recorded";
   }
-  return new Intl.DateTimeFormat("en", {
+  return consoleDateTimeFormat({
     dateStyle: "medium",
     timeStyle: "short",
   }).format(parsed);

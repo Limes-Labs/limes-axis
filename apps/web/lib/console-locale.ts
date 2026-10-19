@@ -17,3 +17,25 @@ export function getConsoleLocale(): Locale {
 
   return matchLocale(document.documentElement.lang) ?? DEFAULT_LOCALE;
 }
+
+/** Zone used before the browser's is known: the server render and tests. */
+export const FALLBACK_TIME_ZONE = "UTC";
+
+/**
+ * The one time zone every console date uses — record lists, detail panels and
+ * the audit heatmap alike — so a heatmap bin labelled 06:00–12:00 holds exactly
+ * the events the list prints between 06:00 and 12:00. It is the browser's
+ * zone; on the server it is UTC, which never reaches the screen for the same
+ * reason as above. Label times with it wherever a reader compares them.
+ */
+export function getConsoleTimeZone(): string {
+  if (typeof window === "undefined") {
+    return FALLBACK_TIME_ZONE;
+  }
+
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || FALLBACK_TIME_ZONE;
+  } catch {
+    return FALLBACK_TIME_ZONE;
+  }
+}

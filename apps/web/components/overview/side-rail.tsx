@@ -12,6 +12,7 @@ import { deriveSourceState } from "@/lib/source-state";
 import { normalizeLabel, type OverviewQuery } from "./overview-shared";
 import { ActivityTimeline } from "./activity-timeline";
 import { OVERVIEW_AUDIT_WINDOW } from "./evidence-feed";
+import { consoleNumberFormat } from "@/lib/format";
 
 /** Each bar uses the same denominator: the returned audit window, not all activity. */
 export function SideRail({
@@ -73,7 +74,7 @@ export function SideRail({
           // decorative <dd> spanning both columns rather than a sibling <div>.
           <div key={category} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-2 text-sm">
             <dt className="min-w-0 break-words text-ink">{normalizeLabel(category)}</dt>
-            <dd className="m-0 shrink-0 tabular-nums text-muted">{count} · {new Intl.NumberFormat("en", { maximumFractionDigits: 1 }).format(count / events.length * 100)}%</dd>
+            <dd className="m-0 shrink-0 tabular-nums text-muted">{count} · {consoleNumberFormat({ maximumFractionDigits: 1 }).format(count / events.length * 100)}%</dd>
             <dd aria-hidden="true" className="col-span-2 m-0 h-2 overflow-hidden rounded-full bg-signal/10">
               <div className="h-full rounded-full bg-signal" style={{ width: `${count / events.length * 100}%` }} />
             </dd>
