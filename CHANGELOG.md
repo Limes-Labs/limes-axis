@@ -62,6 +62,14 @@ release-bound behavior, not the complete commit history.
   disclosure class, and a fixed scope note for #871/#879 report citations. Contract
   slice only; no artifact packaging or signing
   ([#883](https://github.com/Limes-Labs/limes-axis/issues/883)).
+- Deterministic assurance pack assembly: released-only packaging of a
+  preflight-ready manifest into a bounded, stored (uncompressed) archive
+  (canonical manifest JSON, sanitized local Markdown index, permitted
+  attachments) with caller-owned release authorization and final-output
+  secret scanning; revocation, revision changes, digest mismatches or
+  unsupported scan formats abort generation instead of reusing a privileged
+  cached package. No signing, issuance or download delivery
+  ([#884](https://github.com/Limes-Labs/limes-axis/issues/884)).
 
 - A provider-neutral writeback contract that maps an existing typed action onto
   one registered external mutation: adapter capability/readiness and conformance
