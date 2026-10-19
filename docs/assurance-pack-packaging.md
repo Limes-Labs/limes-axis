@@ -8,6 +8,14 @@ canonical JSON manifest, a sanitized local Markdown index, and permitted
 bounded attachments. No signing, no issuance, no download delivery, no new
 artifact store, no document rendering (#885 and #834 own those).
 
+## Readiness first
+
+The builder runs the #883 preflight (`pack_readiness`) before reading any
+evidence: a required entry without positive support that the manifest does
+not list in `unsupported_requirements` aborts with `pack_not_ready`.
+Support-state freshness (`check_support_freshness`) needs caller-observed
+state and stays the caller's sign-time/preflight step.
+
 ## Caller-owned boundaries
 
 The builder performs no I/O and holds no registry. Two small protocols
@@ -29,10 +37,13 @@ carry the policy:
 
 - Members ship in fixed order (`manifest.json`, `index.md`,
   `attachments/<entry_id>.bin`) with pinned archive metadata (epoch
-  timestamp, `create_system`, mode), so identical inputs produce identical
-  bytes and `package_sha256` is reproducible across machines.
+  timestamp, `create_system`, mode) and are stored uncompressed, so the
+  bytes do not depend on the local zlib build: identical inputs produce
+  identical bytes and `package_sha256` is reproducible across machines.
+  Stored members also let a verifier bound sizes without inflating anything.
 - Bounds: ≤ 32 attachments, ≤ 2 MiB per attachment, ≤ 128 members, ≤ 16 MiB
-  package. Any breach aborts with `pack_bounds_exceeded`.
+  package (checked cumulatively while attachments are resolved, before the
+  archive is built). Any breach aborts with `pack_bounds_exceeded`.
 - Partial failure leaves nothing: the package exists only after release
   authorization, digest verification (`pack_artifact_digest_mismatch`
   otherwise) and all scans have passed. There is no cached privileged
@@ -51,7 +62,9 @@ the sanitized local index contains no remote fonts, images or scripts.
 ## Claims are preserved verbatim
 
 Support states, responsibilities, limitations and certificate scope ship
-exactly as approved. The builder adds no compliant/certified wording and
+exactly as approved. The index also states the issue and valid-through
+dates, each entry's answer revision, as-of date and required flag, and the
+pack's explicitly listed unsupported requirements. The builder adds no compliant/certified wording and
 never converts a gap into a positive claim; the manifest JSON inside the
 package is canonical (`sort_keys`, tight separators) so
 `manifest.digest()` can be re-verified by any consumer.

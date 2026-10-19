@@ -16,14 +16,15 @@ release-bound behavior, not the complete commit history.
   the partial pack lists them), entry disclosure bound to the pack's
   disclosure class, and a fixed scope note for #871/#879 report citations. Contract
   slice only; no artifact packaging or signing
-- Deterministic assurance pack assembly: released-only packaging of an
-  approved manifest into a bounded archive (canonical manifest JSON,
-  sanitized local Markdown index, permitted attachments) with caller-owned
-  release authorization and final-output secret scanning; revocation,
-  revision changes, digest mismatches or unsupported scan formats abort
-  generation instead of reusing a privileged cached package. No signing,
-  issuance or download delivery
   ([#883](https://github.com/Limes-Labs/limes-axis/issues/883)).
+- Deterministic assurance pack assembly: released-only packaging of a
+  preflight-ready manifest into a bounded, stored (uncompressed) archive
+  (canonical manifest JSON, sanitized local Markdown index, permitted
+  attachments) with caller-owned release authorization and final-output
+  secret scanning; revocation, revision changes, digest mismatches or
+  unsupported scan formats abort generation instead of reusing a privileged
+  cached package. No signing, issuance or download delivery
+  ([#884](https://github.com/Limes-Labs/limes-axis/issues/884)).
 
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
