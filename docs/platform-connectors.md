@@ -1390,6 +1390,15 @@ provenance and classification — never row values, in any view, audit event,
 log or error. Stage is part of request identity: re-submitting an ID with a
 different stage is a `request_id_conflict`, never a silent mutation.
 
+Postgres extraction uses the same transaction shape as the S3 and REST
+hosts. Each selection's gates, lease renewal and batch identity are evaluated
+in a short Axis transaction that ends before the source is dialled; the bounded
+read and the object-store write run with no Axis transaction open; then one
+fenced transaction records every batch, its `batch_recorded` audit event and
+the terminal completion together. A failure on any selection dead-letters the
+request and commits no batch from earlier selections; their objects may exist
+in the store without a row, and a retry overwrites the same deterministic key.
+
 Pending requests can be cancelled (write scope, fenced, audited once;
 identical repeats replay, dispatched/terminal states conflict). Object-store
 writes and metadata inserts are not atomic — deterministic keys make retries

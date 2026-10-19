@@ -42,6 +42,7 @@ from axis_api.connector_source_extraction import (
     EXTRACTION_ACTOR,
     EXTRACTION_STAGE,
     VALIDATE_STAGE,
+    SourceExtractionOutcome,
     planned_extraction_limits,
 )
 from axis_api.db import session_scope
@@ -1170,34 +1171,45 @@ class SourceIngestionOutboxDispatcher:
     def _extract_selections(self, row: _ClaimedIngestionRequest, evidence: dict) -> _ProcessOutcome:
         """Real bounded extraction per validated selection, then completion.
 
-        Batch metadata rows, their audit events, and the terminal request
-        transition share one transaction; payloads live only in the object
-        store. Any extraction failure dead-letters the whole request with a
-        public-safe reason — a partial read never looks complete.
+        Every connector follows the same three phases. Each selection is
+        prepared (lease renewal, gates, batch identity) in its own short Axis
+        transaction; the source read and the object-store write run with no
+        Axis transaction open; then one fenced transaction records every batch,
+        its audit event and the terminal transition together. Payloads live
+        only in the object store. Any extraction failure dead-letters the whole
+        request with a public-safe reason and commits no batch: a partial read
+        never looks complete or leaves part of itself recorded.
 
         Store/DB boundary honesty: ``put_json`` precedes the metadata insert
         and the two stores cannot commit atomically. Batch keys are fully
-        deterministic (``request_id:binding_id:index``), so a retry overwrites
-        the same object instead of duplicating it. If the request still ends
-        dead-lettered after its attempts, an object may exist without a DB row;
-        operators reconcile by listing the tenant-scoped key prefix against
-        recorded batches — documented behaviour, not silent atomicity.
+        deterministic (``request_id:binding_id:generation``), so a retry
+        overwrites the same object instead of duplicating it. A request that
+        ends dead-lettered may leave objects without a DB row; operators
+        reconcile by listing the tenant-scoped key prefix against recorded
+        batches. That is documented behaviour, not silent atomicity.
         """
         if row.connector_id == S3_SOURCE_CONNECTOR_ID:
             return self._extract_s3_selections(row, evidence)
         if row.connector_id == REST_SOURCE_CONNECTOR_ID:
             return self._extract_rest_selections(row, evidence)
         batches_summary: list[dict] = []
+        new_batches: list[tuple[dict, str, Any]] = []
+        progress = {"source_dial_performed": False, "extraction_performed": False}
+
+        def failure_evidence() -> dict:
+            return {**evidence, **progress, "failed_stage": EXTRACTION_STAGE}
+
         try:
-            with session_scope(self._session_factory) as session:
-                repository = AxisPersistenceRepository(session)
-                for selection in row.selections:
+            for selection in row.selections:
+                binding_id = str(selection["binding_id"])
+                with session_scope(self._session_factory) as session:
+                    repository = AxisPersistenceRepository(session)
+                    self._renew_lease(repository, row)
                     # Generation-scoped key: operational retries (no committed
                     # predecessor for this selection) keep one stable key; an
                     # explicit RE-DISPATCH after remediation starts a new
                     # generation so genuinely new bytes never collide with
                     # immutable recorded history.
-                    binding_id = str(selection["binding_id"])
                     generation = (
                         repository.count_connector_source_extraction_batches_for_binding(
                             row.tenant_id,
@@ -1206,135 +1218,82 @@ class SourceIngestionOutboxDispatcher:
                         )
                     )
                     batch_key = f"{row.request_id}:{binding_id}:{generation}"
-                    outcome = self._extraction_runtime.extract_selection(
-                        repository=repository,
+                    prepared = self._extraction_runtime.prepare_selection(
+                        repository,
                         tenant_id=row.tenant_id,
                         connector_id=row.connector_id,
                         request_id=row.request_id,
                         batch_key=batch_key,
-                        binding_id=str(selection["binding_id"]),
+                        binding_id=binding_id,
                         resource_name=str(selection["resource_name"]),
                         pinned_schema_fingerprint=str(selection["schema_fingerprint"]),
                         executed_by=EXTRACTION_ACTOR,
                     )
-                    if not outcome.ok or outcome.stored is None:
-                        reason = (outcome.reason or "extraction_failed")[:80]
-                        failure_evidence = {
-                            **evidence,
-                            "source_dial_performed": True,
-                            "extraction_performed": True,
-                            "batches": batches_summary,
-                            "failed_stage": EXTRACTION_STAGE,
-                        }
-                        return self._finalize_failure(
-                            row, reason, permanent=True, evidence=failure_evidence
-                        )
                     existing = repository.get_connector_source_extraction_batch_by_key(
                         row.tenant_id, batch_key
                     )
-                    if existing is not None:
-                        # Idempotent replay of a prior attempt's successful
-                        # batch: reuse ONLY when digest and storage reference
-                        # are consistent; anything else is an anomaly that
-                        # must stop the request, never be overwritten quietly.
-                        consistent = (
-                            existing.digest_sha256 == outcome.digest_sha256
-                            and existing.storage_key == outcome.stored["storage_key"]
-                        )
-                        if not consistent:
-                            return self._finalize_failure(
-                                row,
-                                "batch_key_conflict",
-                                permanent=True,
-                                evidence={
-                                    **evidence,
-                                    "source_dial_performed": True,
-                                    "extraction_performed": True,
-                                    "failed_stage": EXTRACTION_STAGE,
-                                    "batches": batches_summary,
-                                },
-                            )
-                        batches_summary.append(
-                            {
-                                "batch_key": batch_key,
-                                "binding_id": selection["binding_id"],
-                                "resource_name": selection["resource_name"],
-                                "row_count": existing.row_count,
-                                "truncated": existing.truncated,
-                                "digest_sha256": existing.digest_sha256,
-                                "storage_uri": existing.storage_uri,
-                            }
-                        )
-                        continue
-
-                    batch_event = repository.append_audit_event(
-                        AuditEventCreate(
-                            tenant_id=row.tenant_id,
-                            actor_id=EXTRACTION_ACTOR,
-                            event_type="connector.source.extraction.batch_recorded",
-                            payload={
-                                "request_id": row.request_id,
-                                "connector_id": row.connector_id,
-                                "binding_id": selection["binding_id"],
-                                "resource_name": selection["resource_name"],
-                                "batch_key": batch_key,
-                                "ordering_mode": outcome.ordering_mode,
-                                "row_count": str(outcome.row_count),
-                                "truncated": "true" if outcome.truncated else "false",
-                                "limit_reason": outcome.limit_reason or "",
-                                "digest_sha256": outcome.digest_sha256,
-                                "storage_uri": outcome.stored["storage_uri"],
-                            },
-                        )
-                    )
-                    repository.create_connector_source_extraction_batch(
-                        ConnectorSourceExtractionBatchCreate(
-                            tenant_id=row.tenant_id,
-                            connector_id=row.connector_id,
-                            request_id=row.request_id,
-                            batch_key=batch_key,
-                            binding_id=str(selection["binding_id"]),
-                            resource_name=str(selection["resource_name"]),
-                            pinned_schema_fingerprint=str(selection["schema_fingerprint"]),
-                            observed_schema_fingerprint=(
-                                outcome.observed_schema_fingerprint or ""
-                            ),
-                            ordering_mode=outcome.ordering_mode or "none",
-                            cursor_watermark=outcome.cursor_watermark,
-                            row_count=outcome.row_count,
-                            byte_size=outcome.byte_size,
-                            truncated=outcome.truncated,
-                            limit_reason=outcome.limit_reason,
-                            duration_ms=outcome.duration_ms,
-                            limits_applied=dict(evidence.get("limits_applied", {})),
-                            provenance={
-                                "stage": EXTRACTION_STAGE,
-                                "requested_by": row.requested_by,
-                                "attempt_count": row.attempt_count,
-                            },
-                            digest_sha256=outcome.digest_sha256 or "",
-                            storage_adapter=outcome.stored["storage_adapter"],
-                            storage_key=outcome.stored["storage_key"],
-                            storage_uri=outcome.stored["storage_uri"],
-                            content_type=outcome.stored["content_type"],
-                            stored_size_bytes=outcome.stored["stored_size_bytes"],
-                            classification=outcome.stored["classification"],
-                            executed_by=outcome.stored["executed_by"],
-                            audit_event_id=batch_event.id,
-                            audit_event_type="connector.source.extraction.batch_recorded",
-                        )
-                    )
-                    batches_summary.append(
-                        {
-                            "batch_key": batch_key,
-                            "binding_id": selection["binding_id"],
-                            "resource_name": selection["resource_name"],
-                            "row_count": outcome.row_count,
-                            "truncated": outcome.truncated,
-                            "digest_sha256": outcome.digest_sha256,
-                            "storage_uri": outcome.stored["storage_uri"],
+                    existing_batch = (
+                        None
+                        if existing is None
+                        else {
+                            "digest_sha256": existing.digest_sha256,
+                            "storage_key": existing.storage_key,
+                            "storage_uri": existing.storage_uri,
+                            "row_count": existing.row_count,
+                            "truncated": existing.truncated,
                         }
                     )
+                if isinstance(prepared, SourceExtractionOutcome):
+                    outcome = prepared
+                else:
+                    # No Axis transaction is open for the source read or the put.
+                    outcome = self._extraction_runtime.extract_prepared(prepared)
+                    progress["source_dial_performed"] = True
+                    progress["extraction_performed"] = (
+                        progress["extraction_performed"] or outcome.extraction_performed
+                    )
+                if not outcome.ok or outcome.stored is None:
+                    reason = (outcome.reason or "extraction_failed")[:80]
+                    return self._finalize_failure(
+                        row, reason, permanent=True, evidence=failure_evidence()
+                    )
+                summary = {
+                    "batch_key": batch_key,
+                    "binding_id": selection["binding_id"],
+                    "resource_name": selection["resource_name"],
+                    "row_count": outcome.row_count,
+                    "truncated": outcome.truncated,
+                    "digest_sha256": outcome.digest_sha256,
+                    "storage_uri": outcome.stored["storage_uri"],
+                }
+                if existing_batch is not None:
+                    # Idempotent replay of a prior attempt's successful
+                    # batch: reuse ONLY when digest and storage reference
+                    # are consistent; anything else is an anomaly that
+                    # must stop the request, never be overwritten quietly.
+                    consistent = (
+                        existing_batch["digest_sha256"] == outcome.digest_sha256
+                        and existing_batch["storage_key"] == outcome.stored["storage_key"]
+                    )
+                    if not consistent:
+                        return self._finalize_failure(
+                            row,
+                            "batch_key_conflict",
+                            permanent=True,
+                            evidence=failure_evidence(),
+                        )
+                    summary.update(
+                        row_count=existing_batch["row_count"],
+                        truncated=existing_batch["truncated"],
+                        storage_uri=existing_batch["storage_uri"],
+                    )
+                else:
+                    new_batches.append((selection, batch_key, outcome))
+                batches_summary.append(summary)
+        except _ClaimLeaseLost:
+            return self._finalize_failure(
+                row, LEASE_EXPIRED_ERROR, permanent=False, evidence=failure_evidence()
+            )
         except Exception as exc:
             return self._finalize_failure(row, self._safe_error_code(exc), permanent=False)
         completed_evidence = {
@@ -1343,7 +1302,79 @@ class SourceIngestionOutboxDispatcher:
             "extraction_performed": True,
             "batches": batches_summary,
         }
-        return self._finalize_success(row, completed_evidence)
+
+        def commit_batches(repository: AxisPersistenceRepository) -> None:
+            for selection, batch_key, outcome in new_batches:
+                self._record_postgres_batch(
+                    repository, row, selection, batch_key, outcome, evidence
+                )
+
+        return self._finalize_success(row, completed_evidence, commit_batches=commit_batches)
+
+    @staticmethod
+    def _record_postgres_batch(
+        repository: AxisPersistenceRepository,
+        row: _ClaimedIngestionRequest,
+        selection: dict,
+        batch_key: str,
+        outcome: Any,
+        evidence: dict,
+    ) -> None:
+        batch_event = repository.append_audit_event(
+            AuditEventCreate(
+                tenant_id=row.tenant_id,
+                actor_id=EXTRACTION_ACTOR,
+                event_type="connector.source.extraction.batch_recorded",
+                payload={
+                    "request_id": row.request_id,
+                    "connector_id": row.connector_id,
+                    "binding_id": selection["binding_id"],
+                    "resource_name": selection["resource_name"],
+                    "batch_key": batch_key,
+                    "ordering_mode": outcome.ordering_mode,
+                    "row_count": str(outcome.row_count),
+                    "truncated": "true" if outcome.truncated else "false",
+                    "limit_reason": outcome.limit_reason or "",
+                    "digest_sha256": outcome.digest_sha256,
+                    "storage_uri": outcome.stored["storage_uri"],
+                },
+            )
+        )
+        repository.create_connector_source_extraction_batch(
+            ConnectorSourceExtractionBatchCreate(
+                tenant_id=row.tenant_id,
+                connector_id=row.connector_id,
+                request_id=row.request_id,
+                batch_key=batch_key,
+                binding_id=str(selection["binding_id"]),
+                resource_name=str(selection["resource_name"]),
+                pinned_schema_fingerprint=str(selection["schema_fingerprint"]),
+                observed_schema_fingerprint=(outcome.observed_schema_fingerprint or ""),
+                ordering_mode=outcome.ordering_mode or "none",
+                cursor_watermark=outcome.cursor_watermark,
+                row_count=outcome.row_count,
+                byte_size=outcome.byte_size,
+                truncated=outcome.truncated,
+                limit_reason=outcome.limit_reason,
+                duration_ms=outcome.duration_ms,
+                limits_applied=dict(evidence.get("limits_applied", {})),
+                provenance={
+                    "stage": EXTRACTION_STAGE,
+                    "requested_by": row.requested_by,
+                    "attempt_count": row.attempt_count,
+                },
+                digest_sha256=outcome.digest_sha256 or "",
+                storage_adapter=outcome.stored["storage_adapter"],
+                storage_key=outcome.stored["storage_key"],
+                storage_uri=outcome.stored["storage_uri"],
+                content_type=outcome.stored["content_type"],
+                stored_size_bytes=outcome.stored["stored_size_bytes"],
+                classification=outcome.stored["classification"],
+                executed_by=outcome.stored["executed_by"],
+                audit_event_id=batch_event.id,
+                audit_event_type="connector.source.extraction.batch_recorded",
+            )
+        )
 
     def _extract_s3_selections(self, row, evidence):
         """Prepare under SQL, read/store without a transaction, then atomically commit."""

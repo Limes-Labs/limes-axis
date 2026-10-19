@@ -373,6 +373,15 @@ release-bound behavior, not the complete commit history.
 
 ### Changed
 
+- Postgres source extraction no longer holds an Axis transaction across the
+  source read and the object-store write, and no longer commits partial
+  results. It now matches the S3/REST shape: prepare each selection in a short
+  transaction, read and store with no transaction open, then record every batch
+  with the fenced completion. A dead-lettered request previously still
+  committed the first selection's batch row and audit event; now it commits
+  none. `SelfHostedPostgresExtractionRuntime.extract_selection` remains for
+  embedded callers and composes the new `prepare_selection` and
+  `extract_prepared` steps.
 - Source ingestion no longer loops forever when extraction outlives its claim
   lease. The lease is renewed (fenced) before each selection; a lease that
   expires anyway now counts as an attempt with error `claim_lease_expired` and
