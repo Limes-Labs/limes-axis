@@ -25,8 +25,9 @@ import {
 import { formatContextPath, formatNumber } from "@/lib/format";
 import { platformStatusClass, platformStatusLabel } from "@/lib/platform-overview";
 import { deriveSourceState } from "@/lib/source-state";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import { humanizeIdentifier } from "@/lib/display-names";
-import { strings } from "@/lib/strings";
 import {
   IDENTITY_SESSION_ENDPOINT,
   useConsoleTenantScope,
@@ -54,12 +55,12 @@ import { ManifestImportPanel } from "./manifest-import-panel";
  * A failing counter or detail degrades its own section.
  */
 
-function countOrPlaceholder(count: number | null | undefined): string | number {
+function countOrPlaceholder(count: number | null | undefined, strings: ConsoleStrings): string | number {
   return count == null ? strings.connectors.metrics.unavailable : formatNumber(count);
 }
 
 function buildMetrics(
-  registries: ConnectorRegistries,
+  registries: ConnectorRegistries, strings: ConsoleStrings,
 ): Metric[] {
   const copy = strings.connectors.metrics;
   const counts = registries.registry.data?.counts;
@@ -68,29 +69,29 @@ function buildMetrics(
   return [
     {
       label: copy.connectors.label,
-      value: countOrPlaceholder(registries.registry.data?.total_connectors),
+      value: countOrPlaceholder(registries.registry.data?.total_connectors, strings),
       detail: copy.connectors.detail,
     },
     {
       label: copy.runs.label,
-      value: countOrPlaceholder(counts?.runs),
+      value: countOrPlaceholder(counts?.runs, strings),
       detail: copy.runs.detail,
     },
     {
       label: copy.pendingProposals.label,
       value: countOrPlaceholder(
-        counts?.pending_proposals,
+        counts?.pending_proposals, strings,
       ),
       detail: copy.pendingProposals.detail,
     },
     {
       label: copy.egressPolicies.label,
-      value: countOrPlaceholder(counts?.egress_policies),
+      value: countOrPlaceholder(counts?.egress_policies, strings),
       detail: copy.egressPolicies.detail,
     },
     {
       label: copy.evidenceIssues.label,
-      value: countOrPlaceholder(invariantCount),
+      value: countOrPlaceholder(invariantCount, strings),
       detail: copy.evidenceIssues.detail,
       ...(invariantCount != null
         ? { tone: invariantCount > 0 ? ("action" as const) : ("ready" as const) }
@@ -115,6 +116,7 @@ const connectorUrlSchema = {
 };
 
 function SnapshotPanel({ snapshot }: { snapshot: ConnectorEvidenceInvariantSnapshotRecord }) {
+  const strings = useStrings();
   const copy = strings.connectors.snapshot;
 
   return (
@@ -155,6 +157,7 @@ export function ConnectorConsole() {
 }
 
 function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTenantScope> }) {
+  const strings = useStrings();
   const { identity, tenantId, tenantQueriesEnabled } = scope;
   const [urlState, setUrlState] = useConsoleUrlState(connectorUrlSchema);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -189,7 +192,7 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
   if (!tenantQueriesEnabled || tenantId === null) {
     if (identity.source === "loading") {
       return (
-        <div aria-label="Loading connector identity" className="grid gap-4">
+        <div aria-label={strings.ui.connectorConsole.loadingConnectorIdentity} className="grid gap-4">
           <LoadingPanel layout="metrics" rows={5} />
           <MasterDetail detail={<LoadingPanel layout="detail" />} list={<LoadingPanel rows={4} />} />
         </div>
@@ -198,11 +201,11 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
 
     return (
       <ErrorPanel
-        detail="The connector console is disabled because the current tenant could not be verified."
+        detail={strings.ui.connectorConsole.theConnectorConsoleIsDisabled}
         endpoint={IDENTITY_SESSION_ENDPOINT}
         onRetry={identity.refetch}
         reference={identity.errorRequestId ?? undefined}
-        title="Tenant identity unavailable"
+        title={strings.ui.connectorConsole.tenantIdentityUnavailable}
       />
     );
   }
@@ -210,7 +213,7 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
   if (!registry.data) {
     if (registry.source === "loading") {
       return (
-        <div aria-label="Loading connector API" className="grid gap-4">
+        <div aria-label={strings.ui.connectorConsole.loadingConnectorApi} className="grid gap-4">
           <LoadingPanel layout="metrics" rows={5} />
           <MasterDetail detail={<LoadingPanel layout="detail" />} list={<LoadingPanel rows={4} />} />
         </div>
@@ -284,7 +287,7 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
   return (
     <div className="grid gap-4">
       <div
-        aria-label="Connector source and status"
+        aria-label={strings.ui.connectorConsole.connectorSourceAndStatus}
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm break-words text-muted" title={registryData.tenant_id}>
@@ -320,7 +323,7 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
       </div>
 
       <MetricStrip
-        metrics={buildMetrics(registries)}
+        metrics={buildMetrics(registries, strings)}
         label={strings.connectors.metrics.stripLabel}
       />
 
@@ -342,14 +345,14 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
         <MasterDetail
           detail={registries.detail.source === "unavailable" ? (
             <ErrorPanel
-              title="Connector detail unavailable"
-              detail="Refresh to load the selected connector again."
+              title={strings.ui.connectorConsole.connectorDetailUnavailable}
+              detail={strings.ui.connectorConsole.refreshToLoadTheSelected}
               endpoint={CONNECTOR_ENDPOINTS.detail}
               reference={registries.detail.errorRequestId ?? undefined}
             />
           ) : !selectedConnector ? (
             registries.selectedConnectorId ? <LoadingPanel layout="detail" /> : (
-              <EmptyPanel title="Select a connector" detail="Choose a connector from the list." icon={Cable} />
+              <EmptyPanel title={strings.ui.connectorConsole.selectAConnector} detail={strings.ui.connectorConsole.chooseAConnectorFromThe} icon={Cable} />
             )
           ) : (
             <ConnectorDetail

@@ -304,6 +304,45 @@ test.describe("Axis console smoke", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test("switches the console to Italiano, keeps it across reloads, and switches back", async ({
+    page,
+  }) => {
+    const pageErrors: string[] = [];
+    const hydrationErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error" && /hydrat/i.test(message.text())) {
+        hydrationErrors.push(message.text());
+      }
+    });
+
+    await page.goto("/settings");
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+
+    await page.getByRole("combobox", { name: "Language" }).selectOption("it");
+    await expect(page.locator("html")).toHaveAttribute("lang", "it");
+    await expect(page.getByRole("heading", { level: 1, name: "Impostazioni" })).toBeVisible();
+    await expect(page).toHaveTitle(/^Impostazioni · Axis Console$/);
+    expect(
+      (await page.context().cookies()).find((cookie) => cookie.name === "axis-locale")?.value,
+    ).toBe("it");
+
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("lang", "it");
+    await expect(page.getByRole("heading", { level: 1, name: "Impostazioni" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Lingua" })).toHaveValue("it");
+    await expectNoHorizontalOverflow(page);
+
+    await page.getByRole("combobox", { name: "Lingua" }).selectOption("en");
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Language" })).toHaveValue("en");
+
+    expect(hydrationErrors).toEqual([]);
+    expect(pageErrors).toEqual([]);
+  });
+
   test("keeps shell utilities actionable without mock controls", async ({ page }) => {
     await page.unroute(identitySessionUrl);
     await page.goto("/");

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { strings } from "@/lib/strings";
+import { getServerStrings } from "@/lib/locale-server";
 import { ConsolePage } from "@/components/console-page";
 import { TenantDetail } from "@/components/tenant-detail";
 
@@ -12,16 +12,20 @@ type TenantDetailPageProps = {
 
 // The raw tenant id stays out of the document title; the page shows the
 // tenant's display name once the API record loads.
-export const metadata: Metadata = { title: strings.identifiers.tenantDetailTitle };
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = await getServerStrings();
+  return { title: strings.identifiers.tenantDetailTitle };
+}
 
 export default async function TenantDetailPage({ params }: TenantDetailPageProps) {
+  const strings = await getServerStrings();
   const { tenantId } = await params;
 
   return (
     <ConsolePage
       pageKey="tenants"
       subtitle={strings.clarity.tenantPurpose}
-      title="Tenant detail"
+      title={strings.ui.detailPages.tenantTitle}
     >
       <TenantDetail key={tenantId} tenantId={tenantId} />
     </ConsolePage>

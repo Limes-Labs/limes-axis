@@ -2,7 +2,7 @@
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ManufacturingOverview } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { buildTenantScopedPath, DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { parseManufacturingOverview } from "@/lib/runtime-contracts/overview";
 import { useAxisQuery } from "@/lib/use-axis-query";
@@ -24,6 +24,7 @@ export function DemoBadge({
   enabled?: boolean;
   tenantId?: string;
 }) {
+  const strings = useStrings();
   const overview = useAxisQuery<ManufacturingOverview>(
     buildTenantScopedPath(DEMO_BADGE_OVERVIEW_ENDPOINT, tenantId),
     { enabled, expectedTenantId: tenantId, parse: parseManufacturingOverview },

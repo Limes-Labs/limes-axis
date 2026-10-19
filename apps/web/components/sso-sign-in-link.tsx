@@ -3,7 +3,7 @@
 import { useId, type ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { useBrowserSsoAvailability } from "@/lib/use-browser-sso";
 
 /**
@@ -24,6 +24,7 @@ export function SsoSignInLink({
   /** Marks the sign-in gate's primary action (`data-gate-sign-in`). */
   gate?: boolean;
 }) {
+  const strings = useStrings();
   const availability = useBrowserSsoAvailability();
   const explanationId = useId();
 

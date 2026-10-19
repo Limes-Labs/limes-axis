@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { Dialog as SheetPrimitive } from "radix-ui";
 
 import { cn } from "@/lib/cn";
+import { useStrings } from "@/providers/locale-provider";
 
 /*
  * Side drawer built on Radix Dialog. Defaults to the right edge — the
@@ -43,6 +44,7 @@ export interface SheetContentProps extends ComponentProps<typeof SheetPrimitive.
 }
 
 export function SheetContent({ side = "right", className, children, ...props }: SheetContentProps) {
+  const strings = useStrings();
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -56,7 +58,7 @@ export function SheetContent({ side = "right", className, children, ...props }: 
         {...props}
       >
         {children}
-        <SheetPrimitive.Close aria-label="Close" className="icon-button absolute! top-4 right-4">
+        <SheetPrimitive.Close aria-label={strings.ui.common.close} className="icon-button absolute! top-4 right-4">
           <X aria-hidden="true" size={16} />
         </SheetPrimitive.Close>
       </SheetPrimitive.Content>

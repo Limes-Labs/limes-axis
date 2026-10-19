@@ -1,3 +1,4 @@
+import type { ConsoleStrings } from "@/lib/i18n";
 import { strings } from "@/lib/strings";
 
 /*
@@ -34,43 +35,51 @@ export type NavGroup = {
   items: NavItem[];
 };
 
-const pages = strings.pages;
+/**
+ * Build the grouped navigation from a locale's catalogue. Components pass the
+ * `useStrings()` catalogue; the module-level exports below are English.
+ */
+export function buildNavGroups(copy: Pick<ConsoleStrings, "nav" | "pages"> = strings): NavGroup[] {
+  const pages = copy.pages;
 
-export const navGroups: NavGroup[] = [
-  {
-    label: strings.nav.operate,
-    items: [
-      { href: "/", label: pages.overview.title, icon: "gauge" },
-      { href: "/approvals", label: pages.approvals.title, icon: "shield", badge: "approvals" },
-      { href: "/workflows", label: pages.workflows.title, icon: "workflow" },
-      { href: "/agents", label: pages.agents.title, icon: "bot" },
-    ],
-  },
-  {
-    label: strings.nav.dataAndModels,
-    items: [
-      { href: "/data", label: pages.data.title, icon: "database" },
-      { href: "/ontology", label: pages.ontology.title, icon: "network" },
-      { href: "/connectors", label: pages.connectors.title, icon: "cable" },
-      { href: "/model-routing", label: pages["model-routing"].title, icon: "route" },
-    ],
-  },
-  {
-    label: strings.nav.governance,
-    items: [
-      { href: "/policies", label: pages.policies.title, icon: "scroll" },
-      { href: "/audit", label: pages.audit.title, icon: "receipt" },
-      { href: "/simulation", label: pages.simulation.title, icon: "flask" },
-    ],
-  },
-  {
-    label: strings.nav.platform,
-    items: [
-      { href: "/tenants", label: pages.tenants.title, icon: "building" },
-      { href: "/settings", label: pages.settings.title, icon: "settings" },
-    ],
-  },
-];
+  return [
+    {
+      label: copy.nav.operate,
+      items: [
+        { href: "/", label: pages.overview.title, icon: "gauge" },
+        { href: "/approvals", label: pages.approvals.title, icon: "shield", badge: "approvals" },
+        { href: "/workflows", label: pages.workflows.title, icon: "workflow" },
+        { href: "/agents", label: pages.agents.title, icon: "bot" },
+      ],
+    },
+    {
+      label: copy.nav.dataAndModels,
+      items: [
+        { href: "/data", label: pages.data.title, icon: "database" },
+        { href: "/ontology", label: pages.ontology.title, icon: "network" },
+        { href: "/connectors", label: pages.connectors.title, icon: "cable" },
+        { href: "/model-routing", label: pages["model-routing"].title, icon: "route" },
+      ],
+    },
+    {
+      label: copy.nav.governance,
+      items: [
+        { href: "/policies", label: pages.policies.title, icon: "scroll" },
+        { href: "/audit", label: pages.audit.title, icon: "receipt" },
+        { href: "/simulation", label: pages.simulation.title, icon: "flask" },
+      ],
+    },
+    {
+      label: copy.nav.platform,
+      items: [
+        { href: "/tenants", label: pages.tenants.title, icon: "building" },
+        { href: "/settings", label: pages.settings.title, icon: "settings" },
+      ],
+    },
+  ];
+}
+
+export const navGroups: NavGroup[] = buildNavGroups();
 
 /** Canonical flat route list used by route resolution and non-rail navigation. */
 export const navItems: NavItem[] = navGroups.flatMap((group) => group.items);
@@ -81,10 +90,14 @@ export const navItems: NavItem[] = navGroups.flatMap((group) => group.items);
  * the canonical groups above so Settings remains discoverable on mobile and in
  * command search without appearing twice in the rail.
  */
-export const desktopNavGroups: NavGroup[] = navGroups.map((group) => ({
-  ...group,
-  items: group.items.filter((item) => item.href !== "/settings"),
-}));
+export function toDesktopNavGroups(groups: NavGroup[]): NavGroup[] {
+  return groups.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => item.href !== "/settings"),
+  }));
+}
+
+export const desktopNavGroups: NavGroup[] = toDesktopNavGroups(navGroups);
 
 /** Match a route boundary without treating similar prefixes as descendants. */
 export function isNavActive(pathname: string, href: string): boolean {
@@ -96,6 +109,6 @@ export function isNavActive(pathname: string, href: string): boolean {
 }
 
 /** Resolve dynamic detail routes to the section that owns them. */
-export function resolveNavItem(pathname: string): NavItem | null {
-  return navItems.find((item) => isNavActive(pathname, item.href)) ?? null;
+export function resolveNavItem(pathname: string, items: NavItem[] = navItems): NavItem | null {
+  return items.find((item) => isNavActive(pathname, item.href)) ?? null;
 }

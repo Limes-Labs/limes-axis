@@ -8,7 +8,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { glossary, type GlossaryKey } from "@/lib/strings";
+import { type GlossaryKey } from "@/lib/strings";
+import { useGlossary } from "@/providers/locale-provider";
 
 export interface TermProps {
   /** Glossary key from `lib/strings.ts`. */
@@ -22,6 +23,7 @@ export interface TermProps {
  * a tooltip. Keyboard-focusable so the definition is reachable without a mouse.
  */
 export function Term({ k, children }: TermProps) {
+  const glossary = useGlossary();
   const entry = glossary[k];
 
   return (

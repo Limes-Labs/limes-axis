@@ -18,7 +18,7 @@ import {
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import { formatNodeType } from "@/lib/ontology-demo";
 import { buildOntologyEntityRoute } from "@/lib/ontology-routes";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 type OntologyEntitySheetProps = {
   /** Entity to show; `null` keeps the sheet closed (and fetches nothing). */
@@ -43,6 +43,7 @@ export function OntologyEntitySheet({
   onNavigateToNode,
   tenantId,
 }: OntologyEntitySheetProps) {
+  const strings = useStrings();
   const { detail, endpoint, errorRequestId, source } = useOntologyEntity(nodeId, tenantId);
 
   if (!nodeId) {
@@ -90,7 +91,7 @@ export function OntologyEntitySheet({
           <>
             {source === "unavailable" ? (
               <p className="m-0 text-sm text-warning" role="status">
-                Live refresh failed. Showing the last validated entity data.
+                {strings.ui.ontologyEntitySheet.liveRefreshFailedShowingThe}
               </p>
             ) : null}
             <EntityDetailContent detail={detail} layout="sheet" onNavigateToNode={onNavigateToNode} />

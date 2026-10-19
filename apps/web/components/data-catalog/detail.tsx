@@ -25,7 +25,8 @@ import type {
 import { formatDateTime } from "@/lib/format";
 import { safeRandomUuid } from "@/lib/ids";
 import { parseDataAssetContractView, parseDataAssetStewardshipView } from "@/lib/runtime-contracts/data-assets";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import {
   buildDataAssetStewardshipPath,
   DATA_ASSET_STEWARDSHIP_ENDPOINTS,
@@ -44,6 +45,7 @@ import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
 /** Data asset detail pane: metadata-only by contract, mirroring the API. */
 export function DataAssetDetail({ asset }: { asset: DataAsset }) {
+  const strings = useStrings();
   const copy = strings.dataCatalog.detail;
 
   return (
@@ -172,6 +174,7 @@ export function DataAssetDetail({ asset }: { asset: DataAsset }) {
 
 /** Fail-closed detail state for an asset ID that is not in the catalog. */
 export function UnknownDataAssetPanel({ assetId }: { assetId: string }) {
+  const strings = useStrings();
   const copy = strings.dataCatalog.states.unknownAsset;
 
   return (
@@ -205,7 +208,7 @@ type StewardshipFieldErrors = Partial<
 >;
 
 function validateStewardshipForm(
-  form: StewardshipFormState,
+  form: StewardshipFormState, strings: ConsoleStrings,
 ): StewardshipFieldErrors {
   const copy = strings.dataCatalog.stewardship.form.errors;
   const errors: StewardshipFieldErrors = {};
@@ -245,6 +248,7 @@ export function StewardshipSection({
   onSuccess: () => void;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const copy = strings.dataCatalog.stewardship;
   const { session } = useOidcConsoleSession();
   const stewardshipQuery = useDataAssetStewardship(asset.asset_id, tenantId, true);
@@ -269,7 +273,7 @@ export function StewardshipSection({
 
   async function submitDeclaration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const errors = validateStewardshipForm(form);
+    const errors = validateStewardshipForm(form, strings);
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       return;
@@ -453,6 +457,7 @@ function driftPillClass(driftState: string): string {
 }
 
 function ResourceRow({ resource }: { resource: DataAssetResourceObservation }) {
+  const strings = useStrings();
   const copy = strings.dataCatalog.resources;
 
   return (
@@ -487,6 +492,7 @@ export function ResourcesSection({
   asset: DataAsset;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const copy = strings.dataCatalog.resources;
   const resourcesQuery = useDataAssetResources(asset.asset_id, tenantId, true);
 
@@ -569,7 +575,7 @@ function parseOptionalHours(value: string): number | null | "invalid" {
   return parsed;
 }
 
-function validateContractForm(form: ContractFormState): {
+function validateContractForm(form: ContractFormState, strings: ConsoleStrings): {
   errors: Record<string, string>;
   parsed: {
     expectedSchemaFingerprint: string | null;
@@ -635,6 +641,7 @@ export function ContractSection({
   onSuccess: () => void;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const copy = strings.dataCatalog.contract;
   const { session } = useOidcConsoleSession();
   const contractQuery = useDataAssetContract(asset.asset_id, tenantId, true);
@@ -661,7 +668,7 @@ export function ContractSection({
 
   async function submitDeclaration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const { errors: fieldErrors, parsed } = validateContractForm(form);
+    const { errors: fieldErrors, parsed } = validateContractForm(form, strings);
     setErrors(fieldErrors);
     if (Object.keys(fieldErrors).length > 0) {
       return;

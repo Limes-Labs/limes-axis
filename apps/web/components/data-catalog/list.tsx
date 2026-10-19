@@ -7,7 +7,7 @@ import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 import type { DataAsset, DataAssetEvidenceState } from "@/lib/data-assets";
 import { formatDateTime, pluralize } from "@/lib/format";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 const EVIDENCE_FILTER_VALUES = [
   "all",
@@ -49,6 +49,7 @@ export function DataAssetList({
   evidenceFilter: DataAssetEvidenceFilter;
   onEvidenceFilterChange: (value: DataAssetEvidenceFilter) => void;
 }) {
+  const strings = useStrings();
   const copy = strings.dataCatalog;
 
   return (
