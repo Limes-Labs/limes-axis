@@ -7,6 +7,7 @@ import {
   approvalRiskClass,
   buildApprovalDecisionPayload,
   buildApprovalHref,
+  countAwaitingDecision,
   findApprovalById,
   type ManufacturingApprovalInbox,
 } from "./approval-demo";
@@ -97,6 +98,20 @@ describe("approval inbox helpers", () => {
     expect(approvalRiskClass("medium")).toBe("signal-watch");
     expect(approvalRiskClass("low")).toBe("signal-ready");
     expect(approvalDecisionLabel("request_changes")).toBe("Changes Requested");
+  });
+
+  it("counts every approval that is not decided as awaiting a decision", () => {
+    const [first] = approvalInboxFixture.approvals;
+    const inbox = {
+      approvals: [
+        { ...first, status: "pending" },
+        { ...first, status: "escalated" },
+        { ...first, status: "decided" },
+      ],
+    };
+
+    expect(countAwaitingDecision(inbox)).toBe(2);
+    expect(countAwaitingDecision(null)).toBe(0);
   });
 
   it("finds approvals by id with a safe fallback", () => {

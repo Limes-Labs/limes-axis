@@ -9,7 +9,7 @@ import { MobileNavigation } from "@/components/mobile-navigation";
 import { navIconMap } from "@/components/nav-icons";
 import { SidebarAccount } from "@/components/sidebar-account";
 import { SignInGate } from "@/components/sign-in-gate";
-import type { ManufacturingApprovalInbox } from "@/lib/approval-demo";
+import { countAwaitingDecision, type ManufacturingApprovalInbox } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
 import { ToastProvider } from "@/components/ui/toast";
 import { desktopNavGroups, isNavActive, type NavItem } from "@/lib/nav";
@@ -58,9 +58,7 @@ function ApprovalsBadge({
       parse: parseManufacturingApprovalInbox,
     },
   );
-  const pendingCount =
-    data?.approvals?.filter((approval) => approval.status === "pending")
-      .length ?? 0;
+  const pendingCount = countAwaitingDecision(data);
 
   if (pendingCount === 0) {
     return null;

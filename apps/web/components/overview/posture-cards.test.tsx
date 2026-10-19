@@ -64,9 +64,11 @@ describe("PostureCards", () => {
       "href",
       "/agents",
     );
-    expect(within(card(strings.overview.posture.workflows.label)).getByText("2")).toBeInTheDocument();
+    // The persisted "Open Workflows" snapshot metric — the hero's number —
+    // not the reference scenario's two workflow records.
+    expect(within(card(strings.overview.posture.workflows.label)).getByText("1")).toBeInTheDocument();
     expect(
-      within(card(strings.overview.posture.workflows.label)).getByRole("link", { name: /Open workflows/ }),
+      within(card(strings.overview.posture.workflows.label)).getByRole("link", { name: /View workflows/ }),
     ).toHaveAttribute("href", "/workflows");
     expect(within(card(strings.overview.posture.connectors.label)).getByText("1")).toBeInTheDocument();
     expect(
@@ -94,8 +96,8 @@ describe("PostureCards", () => {
     );
 
     expect(within(card(strings.overview.posture.agents.label)).getByText("Unavailable")).toBeInTheDocument();
-    expect(within(card(strings.overview.posture.workflows.label)).getByText("Unavailable")).toBeInTheDocument();
-    // The other three cards keep their API-backed values.
+    // The other four cards keep their API-backed values.
+    expect(within(card(strings.overview.posture.workflows.label)).getByText("1")).toBeInTheDocument();
     expect(within(card(strings.overview.posture.connectors.label)).getByText("1")).toBeInTheDocument();
     expect(within(card(strings.overview.posture.policies.label)).getByText("1")).toBeInTheDocument();
     expect(within(card(strings.overview.posture.models.label)).getByText("2")).toBeInTheDocument();

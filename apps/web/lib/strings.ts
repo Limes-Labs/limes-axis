@@ -1305,7 +1305,11 @@ const overview = {
   },
   posture: {
     agents: { label: "Agents", link: "Manage agents" },
-    workflows: { label: "Workflows", link: "Open workflows" },
+    workflows: {
+      label: "Open workflows",
+      link: "View workflows",
+      detail: "Persisted workflows that are not completed or cancelled",
+    },
     connectors: {
       label: "Connector activity",
       link: "Manage connectors",

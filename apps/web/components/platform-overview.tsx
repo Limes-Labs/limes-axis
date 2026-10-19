@@ -5,12 +5,16 @@ import { Suspense } from "react";
 import { OnboardingChecklist } from "@/components/onboarding-checklist";
 import { ArtifactPanel } from "@/components/overview/artifact-panel";
 import { EvidenceFeed } from "@/components/overview/evidence-feed";
-import { NeedsAttention } from "@/components/overview/needs-attention";
+import { APPROVALS_ENDPOINT, NeedsAttention } from "@/components/overview/needs-attention";
 import { type OverviewQuery } from "@/components/overview/overview-shared";
 import { PostureCards } from "@/components/overview/posture-cards";
 import { SideRail } from "@/components/overview/side-rail";
 import { SourcePill } from "@/components/ui/source-pill";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
+import {
+  countAwaitingDecision,
+  type ManufacturingApprovalInbox,
+} from "@/lib/approval-demo";
 import type { ManufacturingAuditExplorer } from "@/lib/audit-demo";
 import type { ManufacturingModelRouting } from "@/lib/model-routing-demo";
 import {
@@ -19,10 +23,12 @@ import {
   NO_VALUE,
 } from "@/lib/format";
 import {
+  OPEN_WORKFLOWS_METRIC,
   type ManufacturingOperationsSnapshot,
   type ManufacturingOverview,
 } from "@/lib/platform-overview";
 import { strings } from "@/lib/strings";
+import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import { parseManufacturingAuditExplorer } from "@/lib/runtime-contracts/audit";
 import { parseManufacturingModelRouting } from "@/lib/runtime-contracts/model-routing";
 import {
@@ -59,10 +65,12 @@ const AUDIT_EVENTS_ENDPOINT = `${OPERATIONS_API_PREFIX}/audit/events`;
 function OverviewHero({
   overview,
   snapshot,
+  approvals,
   auditEvents,
 }: {
   overview: OverviewQuery<ManufacturingOverview>;
   snapshot: OverviewQuery<ManufacturingOperationsSnapshot>;
+  approvals: OverviewQuery<ManufacturingApprovalInbox>;
   auditEvents: OverviewQuery<ManufacturingAuditExplorer>;
 }) {
   if (!overview.data) {
@@ -90,6 +98,11 @@ function OverviewHero({
    * pending" while the persisted truth is zero, which is exactly the kind of
    * confident-but-wrong number this console must never show. When the snapshot
    * has not resolved, the fact reads "—" rather than falling back to seed data.
+   *
+   * One source per number: "Open workflows" is the snapshot metric the
+   * workflows posture card also shows, and "Pending approvals" is counted from
+   * the approvals queue that feeds the needs-attention cards and the sidebar
+   * badge, so the hero can never contradict the panels around it.
    */
   const persistedFact = (metricLabel: string): string => {
     const metric = snapshot.data?.metrics.find((entry) => entry.label === metricLabel);
@@ -100,11 +113,19 @@ function OverviewHero({
   const auditEventCount = auditEvents.data
     ? formatNumber(auditEvents.data.events.length)
     : NO_VALUE;
+  const pendingApprovals = approvals.data
+    ? formatNumber(countAwaitingDecision(approvals.data))
+    : NO_VALUE;
   const facts = [
-    { label: strings.overview.hero.facts.openWorkflows, value: persistedFact("Open Workflows") },
+    {
+      label: strings.overview.hero.facts.openWorkflows,
+      value: persistedFact(OPEN_WORKFLOWS_METRIC),
+      testId: "hero-open-workflows",
+    },
     {
       label: strings.overview.hero.facts.pendingApprovals,
-      value: persistedFact("Pending Approvals"),
+      value: pendingApprovals,
+      testId: "hero-pending-approvals",
     },
     { label: strings.overview.hero.facts.operationRecords, value: persistedFact("Operation Records") },
     {
@@ -133,6 +154,7 @@ function OverviewHero({
       <div aria-label="Overview data sources" className="flex min-w-0 flex-wrap gap-1.5">
         <SourcePill compact state={deriveSourceState(overview.source, true, data.provenance)} subject="Context" />
         <SourcePill compact state={deriveSourceState(snapshot.source, Boolean(snapshot.data), snapshot.data?.provenance)} subject="Operations" />
+        <SourcePill compact state={deriveSourceState(approvals.source, Boolean(approvals.data), approvals.data?.provenance)} subject="Approvals" />
         <SourcePill compact state={deriveSourceState(auditEvents.source, Boolean(auditEvents.data), auditEvents.data?.provenance)} subject="Audit" />
       </div>
     </section>
@@ -158,6 +180,10 @@ export function PlatformOverview() {
     MODEL_ROUTING_ENDPOINT,
     tenantId ?? DEMO_TENANT_ID,
   );
+  const approvalsPath = buildTenantScopedPath(
+    APPROVALS_ENDPOINT,
+    tenantId ?? DEMO_TENANT_ID,
+  );
   const auditEventsPath = buildTenantScopedPath(
     AUDIT_EVENTS_ENDPOINT,
     tenantId ?? DEMO_TENANT_ID,
@@ -177,6 +203,13 @@ export function PlatformOverview() {
     enabled: tenantQueriesEnabled,
     expectedTenantId: tenantId ?? undefined,
     parse: parseManufacturingModelRouting,
+  });
+  // One approvals query for the page: the hero count and the needs-attention
+  // cards both read it (the sidebar badge counts the same endpoint the same way).
+  const approvalsQuery = useAxisQuery<ManufacturingApprovalInbox>(approvalsPath, {
+    enabled: tenantQueriesEnabled,
+    expectedTenantId: tenantId ?? undefined,
+    parse: parseManufacturingApprovalInbox,
   });
   const auditEventsQuery = useAxisQuery<ManufacturingAuditExplorer>(auditEventsPath, {
     enabled: tenantQueriesEnabled,
@@ -238,6 +271,7 @@ export function PlatformOverview() {
   return (
     <div className="grid gap-4">
       <OverviewHero
+        approvals={approvalsQuery}
         auditEvents={auditEventsQuery}
         overview={overviewQuery}
         snapshot={snapshotQuery}
@@ -250,6 +284,7 @@ export function PlatformOverview() {
             ? { actorId: identityQuery.data.actor_id, scopes: identityQuery.data.scopes }
             : undefined
         }
+        approvals={approvalsQuery}
         identitySession={identityQuery.data ?? null}
         overview={overviewQuery}
         tenantId={tenantId}

@@ -25,6 +25,7 @@ import type { ActionRunList } from "@/lib/action-demo";
 import {
   approvalDecisionLabel,
   approvalRiskClass,
+  isAwaitingDecision,
   type ApprovalDecision,
   type ApprovalDecisionHistoryEntry,
   type ApprovalInboxItem,
@@ -492,7 +493,7 @@ export function ApprovalInbox() {
   // work moves to the decision history instead of lingering in the inbox.
   const actionableApprovals = inbox.approvals.filter(
     (approval) =>
-      approval.status !== "decided" && !decisions[approval.approval_id],
+      isAwaitingDecision(approval) && !decisions[approval.approval_id],
   );
   const filteredApprovals = filterApprovalQueue(actionableApprovals, urlState, labelDomain);
   const detailOpen = Boolean(urlState.approvalId || urlState.actionRunId);

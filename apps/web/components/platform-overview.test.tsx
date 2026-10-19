@@ -199,6 +199,32 @@ describe("PlatformOverview hero", () => {
     expect(screen.getByText(/Northwind Press/)).not.toHaveTextContent(/null|^\s*\//);
   });
 
+  it("reads each headline number from the same source as the panels around it", () => {
+    mockQueriesByPath();
+    renderOverview();
+
+    // Pending approvals: the approvals queue that also renders the review
+    // cards (four awaiting a decision in the fixture), not the snapshot metric.
+    const awaiting = approvalInboxFixture.approvals.filter(
+      (approval) => approval.status !== "decided",
+    ).length;
+    expect(screen.getByTestId("hero-pending-approvals")).toHaveTextContent(
+      new RegExp(`^${awaiting}$`),
+    );
+    // Open workflows: the hero and the posture card show one snapshot metric.
+    const openWorkflows = snapshotFixture.metrics.find(
+      (metric) => metric.label === "Open Workflows",
+    )?.value;
+    expect(screen.getByTestId("hero-open-workflows")).toHaveTextContent(
+      new RegExp(`^${openWorkflows}$`),
+    );
+    const workflowsCard = screen
+      .getAllByRole("listitem")
+      .find((item) => within(item).queryByText(strings.overview.posture.workflows.label));
+    expect(workflowsCard).toBeDefined();
+    expect(within(workflowsCard as HTMLElement).getByText(openWorkflows as string)).toBeInTheDocument();
+  });
+
   it("shows the same audit registry count in the hero and the evidence feed", () => {
     mockQueriesByPath();
     renderOverview();

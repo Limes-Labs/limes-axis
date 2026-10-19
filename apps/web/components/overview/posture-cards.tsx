@@ -5,11 +5,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SourcePill } from "@/components/ui/source-pill";
 import { formatNumber, pluralize } from "@/lib/format";
 import { countBlockedModelRoutes, type ManufacturingModelRouting } from "@/lib/model-routing-demo";
-import type {
-  ManufacturingOperationsSnapshot,
-  ManufacturingOverview,
-  OverviewMetric,
-  PlatformStatus,
+import {
+  OPEN_WORKFLOWS_METRIC,
+  type ManufacturingOperationsSnapshot,
+  type ManufacturingOverview,
+  type OverviewMetric,
+  type PlatformStatus,
 } from "@/lib/platform-overview";
 import type { PlatformPolicyRegistry } from "@/lib/platform-policies";
 import { strings } from "@/lib/strings";
@@ -46,8 +47,11 @@ type PostureCard = {
   sourceState: SourceState;
 };
 
-function metricByLabel(overview: ManufacturingOverview, label: string): OverviewMetric | null {
-  return overview.metrics.find((metric) => metric.label === label) ?? null;
+function metricByLabel(
+  source: Pick<ManufacturingOverview | ManufacturingOperationsSnapshot, "metrics">,
+  label: string,
+): OverviewMetric | null {
+  return source.metrics.find((metric) => metric.label === label) ?? null;
 }
 
 function connectorEventCount(snapshot: ManufacturingOperationsSnapshot): number {
@@ -118,11 +122,19 @@ export function PostureCards({
       label: copy.workflows.label,
       href: "/workflows",
       linkLabel: copy.workflows.link,
-      ...cardState(overview, (data) => ({
-        value: String(data.workflows.length),
-        detail: metricByLabel(data, "Workflow Load")?.detail ?? "Workflow records from the API",
-        status: metricByLabel(data, "Workflow Load")?.status ?? "watch",
-      }), (data) => data.provenance),
+      /*
+       * The persisted open-workflow metric, the same number the overview hero
+       * shows. It used to count the reference scenario's workflow array, so a
+       * live tenant read "Open workflows 0" in the hero next to "3" here.
+       */
+      ...cardState(snapshot, (data) => {
+        const metric = metricByLabel(data, OPEN_WORKFLOWS_METRIC);
+        return {
+          value: metric?.value ?? strings.overview.posture.unavailable,
+          detail: metric?.detail ?? copy.workflows.detail,
+          status: metric?.status ?? "watch",
+        };
+      }, (data) => data.provenance),
     },
     {
       key: "connectors",
