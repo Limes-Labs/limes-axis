@@ -144,7 +144,19 @@ async def test_measurement_records_real_sql_pool_release_and_samples(benchmark, 
     assert result["summary"]["sql_ms"]["max"] > 0
     assert result["resources"]["pool_peak"] >= 1
     assert result["resources"]["pool_at_end"] == 0
-    assert result["budget"]["status"] == "NOT RUN"  # two samples cannot certify p99
+    # Two samples cannot certify p99. The recorded verdict also depends on runner
+    # load (a breach two samples did observe is an honest FAIL), so the
+    # certification rule is checked against limits these samples cannot breach.
+    assert result["budget"]["status"] != "PASS"
+    journey_budget = workload["profiles"]["sme-single-node"]["journeys"]["console"]
+    resource_budget = workload["profiles"]["sme-single-node"]["resource_budgets"]
+    unbreachable = {key: float("inf") for key in journey_budget} | {"rps": 0}
+    assert benchmark.evaluate(
+        result["summary"],
+        result["resources"],
+        unbreachable,
+        {key: float("inf") for key in resource_budget},
+    )["status"] == "NOT RUN"
     assert len(result["samples"]) == result["summary"]["offered"]
     assert result["resources"]["query_fingerprints"]
     assert "benchmark-tenant" not in json.dumps(result)
