@@ -52,6 +52,37 @@ release-bound behavior, not the complete commit history.
   Zero network, admission, credential or destination-write behavior
   ([#877](https://github.com/Limes-Labs/limes-axis/issues/877)).
 
+- Versioned assurance pack manifest contract: audience/engagement-bound
+  selection of exact answer, posture and evidence revisions, structured
+  support states that keep gaps and limitations visible, freshness
+  re-verification against observed facts (expired certificates, wrong
+  release/profile, superseded answers cannot pass as current), preflight
+  gating (required entries without positive support block issuance unless
+  the partial pack lists them), entry disclosure bound to the pack's
+  disclosure class, and a fixed scope note for #871/#879 report citations. Contract
+  slice only; no artifact packaging or signing
+  ([#883](https://github.com/Limes-Labs/limes-axis/issues/883)).
+- Deterministic assurance pack assembly: released-only packaging of a
+  preflight-ready manifest into a bounded, stored (uncompressed) archive
+  (canonical manifest JSON, sanitized local Markdown index, permitted
+  attachments) with caller-owned release authorization and final-output
+  secret scanning; revocation, revision changes, digest mismatches or
+  unsupported scan formats abort generation instead of reusing a privileged
+  cached package. No signing, issuance or download delivery
+  ([#884](https://github.com/Limes-Labs/limes-axis/issues/884)).
+- Immutable signed assurance pack issuance and bounded offline verification:
+  final approval binds to the exact assembled package and manifest digests
+  after a sign-time preflight and support re-check; frozen issuance records
+  carry the approver, Ed25519 signing profile and the #729 lifecycle facts
+  (capture time, valid-through, supersession by record digest) as separate
+  fields. The verifier reads the manifest and attachments from the package
+  itself under member/size bounds, needs only a separately trusted public
+  key, rejects unknown record fields and unsupported algorithms, and lets
+  stale or missing revocation data or an uncertain clock only qualify the
+  result; the wording states that a signature proves integrity and
+  provenance, not certification
+  ([#885](https://github.com/Limes-Labs/limes-axis/issues/885)).
+
 - A provider-neutral writeback contract that maps an existing typed action onto
   one registered external mutation: adapter capability/readiness and conformance
   declarations, a schema-bound REST operation mapping with allowlisted methods,
