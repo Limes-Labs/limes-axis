@@ -554,23 +554,86 @@ def test_tombstone_clears_text_and_survives_late_live_replay(repository):
     assert (late.decision, late.reason) == ("superseded", "tombstone_not_resurrected")
 
 
-def test_tombstone_for_unknown_object_creates_no_row(repository):
+def test_tombstone_for_unknown_object_blocks_late_resurrection(repository):
+    node = "tenant-search::never-indexed"
     projection = tombstone_document(
         repository,
         tenant_id="tenant-search",
-        source_object_id="tenant-search::never-indexed",
+        source_object_id=node,
         content_revision="rev-del",
     )
-    # The classifier reports a new tombstone record; the procedure keeps no
-    # row because nothing readable ever existed in the index for it.
     assert (projection.decision, projection.reason) == ("applied", "new_record")
     assert projection.next_state == "tombstoned"
-    assert (
-        repository.get_search_index_record_for_update(
-            "tenant-search", "tenant-search::never-indexed"
-        )
-        is None
+    record = repository.get_search_index_record_for_update("tenant-search", node)
+    assert record is not None
+    assert record.state == "tombstoned"
+    assert record.searchable_text is None
+    assert record.text_digest is None
+
+    # The deletion arrived first; the older create delivered late must not
+    # become a new live record.
+    late = index_ontology_promotion(
+        repository,
+        tenant_id="tenant-search",
+        promotion_id="promo-late",
+        proposal_id="proposal-late",
+        node_id=node,
+        ontology_type="axis_asset",
+        graph_mutation_status=COMMITTED_MUTATION_STATUS,
+        ontology_mutation_ref=f"typedb://axis/{node}",
+        field_summary={"asset_name": "Deleted before it was indexed"},
+        content_revision="rev-1",
+        policy_revision_ref="policy-rev-1",
+        supersedes_current=False,
     )
+    assert (late.decision, late.reason) == ("superseded", "tombstone_not_resurrected")
+    assert repository.get_search_index_record_for_update("tenant-search", node).state == (
+        "tombstoned"
+    )
+
+    # Bound ordering evidence may still bring it back, with its real kind
+    # and locator instead of the tombstone placeholders.
+    revived = index_ontology_promotion(
+        repository,
+        tenant_id="tenant-search",
+        promotion_id="promo-revived",
+        proposal_id="proposal-revived",
+        node_id=node,
+        ontology_type="axis_asset",
+        graph_mutation_status=COMMITTED_MUTATION_STATUS,
+        ontology_mutation_ref=f"typedb://axis/{node}",
+        field_summary={"asset_name": "Recreated asset"},
+        content_revision="rev-2",
+        policy_revision_ref="policy-rev-1",
+        supersedes_current=True,
+    )
+    assert revived.decision == "applied"
+    record = repository.get_search_index_record_for_update("tenant-search", node)
+    assert record.state == "live"
+    assert record.kind == "ontology_asset"
+    assert record.source_locator == f"typedb://axis/{node}"
+
+
+def test_newer_revision_updates_the_stored_locator(repository):
+    node = "tenant-search::asset-moved"
+    for revision, locator in (("rev-1", "typedb://axis/open"), ("rev-2", "typedb://axis/hr")):
+        index_ontology_promotion(
+            repository,
+            tenant_id="tenant-search",
+            promotion_id=f"promo-{revision}",
+            proposal_id=f"proposal-{revision}",
+            node_id=node,
+            ontology_type="axis_asset",
+            graph_mutation_status=COMMITTED_MUTATION_STATUS,
+            ontology_mutation_ref=locator,
+            field_summary={"asset_name": f"Asset at {revision}"},
+            content_revision=revision,
+            policy_revision_ref="policy-rev-1",
+            supersedes_current=revision != "rev-1",
+        )
+    record = repository.get_search_index_record_for_update("tenant-search", node)
+    # Locator-fragment denials are evaluated on this column.
+    assert record.source_locator == "typedb://axis/hr"
 
 
 def test_tenant_isolation_keeps_index_records_scoped(repository, contract_engine):  # noqa: F811
