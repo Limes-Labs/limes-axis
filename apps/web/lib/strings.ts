@@ -1894,6 +1894,9 @@ const ontology = {
     entity: "Entity",
     selected: "Selected",
     relation: "Relation",
+    /* Status markers: the dot at a node's upper right. Ready nodes have none. */
+    statusGroup: "Node status",
+    readyNoMarker: "Ready: no marker",
     hint: "Click or press Enter on a node to open its entity detail",
   },
   graph: {
