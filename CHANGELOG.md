@@ -7,6 +7,56 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- A provider-neutral writeback contract that maps an existing typed action onto
+  one registered external mutation: adapter capability/readiness and conformance
+  declarations, a schema-bound REST operation mapping with allowlisted methods,
+  protected host-derived headers and bounded response projection, remote
+  identifier/version/precondition fields, honest idempotency metadata and
+  normalized outcome states that keep remote request, acknowledgement, business
+  result and later source verification apart. A tenant-bound registry keeps
+  append-only target versions with explicit enable/disable, and resolution
+  rechecks tenant, approval payload digest, credential handle and lease,
+  resolved egress target, readiness and request bounds before any I/O
+  ([#510](https://github.com/Limes-Labs/limes-axis/issues/510)).
+
+- A reproducible REST connector conformance scenario (one documented command,
+  `make rest-conformance`) that drives a declared synthetic collection through
+  the real host boundaries over a loopback service: pagination completion with a
+  bounded payload digest, durable 429 retry, repeated-cursor and malformed-JSON
+  terminals, schema-change blocking before any request, interrupted acceptance
+  replay and zero source I/O behind disabled gates. Support evidence projects
+  the shared health model from existing durable records and labels its own
+  verification scope (`contract_only`, `local_wire_level`, `provider_verified`),
+  so a local run never claims provider support and a past green run never
+  certifies current availability
+  ([#862](https://github.com/Limes-Labs/limes-axis/issues/862)).
+
+- REST collection ingestion through the existing source-ingestion outbox: one
+  governed page per fenced attempt, protocol negotiation before any client,
+  per-attempt revalidation of the active binding, declared observation, lease
+  and egress policy, deterministic payload keys with a compare-and-swap
+  checkpoint commit, bounded `Retry-After` scheduling instead of in-worker
+  sleeps, and terminal handling of repeated cursors, truncated pages and
+  completed traversals. Default-off behind `AXIS_REST_SOURCE_INGESTION_ENABLED`
+  with profiles in `AXIS_REST_SOURCE_PROFILES`; no second outbox, scheduler,
+  checkpoint database or secret store
+  ([#861](https://github.com/Limes-Labs/limes-axis/issues/861)).
+
+- Bounded host-owned REST page reads over the approved source profiles: GET-only
+  transport pinned to the egress-approved origin, no-follow redirects with
+  same-origin pagination validation, streaming wire/decoded-byte caps and
+  deadlines, fixed safe error codes with bounded retry hints, honest truncated
+  results and metadata-only progress evidence. The host still owns leases,
+  secret resolution, retries and durable checkpoint commits
+  ([#860](https://github.com/Limes-Labs/limes-axis/issues/860)).
+
+- Bounded Google Drive discovery adapter over Drive API v3: one explicitly
+  configured My Drive root or shared drive is enumerated with pinned origin,
+  drive-scoped queries and token-only pagination, normalizing user/group/domain/link
+  permission evidence into the document observation contract with fixed safe setup
+  states, shortcut pointers that are never fetched, and no content download
+  ([#866](https://github.com/Limes-Labs/limes-axis/issues/866)).
+
 - Additive `offline_readiness` section in the deployment readiness report that
   keeps declared configuration, observed rehearsal evidence and external
   accreditation distinct: an offline profile with no rehearsal is reported as
@@ -32,6 +82,13 @@ release-bound behavior, not the complete commit history.
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
   ([#859](https://github.com/Limes-Labs/limes-axis/issues/859)).
+
+- Microsoft 365 library discovery (#864): bounded Graph v1.0 enumeration of one
+  explicitly selected drive, permission evidence normalized into #863
+  observations, distinct safe setup states per permission mode, and an
+  endpoint-by-permission-mode support table
+  (`docs/m365-discovery-permissions.md`). No content reads, no auto-escalation;
+  production support is unclaimed until a real authorized tenant is tested.
 
 - Approval queue search and risk/domain filters, compact counts, and a dedicated
   mobile review with focus restoration. Explicit approval links remain reviewable

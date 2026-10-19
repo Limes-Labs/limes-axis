@@ -1,6 +1,6 @@
 .PHONY: install lint test typecheck build-web docs-check edition-matrix-check edition-export-readiness openapi openapi-check route-inventory route-inventory-check test-sdk security-check deployment-check deployment-profile-render-check deployment-rollout-rehearsal-plan deployment-rollout-rehearsal deployment-ha-rehearsal-plan deployment-ha-rehearsal deployment-load-rehearsal-plan deployment-load-rehearsal deployment-tls-readiness-plan deployment-tls-readiness deployment-backup-rehearsal-plan deployment-backup-rehearsal deployment-restore-rehearsal-plan deployment-restore-rehearsal deployment-typedb-recovery-rehearsal-plan deployment-typedb-recovery-rehearsal deployment-object-storage-recovery-rehearsal-plan deployment-object-storage-recovery-rehearsal deployment-temporal-recovery-rehearsal-plan deployment-temporal-recovery-rehearsal deployment-secret-rotation-rehearsal-plan deployment-secret-rotation-rehearsal container-check container-release-check container-security-check vulnerability-management-check container-build-api container-build-web container-build-worker container-build container-scan-local worker test-api test-model-persistence-postgres test-worker test-web test-integration test-e2e-connectors-source dev-stack-up dev-stack-down demo-stack-up demo-stack-down demo-db-upgrade demo-api demo-api-sso demo-web demo-keycloak-check demo-keycloak-bootstrap-check demo-check demo-check-live demo-verify demo-backup-plan demo-backup-local demo-restore-local
 
-.PHONY: verify test-schemas test-e2e-smoke benchmark-lineage benchmark-performance benchmark-ingestion settings-reference settings-reference-check architecture-check
+.PHONY: verify test-schemas test-e2e-smoke benchmark-lineage benchmark-performance benchmark-ingestion settings-reference settings-reference-check architecture-check rest-conformance
 
 PYTEST_ARGS ?=
 WEB_TEST_ARGS ?=
@@ -36,6 +36,12 @@ verify: lint typecheck test build-web openapi-check docs-check demo-check securi
 
 test-api:
 	cd services/api && uv run pytest $(PYTEST_ARGS)
+
+# One-command local wire-level REST conformance scenario (#862): real loopback
+# service, real reader transport, real ingestion outbox, isolated SQLite and
+# object-store directory under pytest's tmp_path.
+rest-conformance:
+	cd services/api && uv run pytest tests/test_rest_connector_conformance.py -q
 
 # Runs the same facade/aggregate contract suite against a fresh migrated database.
 test-model-persistence-postgres:
