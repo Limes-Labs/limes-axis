@@ -70,6 +70,22 @@ class PolicySettings(BaseModel):
         default=False,
         alias="AXIS_DEPLOYMENT_BREAK_GLASS_APPROVAL_CONFIGURED",
     )
+    deployment_release_identity: str = Field(
+        default="",
+        alias="AXIS_DEPLOYMENT_RELEASE_IDENTITY",
+    )
+    deployment_dependency_manifest_revision: str = Field(
+        default="",
+        alias="AXIS_DEPENDENCY_MANIFEST_REVISION",
+    )
+    deployment_offline_local_bindings: list[str] = Field(
+        default_factory=list,
+        alias="AXIS_DEPLOYMENT_OFFLINE_LOCAL_BINDINGS",
+    )
+    offline_rehearsal_evidence: str = Field(
+        default="",
+        alias="AXIS_OFFLINE_REHEARSAL_EVIDENCE",
+    )
     replay_arbitrary_policy_set_diff_enabled: bool = Field(
         default=False,
         alias="AXIS_REPLAY_ARBITRARY_POLICY_SET_DIFF_ENABLED",

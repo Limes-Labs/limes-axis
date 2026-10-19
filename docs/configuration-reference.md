@@ -99,6 +99,8 @@ operational profiles and secret injection.
 | --- | --- | --- | --- | --- |
 | `AXIS_S3_SOURCE_INGESTION_ENABLED` | `s3_source_ingestion_enabled` | boolean | `false` |  |
 | `AXIS_S3_SOURCE_PROFILES` | `s3_source_profiles` | array | `[]` |  |
+| `AXIS_REST_SOURCE_INGESTION_ENABLED` | `rest_source_ingestion_enabled` | boolean | `false` |  |
+| `AXIS_REST_SOURCE_PROFILES` | `rest_source_profiles` | array | `[]` |  |
 | `AXIS_CREDENTIAL_LEASE_EXECUTION_ENABLED` | `credential_lease_execution_enabled` | boolean | `false` |  |
 | `AXIS_CREDENTIAL_LEASE_PROVIDER_ADAPTERS_ENABLED` | `credential_lease_provider_adapters_enabled` | boolean | `false` |  |
 | `AXIS_CONNECTOR_SYNC_EXECUTION_ENABLED` | `connector_sync_execution_enabled` | boolean | `false` |  |
@@ -134,6 +136,7 @@ operational profiles and secret injection.
 | `AXIS_SOURCE_INGESTION_CLAIM_TIMEOUT_SECONDS` | `source_ingestion_claim_timeout_seconds` | integer | `120` | minimum: 5 |
 | `AXIS_SOURCE_INGESTION_RETRY_BASE_SECONDS` | `source_ingestion_retry_base_seconds` | integer | `2` | minimum: 0 |
 | `AXIS_SOURCE_INGESTION_RETRY_MAX_SECONDS` | `source_ingestion_retry_max_seconds` | integer | `60` | minimum: 1 |
+| `AXIS_SOURCE_INGESTION_RETRY_AFTER_MAX_SECONDS` | `source_ingestion_retry_after_max_seconds` | integer | `300` | maximum: 3600; minimum: 1 |
 | `AXIS_SOURCE_INGESTION_MAX_ATTEMPTS` | `source_ingestion_max_attempts` | integer | `3` | maximum: 20; minimum: 1 |
 | `AXIS_SOURCE_INGESTION_EXTRACTION_ENABLED` | `source_ingestion_extraction_enabled` | boolean | `false` |  |
 | `AXIS_SOURCE_INGESTION_EXTRACTION_MAX_ROWS` | `source_ingestion_extraction_max_rows` | integer | `10000` | maximum: 1000000; minimum: 1 |
@@ -162,6 +165,10 @@ operational profiles and secret injection.
 | `AXIS_DEPLOYMENT_DATA_RESIDENCY_CONFIGURED` | `deployment_data_residency_configured` | boolean | `false` |  |
 | `AXIS_DEPLOYMENT_OPERATOR_ACCESS_RUNBOOK_CONFIGURED` | `deployment_operator_access_runbook_configured` | boolean | `false` |  |
 | `AXIS_DEPLOYMENT_BREAK_GLASS_APPROVAL_CONFIGURED` | `deployment_break_glass_approval_configured` | boolean | `false` |  |
+| `AXIS_DEPLOYMENT_RELEASE_IDENTITY` | `deployment_release_identity` | string | `""` |  |
+| `AXIS_DEPENDENCY_MANIFEST_REVISION` | `deployment_dependency_manifest_revision` | string | `""` |  |
+| `AXIS_DEPLOYMENT_OFFLINE_LOCAL_BINDINGS` | `deployment_offline_local_bindings` | array | `[]` |  |
+| `AXIS_OFFLINE_REHEARSAL_EVIDENCE` | `offline_rehearsal_evidence` | string | `""` |  |
 | `AXIS_REPLAY_ARBITRARY_POLICY_SET_DIFF_ENABLED` | `replay_arbitrary_policy_set_diff_enabled` | boolean | `false` |  |
 
 ## Observability

@@ -182,7 +182,7 @@ the nearest contract evidence; they are not an exhaustive test inventory.
 
 ## Optional public institutional context
 
-The isolated opt-in integration described in [ADR 0019](adr/0019-public-institutional-context.md)
+The isolated opt-in integration described in [ADR 0020](adr/0020-public-institutional-context.md)
 adds a separate authenticated read of public GovCore identity/provenance. Its domain
 module `axis_api.public_institutional_context` checks current Axis scopes, tenant lifecycle
 and a dedicated fixed-origin capability policy before and after HTTP. The composition

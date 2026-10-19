@@ -1,4 +1,4 @@
-# ADR 0019: Optional public institutional context
+# ADR 0020: Optional public institutional context
 
 - Status: Proposed in isolated integration
 - Date: 2026-10-04

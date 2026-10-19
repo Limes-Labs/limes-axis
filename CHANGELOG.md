@@ -11,7 +11,7 @@ release-bound behavior, not the complete commit history.
   absent unless `create_app(public_context=...)` opts in, with current
   tenant/scope and separate fixed-origin policy checks before and after the
   remote read. No ontology ingestion, tenant writes or execution authority.
-  See [ADR 0019](docs/adr/0019-public-institutional-context.md); production
+  See [ADR 0020](docs/adr/0020-public-institutional-context.md); production
   installation remains unverified
   ([#930](https://github.com/Limes-Labs/limes-axis/issues/930)).
 
@@ -27,6 +27,29 @@ release-bound behavior, not the complete commit history.
   resolved egress target, readiness and request bounds before any I/O
   ([#510](https://github.com/Limes-Labs/limes-axis/issues/510)).
 
+- A reproducible REST connector conformance scenario (one documented command,
+  `make rest-conformance`) that drives a declared synthetic collection through
+  the real host boundaries over a loopback service: pagination completion with a
+  bounded payload digest, durable 429 retry, repeated-cursor and malformed-JSON
+  terminals, schema-change blocking before any request, interrupted acceptance
+  replay and zero source I/O behind disabled gates. Support evidence projects
+  the shared health model from existing durable records and labels its own
+  verification scope (`contract_only`, `local_wire_level`, `provider_verified`),
+  so a local run never claims provider support and a past green run never
+  certifies current availability
+  ([#862](https://github.com/Limes-Labs/limes-axis/issues/862)).
+
+- REST collection ingestion through the existing source-ingestion outbox: one
+  governed page per fenced attempt, protocol negotiation before any client,
+  per-attempt revalidation of the active binding, declared observation, lease
+  and egress policy, deterministic payload keys with a compare-and-swap
+  checkpoint commit, bounded `Retry-After` scheduling instead of in-worker
+  sleeps, and terminal handling of repeated cursors, truncated pages and
+  completed traversals. Default-off behind `AXIS_REST_SOURCE_INGESTION_ENABLED`
+  with profiles in `AXIS_REST_SOURCE_PROFILES`; no second outbox, scheduler,
+  checkpoint database or secret store
+  ([#861](https://github.com/Limes-Labs/limes-axis/issues/861)).
+
 - Bounded host-owned REST page reads over the approved source profiles: GET-only
   transport pinned to the egress-approved origin, no-follow redirects with
   same-origin pagination validation, streaming wire/decoded-byte caps and
@@ -41,6 +64,27 @@ release-bound behavior, not the complete commit history.
   permission evidence into the document observation contract with fixed safe setup
   states, shortcut pointers that are never fetched, and no content download
   ([#866](https://github.com/Limes-Labs/limes-axis/issues/866)).
+
+- Additive `offline_readiness` section in the deployment readiness report that
+  keeps declared configuration, observed rehearsal evidence and external
+  accreditation distinct: an offline profile with no rehearsal is reported as
+  configured but unverified, and missing, malformed, tampered, stale or
+  mismatched evidence is never observed. A consistent rehearsal reference is
+  reported as an operator declaration, not as verified isolation. It adds no
+  production-required check and establishes no accreditation
+  ([#871](https://github.com/Limes-Labs/limes-axis/issues/871)).
+
+- Opt-in `local_only` Helm egress profile with scoped DNS, an explicit local
+  service graph derived from the runtime dependency inventory and fail-closed
+  validation of missing or unbounded bindings. Rendering a NetworkPolicy is a
+  policy check, not proof of isolation: CNI enforcement, additive policies and
+  upstream resolver forwarding remain deployment prerequisites
+  ([#870](https://github.com/Limes-Labs/limes-axis/issues/870)).
+
+- Versioned static dependency inventory with local options, reasoned capability
+  omissions, configuration-reference checks and a generated operator matrix.
+  This does not enable adapters, enforce zero egress or certify an offline bundle
+  ([#869](https://github.com/Limes-Labs/limes-axis/issues/869)).
 
 - Offline GET-only REST source profiles with typed selectors/parameters, declared
   limits and context-bound SDK checkpoints. Endpoint revisions and selection

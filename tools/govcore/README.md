@@ -21,7 +21,7 @@ Without the wheel, `make test-api` skips the opt-in route tests and still runs t
 default-off checks; CI installs the wheel and sets `AXIS_REQUIRE_GOVCORE_SDK=1`, which
 turns a missing SDK into a failure instead of a skip.
 
-See [the boundary ADR](../../docs/adr/0019-public-institutional-context.md).
+See [the boundary ADR](../../docs/adr/0020-public-institutional-context.md).
 The wheel is independently authored public GovCore SDK code, with its MIT license inside
 the archive and `LICENSE` beside it. It contains no GovCore service implementation,
 product source, pilot data, credentials or private records. `sdk-manifest.json` records
