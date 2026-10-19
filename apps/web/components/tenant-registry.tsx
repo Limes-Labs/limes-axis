@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Building2, RotateCcw, ShieldCheck } from "lucide-react";
 
 import { strings } from "@/lib/strings";
+import { dataTableClassName } from "@/components/ui/data-table";
+import { cn } from "@/lib/cn";
 import { Disclosure } from "@/components/ui/disclosure";
 import { TenantProvisionForm } from "@/components/tenant-provision-form";
 import {
@@ -275,7 +277,7 @@ export function TenantRegistry() {
 
       {tenants.length > 0 ? (
         <section className="min-w-0 overflow-x-auto rounded-2xl border border-line bg-surface dark:border-white/10 dark:bg-white/5">
-          <table className="w-full min-w-[640px] border-collapse text-left text-sm text-ink [&_th]:border-b [&_th]:border-line [&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:font-mono [&_th]:text-[11px] [&_th]:font-medium [&_th]:tracking-[0.16em] [&_th]:uppercase [&_th]:text-signal dark:[&_th]:border-white/10 [&_td]:border-b [&_td]:border-line/60 [&_td]:px-4 [&_td]:py-3 [&_td]:align-top dark:[&_td]:border-white/6 [&_tbody_tr:last-child_td]:border-b-0">
+          <table className={cn(dataTableClassName, "min-w-[640px]")}>
             <thead>
               <tr>
                 <th>Tenant</th>

@@ -94,6 +94,16 @@ describe("Axis brand system", () => {
     }
   });
 
+  it("keeps table headers on the shared muted DataTable styling", () => {
+    // Signal headers were 3.46:1 on the dark card; tables must share
+    // DataTable's muted header styling instead of hand-rolling their own.
+    for (const file of ["policy-registry.tsx", "policy-detail.tsx", "tenant-registry.tsx"]) {
+      const source = readFileSync(join(process.cwd(), "components", file), "utf8");
+      expect(source, file).not.toContain("[&_th]:text-signal");
+      expect(source, file).toMatch(/DataTable|dataTableClassName/);
+    }
+  });
+
   it("respects reduced-motion preferences", () => {
     expect(globalsCss).toContain("@media (prefers-reduced-motion: reduce)");
   });

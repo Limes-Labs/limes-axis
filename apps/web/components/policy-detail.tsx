@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import { DataTable } from "@/components/ui/data-table";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import { toAxisOperatorError } from "@/lib/axis-api";
 import { SourcePill } from "@/components/ui/source-pill";
@@ -88,58 +89,56 @@ function ConditionTagList({ items, anyLabel }: { items?: string[]; anyLabel: str
 
 function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[] }) {
   return (
-    <section className="min-w-0 overflow-x-auto rounded-2xl border border-line bg-surface dark:border-white/10 dark:bg-white/5">
-      <table className="w-full min-w-[640px] border-collapse text-left text-sm text-ink [&_th]:border-b [&_th]:border-line [&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:font-mono [&_th]:text-[11px] [&_th]:font-medium [&_th]:tracking-[0.16em] [&_th]:uppercase [&_th]:text-signal dark:[&_th]:border-white/10 [&_td]:border-b [&_td]:border-line/60 [&_td]:px-4 [&_td]:py-3 [&_td]:align-top dark:[&_td]:border-white/6 [&_tbody_tr:last-child_td]:border-b-0">
-        <caption className="sr-only">Policy revision history</caption>
-        <thead>
-          <tr>
-            <th>Revision</th>
-            <th>Effect</th>
-            <th>Conditions</th>
-            <th>Status</th>
-            <th>Authored</th>
+    <DataTable wrapperProps={{ className: "min-w-0" }}>
+      <caption className="sr-only">Policy revision history</caption>
+      <thead>
+        <tr>
+          <th>Revision</th>
+          <th>Effect</th>
+          <th>Conditions</th>
+          <th>Status</th>
+          <th>Authored</th>
+        </tr>
+      </thead>
+      <tbody>
+        {revisions.map((revision) => (
+          <tr key={revision.revision_number}>
+            <td>
+              <span className="font-mono text-[13px] break-words">
+                r{revision.revision_number} / {revision.policy_version}
+              </span>
+              {revision.revises_revision_number != null ? (
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Revises r{revision.revises_revision_number}</p>
+              ) : (
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Initial revision</p>
+              )}
+            </td>
+            <td>
+              <span className={`status-pill ${policyEffectClass(revision.effect)}`}>
+                {policyEffectLabel(revision.effect)}
+              </span>
+            </td>
+            <td>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{summarizePolicyConditions(revision.conditions)}</p>
+            </td>
+            <td>
+              <span className={`status-pill ${policyStatusClass(revision.status)}`}>
+                {policyStatusLabel(revision.status)}
+              </span>
+              {revision.replaced_by_revision_number != null ? (
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
+                  Superseded by r{revision.replaced_by_revision_number}
+                </p>
+              ) : null}
+            </td>
+            <td>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{revision.created_by}</p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatTimestamp(revision.created_at)}</p>
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {revisions.map((revision) => (
-            <tr key={revision.revision_number}>
-              <td>
-                <span className="font-mono text-[13px] break-words">
-                  r{revision.revision_number} / {revision.policy_version}
-                </span>
-                {revision.revises_revision_number != null ? (
-                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Revises r{revision.revises_revision_number}</p>
-                ) : (
-                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Initial revision</p>
-                )}
-              </td>
-              <td>
-                <span className={`status-pill ${policyEffectClass(revision.effect)}`}>
-                  {policyEffectLabel(revision.effect)}
-                </span>
-              </td>
-              <td>
-                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{summarizePolicyConditions(revision.conditions)}</p>
-              </td>
-              <td>
-                <span className={`status-pill ${policyStatusClass(revision.status)}`}>
-                  {policyStatusLabel(revision.status)}
-                </span>
-                {revision.replaced_by_revision_number != null ? (
-                  <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                    Superseded by r{revision.replaced_by_revision_number}
-                  </p>
-                ) : null}
-              </td>
-              <td>
-                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{revision.created_by}</p>
-                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatTimestamp(revision.created_at)}</p>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
+        ))}
+      </tbody>
+    </DataTable>
   );
 }
 
