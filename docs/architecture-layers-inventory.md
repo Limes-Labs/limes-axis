@@ -34,6 +34,10 @@ collaborations, not permission to import a vertical into shared core.
 | connector-authoring-contracts | data | trust | [`packages/sdk-python/src/axis_sdk/connector_authoring`](../packages/sdk-python/src/axis_sdk/connector_authoring) |
 | operational-persistence | operational-model | trust, data, workflow, intelligence | [`services/api/src/axis_api/persistence.py`](../services/api/src/axis_api/persistence.py) |
 | search-index-projection | intelligence | trust, data | [`services/api/src/axis_api/search_index.py`](../services/api/src/axis_api/search_index.py) |
+| portability-manifest | deployment | trust | [`services/api/src/axis_api/portability_manifest.py`](../services/api/src/axis_api/portability_manifest.py) |
+| portability-validator | deployment | trust | [`services/api/src/axis_api/portability_validator.py`](../services/api/src/axis_api/portability_validator.py) |
+| portability-restore-runner | deployment | trust, operational-model | [`services/api/src/axis_api/portability_restore_runner.py`](../services/api/src/axis_api/portability_restore_runner.py) |
+| portability-conformance | deployment | trust | [`services/api/src/axis_api/portability_conformance.py`](../services/api/src/axis_api/portability_conformance.py) |
 | ontology-ports | operational-model | trust, data, experience | [`services/api/src/axis_api/ontology`](../services/api/src/axis_api/ontology) |
 | action-definitions | operational-model | trust, workflow | [`services/api/src/axis_api/actions.py`](../services/api/src/axis_api/actions.py) |
 | workflow-api-port | workflow | trust, experience | [`services/api/src/axis_api/workflow_runtime.py`](../services/api/src/axis_api/workflow_runtime.py) |

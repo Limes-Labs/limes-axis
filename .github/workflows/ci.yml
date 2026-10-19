@@ -280,7 +280,11 @@ jobs:
 
       - name: Test API
         working-directory: services/api
-        run: uv run pytest
+        env:
+          AXIS_REQUIRE_GOVCORE_SDK: "1"
+        run: |
+          uv pip install --python .venv/bin/python --no-deps ../../tools/govcore/govcore_client-0.1.0-py3-none-any.whl
+          uv run --no-sync pytest
 
       - name: Check OpenAPI schema
         run: make openapi-check
