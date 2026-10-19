@@ -1189,6 +1189,33 @@ is built from `AXIS_EXTERNAL_DB_LIVE_QUERY_ENDPOINT_TARGET_SHA256` (the pinned
 sha256 of the approved `host:port`); the static-DSN construction path is
 preserved as the fallback whenever the flag is off.
 
+The `env://` reference comes from a tenant-registered credential handle, so it
+is scoped twice before any value is read:
+
+- `AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_ENV_ALLOWLIST` lists the variable names
+  (or prefixes ending in `*`, for example `["SOURCE_DB_*"]`) handles may name.
+  The default empty list denies every reference
+  (`secret_resolution_env_secret_not_allowlisted`).
+- Reserved platform prefixes (`AXIS_`, `PG`, `DATABASE_`, `POSTGRES_`,
+  `TEMPORAL_`, `MINIO_`, `KEYCLOAK_`, `KC_`, `OTEL_`, `AWS_`, `AZURE_`,
+  `GOOGLE_`, `GCP_`, `VAULT_`, `KUBERNETES_`) never resolve, even when
+  allowlisted (`secret_resolution_env_secret_reserved`), so a handle such as
+  `env://AXIS_POSTGRES_DSN` cannot point discovery or live sync at the control
+  plane's own database.
+
+Resolution also requires
+`AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED=true`. With resolution
+enabled and enforcement off the API still starts, but every resolution fails
+closed with `secret_resolution_egress_enforcement_disabled` (discovery,
+verification and live sync record the blocked reason), because a resolved DSN
+without connect-time target enforcement could dial any reachable host. This
+refuse-at-use behavior was chosen over refusing startup so an incomplete
+rollout disables only the live path rather than the whole API.
+
+S3 and REST source profiles are unaffected by the allowlist: their
+`credential_secret_ref` is pinned by operator profile configuration and must
+match the handle exactly, so the runtimes resolve only those pinned names.
+
 ### Runtime egress enforcement
 
 `AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED` upgrades egress policy

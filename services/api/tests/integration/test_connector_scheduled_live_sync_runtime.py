@@ -73,7 +73,7 @@ TENANT_ID = "tenant_demo_manufacturing"
 EXTERNAL_DB_CONNECTOR_ID = "external_db_operational_mirror"
 EXTERNAL_DB_LEASE_ID = "lease_external_db_readonly_20260710"
 RUN_ID = "run_scheduled_live_sync_integration"
-ENV_SECRET_VAR = "AXIS_INTEGRATION_SCHEDULED_LIVE_SYNC_DSN"
+ENV_SECRET_VAR = "SOURCE_INTEGRATION_SCHEDULED_LIVE_SYNC_DSN"
 EXTERNAL_SCHEMA = "axis_scheduled_live_sync_test"
 PRIVATE_ENDPOINT_REF = (
     "private-endpoint://tenant_demo_manufacturing/persisted-operations-postgres-readonly"
@@ -390,7 +390,7 @@ def test_scheduled_live_sync_resolves_env_secret_and_resumes_deterministically(
         external_db_batch_size=2,
         lease_scoped_secret_resolution_enabled=True,
         runtime_egress_enforcement_enabled=True,
-        secret_resolver=EnvLeaseScopedSecretResolver(),
+        secret_resolver=EnvLeaseScopedSecretResolver(allowed_variables=[ENV_SECRET_VAR]),
     )
     external_engine = create_engine(external_dsn)
     payload = _live_capable_registry_payload()

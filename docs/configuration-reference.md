@@ -122,6 +122,7 @@ operational profiles and secret injection.
 | `AXIS_EXTERNAL_DB_LIVE_QUERY_PRIVATE_ENDPOINT_REF` | `external_db_live_query_private_endpoint_ref` | string | `"private-endpoint://tenant_demo_manufacturing/persisted-operations-postgres-readonly"` |  |
 | `AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_RESOLUTION_ENABLED` | `external_db_lease_scoped_secret_resolution_enabled` | boolean | `false` |  |
 | `AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED` | `external_db_runtime_egress_enforcement_enabled` | boolean | `false` |  |
+| `AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_ENV_ALLOWLIST` | `external_db_lease_scoped_secret_env_allowlist` | array | `[]` |  |
 | `AXIS_EXTERNAL_DB_LIVE_QUERY_ENDPOINT_TARGET_SHA256` | `external_db_live_query_endpoint_target_sha256` | string / null | `null` | pattern: ^[a-f0-9]{64}$ |
 | `AXIS_EXTERNAL_DB_DISCOVERY_ENABLED` | `external_db_discovery_enabled` | boolean | `false` |  |
 | `AXIS_EXTERNAL_DB_DISCOVERY_PROFILE_ID` | `external_db_discovery_profile_id` | string | `"profile_postgres_discovery_readonly"` |  |

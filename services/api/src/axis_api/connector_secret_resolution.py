@@ -16,7 +16,10 @@ Invariants:
   :meth:`ResolvedSecret.public_evidence` — decision and boundary metadata —
   may be persisted.
 * The only public-safe live resolver is the ``env://`` provider profile
-  (:class:`EnvLeaseScopedSecretResolver`). Vault/AWS/GCP/Azure provider
+  (:class:`EnvLeaseScopedSecretResolver`). It resolves only variables on an
+  operator-configured allowlist (empty denies all) and never resolves reserved
+  platform prefixes such as ``AXIS_``, so a tenant-supplied handle cannot point
+  a connector at the control plane's own credentials. Vault/AWS/GCP/Azure provider
   profiles are explicit fail-closed not-implemented branches with typed
   reasons, so a misconfigured deployment can never silently fall back to an
   unreviewed secret path.
@@ -26,7 +29,7 @@ from __future__ import annotations
 
 import os
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -39,6 +42,26 @@ ENV_SECRET_REF_SCHEME = "env://"
 ENV_PROVIDER_PROFILE = "env"
 ENV_PROVIDER_ALIASES = frozenset({"env", "env_dev", "local_env"})
 ENV_VAR_NAME_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
+#: Environment prefixes owned by the platform runtime, its dependencies or the
+#: hosting environment. Tenant-chosen ``env://`` references never resolve them,
+#: whatever the allowlist says.
+RESERVED_ENV_VAR_PREFIXES: tuple[str, ...] = (
+    "AXIS_",
+    "PG",
+    "DATABASE_",
+    "POSTGRES_",
+    "TEMPORAL_",
+    "MINIO_",
+    "KEYCLOAK_",
+    "KC_",
+    "OTEL_",
+    "AWS_",
+    "AZURE_",
+    "GOOGLE_",
+    "GCP_",
+    "VAULT_",
+    "KUBERNETES_",
+)
 NOT_IMPLEMENTED_PROVIDER_PROFILES: dict[str, frozenset[str]] = {
     "hashicorp_vault": frozenset({"external_vault", "hashicorp_vault", "vault", "vault_dev"}),
     "aws_secrets_manager": frozenset({"aws_secrets_manager"}),
@@ -55,6 +78,9 @@ SECRET_RESOLUTION_PROVIDER_NOT_IMPLEMENTED = "secret_resolution_provider_not_imp
 SECRET_RESOLUTION_UNKNOWN_PROVIDER = "secret_resolution_unknown_provider"
 SECRET_RESOLUTION_MALFORMED_SECRET_REF = "secret_resolution_malformed_secret_ref"
 SECRET_RESOLUTION_ENV_SECRET_NOT_CONFIGURED = "secret_resolution_env_secret_not_configured"
+SECRET_RESOLUTION_ENV_SECRET_RESERVED = "secret_resolution_env_secret_reserved"
+SECRET_RESOLUTION_ENV_SECRET_NOT_ALLOWLISTED = "secret_resolution_env_secret_not_allowlisted"
+SECRET_RESOLUTION_EGRESS_ENFORCEMENT_DISABLED = "secret_resolution_egress_enforcement_disabled"
 
 
 class SecretResolutionError(Exception):
@@ -133,13 +159,51 @@ class EnvLeaseScopedSecretResolver:
 
     provider_profile = ENV_PROVIDER_PROFILE
 
-    def __init__(self, environ: Mapping[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        environ: Mapping[str, str] | None = None,
+        *,
+        allowed_variables: Iterable[str] = (),
+        reserved_prefixes: Iterable[str] = RESERVED_ENV_VAR_PREFIXES,
+    ) -> None:
+        """Build a resolver restricted to ``allowed_variables``.
+
+        Entries are exact variable names or prefixes ending in ``*``; the
+        default empty allowlist denies every reference. ``reserved_prefixes``
+        are refused even when allowlisted. Callers whose references are pinned
+        by operator configuration (not chosen by a tenant) may pass those exact
+        names with ``reserved_prefixes=()``.
+        """
         self._environ: Mapping[str, str] = os.environ if environ is None else environ
+        self._allowed_variables = tuple(entry.strip() for entry in allowed_variables if entry)
+        self._reserved_prefixes = tuple(reserved_prefixes)
+
+    def _authorize_variable(self, variable_name: str) -> None:
+        if any(variable_name.startswith(prefix) for prefix in self._reserved_prefixes):
+            raise SecretResolutionError(
+                SECRET_RESOLUTION_ENV_SECRET_RESERVED,
+                "Environment secret references cannot name reserved platform "
+                "variables; failing closed.",
+                provider_profile=ENV_PROVIDER_PROFILE,
+            )
+        for entry in self._allowed_variables:
+            if entry.endswith("*"):
+                prefix = entry[:-1]
+                if prefix and variable_name.startswith(prefix):
+                    return
+            elif variable_name == entry:
+                return
+        raise SecretResolutionError(
+            SECRET_RESOLUTION_ENV_SECRET_NOT_ALLOWLISTED,
+            "Environment secret reference is not on the operator allowlist; failing closed.",
+            provider_profile=ENV_PROVIDER_PROFILE,
+        )
 
     def resolve(self, request: SecretResolutionRequest) -> ResolvedSecret:
         _validate_lease_scoped_evidence(request)
         _validate_env_provider_profile(request.secret_provider)
         variable_name = _env_variable_name(request.secret_ref)
+        self._authorize_variable(variable_name)
         value = self._environ.get(variable_name, "")
         if not value:
             raise SecretResolutionError(
@@ -151,6 +215,39 @@ class EnvLeaseScopedSecretResolver:
                 provider_profile=ENV_PROVIDER_PROFILE,
             )
         return ResolvedSecret(dsn=value, provider_profile=ENV_PROVIDER_PROFILE)
+
+
+class EgressEnforcementRequiredSecretResolver:
+    """Fail-closed resolver used when runtime egress enforcement is disabled.
+
+    Resolving a tenant-referenced DSN without enforcing that the connection
+    targets the approved endpoint would let a handle steer the connector at
+    any reachable host, so resolution is refused with a typed reason instead
+    of refusing process startup.
+    """
+
+    provider_profile = ENV_PROVIDER_PROFILE
+
+    def resolve(self, request: SecretResolutionRequest) -> ResolvedSecret:
+        raise SecretResolutionError(
+            SECRET_RESOLUTION_EGRESS_ENFORCEMENT_DISABLED,
+            "Lease-scoped secret resolution requires "
+            "AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED=true; failing closed.",
+            provider_profile=ENV_PROVIDER_PROFILE,
+        )
+
+
+def env_variable_names_from_refs(secret_refs: Iterable[str]) -> tuple[str, ...]:
+    """Exact variable names of operator-pinned ``env://`` references."""
+
+    names: list[str] = []
+    for reference in secret_refs:
+        candidate = (reference or "").strip()
+        if candidate.startswith(ENV_SECRET_REF_SCHEME):
+            name = candidate[len(ENV_SECRET_REF_SCHEME) :]
+            if ENV_VAR_NAME_PATTERN.fullmatch(name):
+                names.append(name)
+    return tuple(names)
 
 
 def _validate_lease_scoped_evidence(request: SecretResolutionRequest) -> None:

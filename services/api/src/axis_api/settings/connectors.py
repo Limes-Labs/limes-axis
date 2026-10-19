@@ -123,6 +123,13 @@ class ConnectorsSettings(BaseModel):
         default=False,
         alias="AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED",
     )
+    # Environment variable names (or prefixes ending in '*') that tenant
+    # credential handles may reference as env secrets. Empty denies all;
+    # reserved platform prefixes such as AXIS_ are never resolved.
+    external_db_lease_scoped_secret_env_allowlist: list[str] = Field(
+        default_factory=list,
+        alias="AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_ENV_ALLOWLIST",
+    )
     external_db_live_query_endpoint_target_sha256: str | None = Field(
         default=None,
         pattern=r"^[a-f0-9]{64}$",

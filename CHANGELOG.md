@@ -36,6 +36,16 @@ release-bound behavior, not the complete commit history.
   existence or lifecycle-state checks. An unscoped caller now gets 403 instead
   of a replayed tenant record or a 404/409 that revealed whether a tenant
   exists.
+- `env://` lease-scoped secret resolution for external databases only resolves
+  variables on the new operator allowlist
+  `AXIS_EXTERNAL_DB_LEASE_SCOPED_SECRET_ENV_ALLOWLIST` (empty denies all) and
+  never resolves reserved platform prefixes such as `AXIS_` or `PG`, so a
+  tenant handle like `env://AXIS_POSTGRES_DSN` can no longer make discovery or
+  live sync dial the control-plane database. Resolution now also fails closed
+  (`secret_resolution_egress_enforcement_disabled`) unless
+  `AXIS_EXTERNAL_DB_RUNTIME_EGRESS_ENFORCEMENT_ENABLED=true`. Deployments using
+  lease-scoped resolution must set the allowlist, enable runtime egress
+  enforcement and rename any handle variable that uses a reserved prefix.
 
 ### Added
 

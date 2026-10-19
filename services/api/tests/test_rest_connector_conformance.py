@@ -183,7 +183,8 @@ def host(tmp_path, service):
         settings,
         store,
         resolver=EnvLeaseScopedSecretResolver(
-            {"REST_CONFORMANCE_CREDENTIALS": json.dumps({"bearer_token": BEARER})}
+            {"REST_CONFORMANCE_CREDENTIALS": json.dumps({"bearer_token": BEARER})},
+            allowed_variables=["REST_CONFORMANCE_CREDENTIALS"],
         ),
     )
     with session_scope(factory) as session:
