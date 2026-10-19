@@ -48,7 +48,9 @@ dispatcher only adds one branch; the existing suites remain green.
    wire/decoded/deadline limits. `ReadBatch` is validated against the request
    before acceptance.
 4. **Store the bounded envelope** in the canonical object store under a
-   deterministic key derived from `(tenant, connector, request, binding,
+   tenant/request/binding-scoped key named by the envelope's SHA-256; the
+   envelope itself binds the checkpoint generation, while the batch identity
+   recorded in SQL is derived from `(tenant, connector, request, binding,
    generation)`. Object storage and SQL are not one transaction.
 5. **Commit atomically inside the outbox transaction**: the claim-fenced
    terminal transition, the batch metadata row, its audit event and the
@@ -66,10 +68,11 @@ terminates the traversal honestly instead of looping.
 | Interruption | Result on replay |
 | --- | --- |
 | Before upload | Nothing committed; the retry reads again |
-| After upload, before SQL commit | Orphan object at a deterministic key; the retry overwrites it, then commits |
+| After upload, before SQL commit | Nothing committed; an identical re-read overwrites the same content-addressed object, a changed page leaves the earlier object as a reconcilable orphan |
 | After commit, before acknowledgement | The request is already `completed`; a new claim is required and the page is not re-read |
 | Expired/foreign cursor | Terminal `invalid_checkpoint`, never a silent restart at page one |
 | Repeated cursor | Terminal `no_progress` |
+| 401 from the provider | Terminal `source_unavailable` without retry; the recovery is reauthorizing the lease |
 | 429 / eligible transient | Durable retry state with a bounded `Retry-After` floor; the worker schedules, it never sleeps |
 | Exhausted attempts | Existing dead-letter evidence |
 

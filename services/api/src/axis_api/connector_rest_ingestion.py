@@ -12,11 +12,13 @@ It adds **no** second outbox, scheduler, checkpoint database or secret store:
 * The bounded envelope goes to the canonical object store, then the metadata
   row, the audit event and the compare-and-swap checkpoint advance commit in
   the outbox's existing transaction. Object storage and SQL are not atomic:
-  deterministic per-generation keys make replay overwrite, and a dead-lettered
-  request leaves reconcilable orphan objects rather than silent skips.
+  payload keys are content-addressed (the envelope binds request, binding and
+  generation), so an identical replay overwrites the same object, while a
+  changed page or a dead-lettered request leaves reconcilable orphan objects
+  rather than silent skips.
 * 429/eligible transient failures map into the existing durable retry state
   with a bounded ``Retry-After`` hint and never block a worker by sleeping.
-  Authentication, schema, cursor and protocol errors are terminal.
+  Authentication (401), schema, cursor and protocol errors are terminal.
 """
 
 from __future__ import annotations
@@ -90,7 +92,9 @@ class RestSourceFailure(ConnectorError):
 
     ``retry_after_seconds`` is a provider hint the dispatcher turns into durable
     retry state; it never sleeps here. ``source_dial_performed`` is true only
-    when the failure came from an actual request attempt.
+    when the failure came from an actual request attempt. ``terminal`` marks a
+    failure whose SDK code is nominally retryable but must not be retried with
+    the same lease (a provider 401): the recovery is reauthorization.
     """
 
     def __init__(
@@ -99,10 +103,16 @@ class RestSourceFailure(ConnectorError):
         *,
         retry_after_seconds: int | None = None,
         source_dial_performed: bool = False,
+        terminal: bool = False,
     ) -> None:
         super().__init__(code)
         self.retry_after_seconds = retry_after_seconds
         self.source_dial_performed = source_dial_performed
+        self.terminal = terminal
+
+    @property
+    def retryable(self) -> bool:
+        return not self.terminal and super().retryable
 
 
 class RestCredentials(BaseModel):
@@ -135,8 +145,8 @@ class CompletedRestExtraction:
     @property
     def batch_key(self) -> str:
         # Deterministic per generation: an uncommitted attempt replays onto the
-        # same object, while a committed predecessor advances the generation and
-        # never collides with immutable recorded history.
+        # same batch identity, while a committed predecessor advances the
+        # generation and never collides with immutable recorded history.
         identity = (
             self.prepared.tenant_id,
             REST_SOURCE_CONNECTOR_ID,
@@ -504,6 +514,9 @@ class RestIngestionRuntime:
                     exc.code,
                     retry_after_seconds=source.progress.retry_after_seconds,
                     source_dial_performed=True,
+                    # A rejected credential is terminal for this lease; retrying
+                    # would only resend material the provider already refused.
+                    terminal=source.progress.auth_failure,
                 ) from None
         if batch.completion == "truncated":
             # A capped, unresumable page: never commit progress that would skip rows.

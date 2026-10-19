@@ -81,6 +81,8 @@ _JSON_MEDIA_TYPES = frozenset({"application/json"})
 _JSON_STRUCTURED_SUFFIX = "+json"
 _PATH_PARAMETER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]{0,63})\}")
 _SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
+# Visible ASCII only: header encoding errors would otherwise echo the material.
+_BEARER_PATTERN = re.compile(r"[\x21-\x7e]{1,8192}")
 _TRANSPORT_ERRORS = (urllib3.exceptions.HTTPError, OSError)
 
 
@@ -205,11 +207,16 @@ class _PinnedOriginTransport:
 
 
 def _target(url: str) -> tuple[str, str, int]:
-    parsed = urlsplit(url)
+    try:
+        parsed = urlsplit(url)
+        port = parsed.port
+    except ValueError:
+        # Parser messages quote the link text (a provider cursor); never chain them.
+        raise ConnectorError(ErrorCode.RESOURCE_MISMATCH) from None
     return (
         parsed.scheme,
         parsed.hostname or "",
-        parsed.port or (443 if parsed.scheme == "https" else 80),
+        port or (443 if parsed.scheme == "https" else 80),
     )
 
 
@@ -255,7 +262,10 @@ def _bounded_retry_after(value: str | None) -> int | None:
 
 
 def _canonical_record_bytes(record: dict) -> int:
-    return batch_byte_size((record,)) - 2
+    try:
+        return batch_byte_size((record,)) - 2
+    except RecursionError:
+        raise ConnectorError(ErrorCode.RESOURCE_MISMATCH) from None
 
 
 class RestPageSource:
@@ -274,6 +284,8 @@ class RestPageSource:
     ):
         if authority.registered_endpoint_profile_revision != profile.endpoint_profile_revision:
             raise ConnectorError(ErrorCode.RESOURCE_MISMATCH)
+        if not _BEARER_PATTERN.fullmatch(credential_bearer.get_secret_value()):
+            raise ConnectorError(ErrorCode.CONTEXT_MISMATCH)
         self.profile = profile
         self.authority = authority
         self.credential_bearer = credential_bearer
@@ -506,7 +518,7 @@ class RestPageSource:
     ) -> tuple[list[dict] | None, str | None]:
         try:
             document = json.loads(payload, parse_constant=_reject_constant)
-        except (ValueError, UnicodeDecodeError):
+        except (ValueError, UnicodeDecodeError, RecursionError):
             raise ConnectorError(ErrorCode.RESOURCE_MISMATCH) from None
         if not isinstance(document, dict):
             raise ConnectorError(ErrorCode.RESOURCE_MISMATCH)

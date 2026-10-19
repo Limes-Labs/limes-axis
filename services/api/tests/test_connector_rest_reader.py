@@ -715,3 +715,56 @@ def test_blocked_continuation_never_dials_a_second_destination(server):
         source.read(read_request(server))
     assert len(server.requests) == 1
     assert server.requests[0]["authorization_present"] is True
+
+
+@pytest.mark.parametrize("bearer", ["", "bearer-secret\r\nX-Injected: 1", "bearer secret"])
+def test_unsendable_bearer_material_fails_closed_without_echoing_it(server, profile, bearer):
+    authority = build_authority(server)
+    with pytest.raises(ConnectorError) as error:
+        RestPageSource(
+            profile=profile,
+            authority=authority,
+            credential_bearer=SecretStr(bearer),
+            path_values={"account": "example"},
+            query_values={"status": "open"},
+        )
+    assert error.value.code == ErrorCode.CONTEXT_MISMATCH
+    assert str(error.value) == "context_mismatch"
+    assert error.value.__cause__ is None
+    assert server.requests == []
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "http://127.0.0.1:99999999/cursor-page-2-sensitive",
+        "http://127.0.0.1:cursor-page-2-sensitive/next",
+    ],
+)
+def test_unparseable_next_link_is_a_fixed_error_without_the_link(server, link):
+    profile = parse_rest_source_profile(_next_link_profile_data())
+    server.route(
+        "/v1/accounts/example/orders",
+        lambda query: (
+            200,
+            JSON_HEADERS,
+            json.dumps({"data": {"orders": PAGE_ONE_ORDERS}, "links": {"next": link}}).encode(),
+        ),
+    )
+    authority = build_authority(server)
+    with build_source(profile, authority) as source, pytest.raises(ConnectorError) as error:
+        source.read(read_request(server))
+    assert error.value.code == ErrorCode.RESOURCE_MISMATCH
+    assert error.value.__cause__ is None
+    assert error.value.__suppress_context__
+    assert len(server.requests) == 1
+
+
+def test_deeply_nested_json_is_a_fixed_error(server, profile):
+    depth = 100_000
+    body = b'{"data": {"orders": [' + b"[" * depth + b"]" * depth + b"]}}"
+    server.route("/v1/accounts/example/orders", lambda query: (200, JSON_HEADERS, body))
+    authority = build_authority(server)
+    with build_source(profile, authority) as source, pytest.raises(ConnectorError) as error:
+        source.read(read_request(server))
+    assert error.value.code == ErrorCode.RESOURCE_MISMATCH
