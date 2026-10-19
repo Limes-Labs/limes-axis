@@ -5,8 +5,10 @@ import {
   type PlatformPolicyRecord,
   type PolicyRevisionDiff,
 } from "@/lib/platform-policies";
+import { useStrings } from "@/providers/locale-provider";
 
 function DiffValue({ diff }: { diff: PolicyRevisionDiff }) {
+  const strings = useStrings();
   if (diff.kind === "scalar") {
     return (
       <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
@@ -18,7 +20,7 @@ function DiffValue({ diff }: { diff: PolicyRevisionDiff }) {
   if (diff.removed.length === 0 && diff.added.length === 0 && diff.unchanged.length === 0) {
     return (
       <span className="flex min-w-0 flex-wrap gap-2">
-        <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5">None</span>
+        <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted break-words transition-colors enabled:cursor-pointer aria-pressed:border-signal aria-pressed:bg-signal/10 aria-pressed:text-signal dark:border-white/15 dark:bg-white/5">{strings.ui.common.none}</span>
       </span>
     );
   }
@@ -51,6 +53,7 @@ export function PolicyRevisionCompare({
   base: PlatformPolicyRecord;
   target: PlatformPolicyRecord;
 }) {
+  const strings = useStrings();
   const diffs = comparePolicyRevisions(base, target);
   const changedCount = diffs.filter((diff) => diff.changed).length;
 
@@ -59,8 +62,7 @@ export function PolicyRevisionCompare({
       <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
         Comparing r{base.revision_number} / {base.policy_version} against the current r
         {target.revision_number} / {target.policy_version}: {changedCount} of {diffs.length}{" "}
-        fields changed. Removed values (−) were dropped by the current revision; added values
-        (+) are new in it.
+        {strings.ui.policyRevisionCompare.fieldsChangedRemovedValuesWere}
       </p>
       <div className="grid min-w-0 gap-2">
         {diffs.map((diff) => (
@@ -70,7 +72,7 @@ export function PolicyRevisionCompare({
               <span
                 className={`status-pill ${diff.changed ? "signal-watch" : "status-checking"}`}
               >
-                {diff.changed ? "Changed" : "Unchanged"}
+                {diff.changed ? strings.ui.policyRevisionCompare.changed : strings.ui.policyRevisionCompare.unchanged}
               </span>
             </span>
             <DiffValue diff={diff} />

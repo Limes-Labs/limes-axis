@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { formatConnectorLabel } from "@/lib/connectors-demo";
 import { formatDateTime, pluralize } from "@/lib/format";
 import type { ConnectorWorkspaceItem } from "@/lib/runtime-contracts/connector-workspace";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 function manifestLifecycleClass(status: string): string {
   if (status === "active_live") {
@@ -43,6 +43,7 @@ export function ConnectorList({
   selectedConnectorId: string;
   onSelect: (connectorId: string) => void;
 }) {
+  const strings = useStrings();
   return (
     <Card className="grid content-start gap-4">
       <div className="grid gap-1">
@@ -112,15 +113,15 @@ export function ConnectorList({
         })}
       </div>
       {totalConnectors > limit || offset > 0 ? (
-        <nav aria-label="Connector pages" className="grid gap-2">
+        <nav aria-label={strings.ui.connectorConsoleList.connectorPages} className="grid gap-2">
           <p className="m-0 text-xs text-muted">
             {connectors.length ? `${offset + 1}–${offset + connectors.length}` : "0"} of {totalConnectors}
           </p>
           <div className="flex flex-wrap gap-2">
-            <Button aria-label="Previous connectors" variant="secondary" disabled={offset === 0}
-              onClick={() => onPageChange(Math.max(0, offset - limit))}>Previous</Button>
-            <Button aria-label="Next connectors" variant="secondary" disabled={nextOffset === null}
-              onClick={() => { if (nextOffset !== null) onPageChange(nextOffset); }}>Next</Button>
+            <Button aria-label={strings.ui.connectorConsoleList.previousConnectors} variant="secondary" disabled={offset === 0}
+              onClick={() => onPageChange(Math.max(0, offset - limit))}>{strings.ui.connectorConsoleList.previous}</Button>
+            <Button aria-label={strings.ui.connectorConsoleList.nextConnectors} variant="secondary" disabled={nextOffset === null}
+              onClick={() => { if (nextOffset !== null) onPageChange(nextOffset); }}>{strings.ui.connectorConsoleList.next}</Button>
           </div>
         </nav>
       ) : null}

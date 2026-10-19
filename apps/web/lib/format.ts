@@ -8,9 +8,12 @@
  * timestamp in a list therefore used to take down the whole page. Every
  * formatter here fails soft to an explicit fallback instead.
  *
- * Formatter instances are module-scoped because constructing an
+ * Formatter instances are cached because constructing an
  * `Intl.DateTimeFormat` is expensive and these run once per table row.
  */
+
+import { getConsoleLocale } from "@/lib/console-locale";
+import type { Locale } from "@/lib/locale";
 
 /** Shown when a value is absent or unparseable. Never invent a date. */
 export const NOT_RECORDED = "Not recorded";
@@ -18,24 +21,43 @@ export const NOT_RECORDED = "Not recorded";
 /** Shown for a numeric value that is absent or not finite. */
 export const NO_VALUE = "—";
 
-const timestampFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+/*
+ * One formatter per locale and style, built on first use. The locale follows
+ * the console language (`getConsoleLocale`), which is fixed for the lifetime
+ * of a document because switching language reloads the page.
+ */
+function cachedFormatter<T>(build: (locale: Locale) => T): () => T {
+  const cache = new Map<Locale, T>();
+  return () => {
+    const locale = getConsoleLocale();
+    let formatter = cache.get(locale);
+    if (!formatter) {
+      formatter = build(locale);
+      cache.set(locale, formatter);
+    }
+    return formatter;
+  };
+}
 
-const dateTimeFormat = new Intl.DateTimeFormat("en", {
-  month: "short",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+const timestampFormat = cachedFormatter(
+  (locale) => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }),
+);
 
-const clockFormat = new Intl.DateTimeFormat("en", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
+const dateTimeFormat = cachedFormatter(
+  (locale) =>
+    new Intl.DateTimeFormat(locale, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+);
 
-const numberFormat = new Intl.NumberFormat("en");
+const clockFormat = cachedFormatter(
+  (locale) => new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }),
+);
+
+const numberFormat = cachedFormatter((locale) => new Intl.NumberFormat(locale));
 
 /** Join available context labels without rendering empty or null path segments. */
 export function formatContextPath(
@@ -61,9 +83,9 @@ function parseInstant(value: string | null | undefined): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function format(value: string | null | undefined, formatter: Intl.DateTimeFormat): string {
+function format(value: string | null | undefined, formatter: () => Intl.DateTimeFormat): string {
   const parsed = parseInstant(value);
-  return parsed ? formatter.format(parsed) : NOT_RECORDED;
+  return parsed ? formatter().format(parsed) : NOT_RECORDED;
 }
 
 /** Absolute date and time — "21 Jun 2026, 16:30". For page and record timestamps. */
@@ -90,7 +112,7 @@ export function formatNumber(value: number | null | undefined): string {
     return NO_VALUE;
   }
 
-  return numberFormat.format(value);
+  return numberFormat().format(value);
 }
 
 /** Compact elapsed time for operational waits — "21 hr 43 min", never raw seconds. */

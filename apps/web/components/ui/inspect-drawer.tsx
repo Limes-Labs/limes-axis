@@ -11,6 +11,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useStrings } from "@/providers/locale-provider";
 
 /*
  * InspectDrawer is where technical depth lives: raw snake_case fields, scopes,
@@ -64,6 +65,7 @@ export function flattenRecord(record: Record<string, unknown>, prefix = ""): Fla
 }
 
 export function InspectDrawer({ title, record, trigger }: InspectDrawerProps) {
+  const strings = useStrings();
   const fields = flattenRecord(record);
 
   return (
@@ -74,7 +76,7 @@ export function InspectDrawer({ title, record, trigger }: InspectDrawerProps) {
             className="inline-flex min-h-6 cursor-pointer items-center font-mono text-xs text-muted transition-colors duration-200 hover:text-signal"
             type="button"
           >
-            Inspect
+            {strings.ui.uiInspectDrawer.inspect}
           </button>
         )}
       </SheetTrigger>
@@ -82,13 +84,13 @@ export function InspectDrawer({ title, record, trigger }: InspectDrawerProps) {
         <SheetHeader>
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>
-            Raw record fields, exactly as the API returned them.
+            {strings.ui.uiInspectDrawer.rawRecordFieldsExactlyAs}
           </SheetDescription>
         </SheetHeader>
         <Tabs defaultValue="fields">
           <TabsList>
-            <TabsTrigger value="fields">Fields</TabsTrigger>
-            <TabsTrigger value="raw">Raw</TabsTrigger>
+            <TabsTrigger value="fields">{strings.ui.uiInspectDrawer.fields}</TabsTrigger>
+            <TabsTrigger value="raw">{strings.ui.uiInspectDrawer.raw}</TabsTrigger>
           </TabsList>
           <TabsContent value="fields">
             <dl className="m-0 flex min-w-0 flex-col gap-3">
@@ -103,7 +105,7 @@ export function InspectDrawer({ title, record, trigger }: InspectDrawerProps) {
                 </div>
               ))}
               {fields.length === 0 ? (
-                <p className="m-0 text-sm text-muted">This record has no fields.</p>
+                <p className="m-0 text-sm text-muted">{strings.ui.uiInspectDrawer.thisRecordHasNoFields}</p>
               ) : null}
             </dl>
           </TabsContent>

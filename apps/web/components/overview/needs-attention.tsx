@@ -36,7 +36,8 @@ import type {
   RiskSignal,
   WorkflowSummary,
 } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import { deriveSourceState, PROVENANCE_NOT_APPLICABLE } from "@/lib/source-state";
 import { buildTenantScopedPath, DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { parseActionRunList } from "@/lib/runtime-contracts/actions";
@@ -98,7 +99,7 @@ function stalledActionRuns(actionRuns: ActionRunList | null): ActionRunRecord[] 
     .slice(0, STALLED_ACTION_LIMIT);
 }
 
-function stalledActionDetail(run: ActionRunRecord): string {
+function stalledActionDetail(run: ActionRunRecord, strings: ConsoleStrings): string {
   const waited = strings.approvals.followThrough.awaiting.waited(
     formatElapsedDuration(run.waiting_duration_seconds),
   );
@@ -146,6 +147,7 @@ function ApprovalAttentionRow({
   identitySession: IdentitySessionReadModel | null;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const [open, setOpen] = useState(false);
   const { decisions, errors, setDecision, setError } = useApprovalDecisionState();
   const decision = decisions[approval.approval_id];
@@ -198,7 +200,7 @@ function ApprovalAttentionRow({
             className="inline-flex w-fit items-center text-sm font-medium text-signal hover:underline"
             href="/approvals"
           >
-            Open the full approval inbox
+            {strings.ui.overviewNeedsAttention.openTheFullApprovalInbox}
           </Link>
         </SheetContent>
       </Sheet>
@@ -247,14 +249,14 @@ function attentionSourceTitle(queries: AttentionSourceQueries): string {
 
 /** Only data that is no longer current keeps a visible provenance warning. */
 function AttentionSources(queries: AttentionSourceQueries) {
+  const strings = useStrings();
   const stale = attentionSources(queries).filter((source) => source.state === "stale");
   if (stale.length === 0) {
     return null;
   }
-
   return (
     <div
-      aria-label="Needs attention data sources"
+      aria-label={strings.ui.overviewNeedsAttention.needsAttentionDataSources}
       className="flex min-w-0 flex-wrap items-center gap-1.5"
     >
       {stale.map((source) => (
@@ -281,6 +283,7 @@ export function NeedsAttention({
   overview: OverviewQuery<ManufacturingOverview>;
   tenantId?: string;
 }) {
+  const strings = useStrings();
   // Best effort: this source adds stalled runs to the strip, it never gates it.
   const actionRunsQuery = useAxisQuery<ActionRunList>(
     buildTenantScopedPath(ACTION_RUNS_ENDPOINT, tenantId),
@@ -404,7 +407,7 @@ export function NeedsAttention({
                 {copy.openApproval}
               </Link>
             }
-            detail={stalledActionDetail(run)}
+            detail={stalledActionDetail(run, strings)}
             key={run.action_run_id}
             title={formatActionLabel(run.action_id)}
             tone={<Clock3 aria-hidden="true" className="shrink-0 text-warning" size={16} />}

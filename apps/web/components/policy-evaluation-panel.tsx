@@ -25,6 +25,7 @@ import {
   type PlatformPolicyScope,
 } from "@/lib/platform-policies";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
+import { useStrings } from "@/providers/locale-provider";
 
 type EvaluationFormFields = {
   scope: PlatformPolicyScope;
@@ -49,6 +50,7 @@ type PolicyEvaluationPanelProps = {
 };
 
 function DecisionResult({ decision }: { decision: PlatformPolicyDecision }) {
+  const strings = useStrings();
   const matchedPolicies = decision.matched_policies ?? [];
   const evidenceEntries = Object.entries(decision.evidence ?? {});
 
@@ -56,12 +58,12 @@ function DecisionResult({ decision }: { decision: PlatformPolicyDecision }) {
     <div className="grid min-w-0 gap-2.5">
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
-          <p className="eyebrow m-0">Decision</p>
+          <p className="eyebrow m-0">{strings.ui.common.decision}</p>
           <p className="m-0 font-medium text-ink break-words">{policyEffectLabel(decision.effect)}</p>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             {decision.matched && decision.matched_policy_id
               ? `Matched ${decision.matched_policy_id} r${decision.matched_revision_number} / ${decision.matched_policy_version}`
-              : "No active policy matched this context"}
+              : strings.ui.policyEvaluationPanel.noActivePolicyMatchedThis}
           </p>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             {decision.evaluated_policy_count} active policies evaluated
@@ -75,7 +77,7 @@ function DecisionResult({ decision }: { decision: PlatformPolicyDecision }) {
 
       {matchedPolicies.length > 0 ? (
         <div>
-          <p className="eyebrow m-0">Matched Policies</p>
+          <p className="eyebrow m-0">{strings.ui.policyEvaluationPanel.matchedPolicies}</p>
           <div className="grid min-w-0 gap-2">
             {matchedPolicies.map((match) => (
               <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={`${match.policy_id}-${match.revision_number}`}>
@@ -94,7 +96,7 @@ function DecisionResult({ decision }: { decision: PlatformPolicyDecision }) {
 
       {evidenceEntries.length > 0 ? (
         <div>
-          <p className="eyebrow m-0">Evidence Payload</p>
+          <p className="eyebrow m-0">{strings.ui.policyEvaluationPanel.evidencePayload}</p>
           <div className="grid min-w-0 gap-2">
             {evidenceEntries.map(([key, value]) => (
               <div className="grid min-w-0 grid-cols-1 items-start gap-1 border-t border-line/60 pt-2 first:border-t-0 first:pt-0 dark:border-white/10 sm:grid-cols-[minmax(120px,0.35fr)_minmax(0,1fr)] sm:gap-2.5" key={key}>
@@ -116,6 +118,7 @@ export function PolicyEvaluationPanel({
   draftConditions = null,
   formLabel,
 }: PolicyEvaluationPanelProps) {
+  const strings = useStrings();
   const { session } = useOidcConsoleSession();
   const [form, setForm] = useState<EvaluationFormFields>({
     scope,
@@ -188,9 +191,9 @@ export function PolicyEvaluationPanel({
         className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
         onSubmit={(event) => void runEvaluation(event)}
       >
-        <Field label="Scope">
+        <Field label={strings.ui.common.scope}>
           <Select
-            aria-label="Evaluation scope"
+            aria-label={strings.ui.policyEvaluationPanel.evaluationScope}
             disabled={scopeLocked}
             onChange={(event) => updateField("scope", event.target.value)}
             value={form.scope}
@@ -202,22 +205,22 @@ export function PolicyEvaluationPanel({
             ))}
           </Select>
         </Field>
-        <Field label="Action Domain">
+        <Field label={strings.ui.policyEvaluationPanel.actionDomain}>
           <Input
-            aria-label="Action domain"
+            aria-label={strings.ui.policyEvaluationPanel.actionDomain2}
             onChange={(event) => updateField("actionDomain", event.target.value)}
-            placeholder="Operations"
+            placeholder={strings.ui.policyEvaluationPanel.operations}
             type="text"
             value={form.actionDomain}
           />
         </Field>
-        <Field label="Risk Level">
+        <Field label={strings.ui.policyEvaluationPanel.riskLevel}>
           <Select
-            aria-label="Risk level"
+            aria-label={strings.ui.policyEvaluationPanel.riskLevel2}
             onChange={(event) => updateField("riskLevel", event.target.value)}
             value={form.riskLevel}
           >
-            <option value="">Not set</option>
+            <option value="">{strings.ui.policyEvaluationPanel.notSet}</option>
             {platformPolicyRiskLevels.map((level) => (
               <option key={level} value={level}>
                 {level}
@@ -225,13 +228,13 @@ export function PolicyEvaluationPanel({
             ))}
           </Select>
         </Field>
-        <Field label="Autonomy Level">
+        <Field label={strings.ui.policyEvaluationPanel.autonomyLevel}>
           <Select
-            aria-label="Autonomy level"
+            aria-label={strings.ui.policyEvaluationPanel.autonomyLevel2}
             onChange={(event) => updateField("autonomyLevel", event.target.value)}
             value={form.autonomyLevel}
           >
-            <option value="">Not set</option>
+            <option value="">{strings.ui.policyEvaluationPanel.notSet}</option>
             {platformPolicyAutonomyLevels.map((level) => (
               <option key={level} value={level}>
                 {level}
@@ -239,12 +242,12 @@ export function PolicyEvaluationPanel({
             ))}
           </Select>
         </Field>
-        <Field label="Requested Amount">
+        <Field label={strings.ui.policyEvaluationPanel.requestedAmount}>
           <Input
-            aria-label="Requested amount"
+            aria-label={strings.ui.policyEvaluationPanel.requestedAmount2}
             min="0"
             onChange={(event) => updateField("requestedAmount", event.target.value)}
-            placeholder="Optional"
+            placeholder={strings.ui.common.optional}
             step="any"
             type="number"
             value={form.requestedAmount}
@@ -255,7 +258,7 @@ export function PolicyEvaluationPanel({
           type="submit"
         >
           <FlaskConical size={15} />
-          {evaluation.phase === "evaluating" ? "Evaluating" : "Run dry-run evaluation"}
+          {evaluation.phase === "evaluating" ? strings.ui.policyEvaluationPanel.evaluating : strings.ui.policyEvaluationPanel.runDryRunEvaluation}
         </Button>
       </form>
 

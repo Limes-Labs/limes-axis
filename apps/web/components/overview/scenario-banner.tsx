@@ -1,7 +1,9 @@
+"use client";
+
 import { BookOpenText } from "lucide-react";
 
 import type { SourceState } from "@/lib/source-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 export type OverviewSource = { subject: string; state: SourceState };
 
@@ -27,6 +29,7 @@ export function ScenarioBanner({
   demoScenario: boolean;
   sources: readonly OverviewSource[];
 }) {
+  const strings = useStrings();
   const subjects = exampleSubjects(sources);
   if (!demoScenario && subjects.length === 0) {
     return null;

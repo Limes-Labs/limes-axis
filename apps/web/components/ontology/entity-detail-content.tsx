@@ -8,7 +8,7 @@ import { Reveal } from "@/components/reveal";
 import { Card } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { formatNodeType, type ManufacturingOntologyEntityDetail } from "@/lib/ontology-demo";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { buildOntologyEntityRoute } from "@/lib/ontology-routes";
 
 /*
@@ -94,6 +94,7 @@ export function EntityDetailContent({
   onNavigateToNode,
   summaryAction,
 }: EntityDetailContentProps) {
+  const strings = useStrings();
   const isPage = layout === "page";
   const MaybeReveal = isPage ? Reveal : "div";
 
@@ -110,18 +111,18 @@ export function EntityDetailContent({
       <div className={`grid grid-cols-2 gap-4 ${isPage ? "lg:grid-cols-4" : ""}`}>
         <EntityMetric
           detail={detail.node.node_id}
-          label="Type"
+          label={strings.ui.common.type}
           value={formatNodeType(detail.node.node_type)}
         />
-        <EntityMetric detail={detail.node.source_system} label="Domain" value={detail.node.domain} />
+        <EntityMetric detail={detail.node.source_system} label={strings.ui.common.domain} value={detail.node.domain} />
         <EntityMetric
-          detail="Incoming relationships"
-          label="Inbound"
+          detail={strings.ui.ontologyEntityDetailContent.incomingRelationships}
+          label={strings.ui.ontologyEntityDetailContent.inbound}
           value={String(detail.inbound_count)}
         />
         <EntityMetric
-          detail="Outgoing relationships"
-          label="Outbound"
+          detail={strings.ui.ontologyEntityDetailContent.outgoingRelationships}
+          label={strings.ui.ontologyEntityDetailContent.outbound}
           value={String(detail.outbound_count)}
         />
       </div>
@@ -133,7 +134,7 @@ export function EntityDetailContent({
           <Card className="grid content-start gap-4">
             <div className="flex items-start justify-between gap-3">
               <div className="grid gap-1">
-                <Eyebrow>Relationships</Eyebrow>
+                <Eyebrow>{strings.ui.ontologyEntityDetailContent.relationships}</Eyebrow>
                 <h2 className="font-display m-0 text-xl text-ink">
                   {detail.connected_relationships.length} connected
                 </h2>
@@ -178,34 +179,34 @@ export function EntityDetailContent({
 
           <Card className="grid content-start gap-4">
             <div className="grid gap-1">
-              <Eyebrow>Governance</Eyebrow>
-              <h2 className="font-display m-0 text-xl text-ink">Access and evidence</h2>
+              <Eyebrow>{strings.ui.ontologyEntityDetailContent.governance}</Eyebrow>
+              <h2 className="font-display m-0 text-xl text-ink">{strings.ui.ontologyEntityDetailContent.accessAndEvidence}</h2>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <section className="grid content-start gap-2">
-                <Eyebrow>Required Permissions</Eyebrow>
-                <TagList items={detail.required_permissions} emptyLabel="derived read scope" />
+                <Eyebrow>{strings.ui.common.requiredPermissions}</Eyebrow>
+                <TagList items={detail.required_permissions} emptyLabel={strings.ui.ontologyEntityDetailContent.derivedReadScope} />
               </section>
               <section className="grid content-start gap-2">
-                <Eyebrow>Evidence</Eyebrow>
-                <TagList items={detail.evidence_refs} emptyLabel="node summary only" />
+                <Eyebrow>{strings.ui.common.evidence}</Eyebrow>
+                <TagList items={detail.evidence_refs} emptyLabel={strings.ui.ontologyEntityDetailContent.nodeSummaryOnly} />
               </section>
             </div>
             <div aria-hidden="true" className="rule-hairline" />
             <div className="grid gap-4 sm:grid-cols-2">
               <section className="grid content-start gap-2">
-                <Eyebrow>Workflows</Eyebrow>
-                <TagList items={detail.related_workflows} emptyLabel="no workflow relation" />
+                <Eyebrow>{strings.ui.ontologyEntityDetailContent.workflows}</Eyebrow>
+                <TagList items={detail.related_workflows} emptyLabel={strings.ui.ontologyEntityDetailContent.noWorkflowRelation} />
               </section>
               <section className="grid content-start gap-2">
-                <Eyebrow>Approvals</Eyebrow>
-                <TagList items={detail.related_approvals} emptyLabel="no approval relation" />
+                <Eyebrow>{strings.ui.ontologyEntityDetailContent.approvals}</Eyebrow>
+                <TagList items={detail.related_approvals} emptyLabel={strings.ui.ontologyEntityDetailContent.noApprovalRelation} />
               </section>
             </div>
             <div aria-hidden="true" className="rule-hairline" />
             <section className="grid content-start gap-2">
-              <Eyebrow>Agents</Eyebrow>
-              <TagList items={detail.related_agents} emptyLabel="no agent relation" />
+              <Eyebrow>{strings.ui.ontologyEntityDetailContent.agents}</Eyebrow>
+              <TagList items={detail.related_agents} emptyLabel={strings.ui.ontologyEntityDetailContent.noAgentRelation} />
             </section>
           </Card>
         </div>
@@ -214,13 +215,13 @@ export function EntityDetailContent({
       <MaybeReveal>
         <div className={`grid gap-4 ${isPage ? "lg:grid-cols-2" : ""}`}>
           <Card className="grid content-start gap-3">
-            <Eyebrow>Data Access</Eyebrow>
+            <Eyebrow>{strings.ui.ontologyEntityDetailContent.dataAccess}</Eyebrow>
             <div className="grid gap-3">
               {detail.data_access.map((item) => (
                 <div className="flex items-start justify-between gap-3" key={item}>
                   <div className="grid gap-0.5">
                     <p className="m-0 text-sm font-medium text-ink">{item}</p>
-                    <p className="m-0 text-xs text-muted">Public demo summary only</p>
+                    <p className="m-0 text-xs text-muted">{strings.ui.ontologyEntityDetailContent.publicDemoSummaryOnly}</p>
                   </div>
                   <Database className="shrink-0 text-signal" size={16} />
                 </div>
@@ -229,7 +230,7 @@ export function EntityDetailContent({
           </Card>
 
           <Card className="grid content-start gap-3">
-            <Eyebrow>Detail Notes</Eyebrow>
+            <Eyebrow>{strings.ui.ontologyEntityDetailContent.detailNotes}</Eyebrow>
             <div className="grid gap-2">
               {detail.detail_notes.map((note) => (
                 <p className="m-0 text-sm text-muted" key={note}>

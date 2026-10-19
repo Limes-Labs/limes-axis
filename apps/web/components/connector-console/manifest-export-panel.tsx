@@ -12,7 +12,7 @@ import {
   serializeConnectorRegistrationDocument,
 } from "@/lib/connectors-console";
 import type { ConnectorRegistryItem } from "@/lib/connectors-demo";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 function downloadRegistrationDocument(connector: ConnectorRegistryItem, json: string) {
   const blob = new Blob([json], { type: "application/json" });
@@ -27,6 +27,7 @@ function downloadRegistrationDocument(connector: ConnectorRegistryItem, json: st
 }
 
 export function ManifestExportPanel({ connector }: { connector: ConnectorRegistryItem }) {
+  const strings = useStrings();
   const copy = strings.connectors.manifestExport;
   const { push } = useToast();
   const [open, setOpen] = useState(false);

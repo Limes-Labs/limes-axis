@@ -30,7 +30,7 @@ import {
   useConsoleUrlState,
 } from "@/lib/console-url-state";
 import { deriveSourceState } from "@/lib/source-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { parseManufacturingOntology } from "@/lib/runtime-contracts/ontology";
 import {
   buildTenantScopedPath,
@@ -60,8 +60,9 @@ function narrowViewport() { return window.innerWidth < 640; }
 function serverViewport() { return false; }
 
 function OntologyExplorerSkeleton() {
+  const strings = useStrings();
   return (
-    <div className="grid gap-5" aria-busy="true" aria-label="Loading ontology API">
+    <div className="grid gap-5" aria-busy="true" aria-label={strings.ui.ontologyExplorer.loadingOntologyApi}>
       <Skeleton className="h-28" />
       <Skeleton className="h-[420px]" />
     </div>
@@ -69,6 +70,7 @@ function OntologyExplorerSkeleton() {
 }
 
 export function OntologyExplorer() {
+  const strings = useStrings();
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const ontologyPath = buildTenantScopedPath(
     `${OPERATIONS_API_PREFIX}/ontology`,
@@ -136,7 +138,7 @@ export function OntologyExplorer() {
   if (identity.source === "unavailable") {
     return (
       <ErrorPanel
-        detail="The ontology is not loaded until the current actor and tenant are verified."
+        detail={strings.ui.ontologyExplorer.theOntologyIsNotLoaded}
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
         onRetry={identity.refetch}
@@ -148,9 +150,9 @@ export function OntologyExplorer() {
   if (!tenantId) {
     return (
       <ErrorPanel
-        detail="The authenticated identity response does not contain a tenant. Axis will not fall back to the demo ontology."
+        detail={strings.ui.ontologyExplorer.theAuthenticatedIdentityResponseDoes}
         endpoint={IDENTITY_SESSION_ENDPOINT}
-        title="Authenticated tenant missing"
+        title={strings.ui.common.authenticatedTenantMissing}
       />
     );
   }
@@ -166,11 +168,11 @@ export function OntologyExplorer() {
 
     return (
       <ErrorPanel
-        detail="Axis did not receive API-backed ontology records. Local fallback ontology records are disabled."
+        detail={strings.ui.ontologyExplorer.axisDidNotReceiveApi}
         endpoint={ontologyPath}
         onRetry={refetchOntology}
         reference={ontologyErrorRequestId ?? undefined}
-        title="Ontology API unavailable"
+        title={strings.ui.ontologyExplorer.ontologyApiUnavailable}
       />
     );
   }
@@ -178,7 +180,7 @@ export function OntologyExplorer() {
   return (
     <div className="grid gap-5">
       <div
-        aria-label="Ontology source"
+        aria-label={strings.ui.ontologyExplorer.ontologySource}
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm break-words text-muted">
@@ -201,7 +203,7 @@ export function OntologyExplorer() {
           <div className="grid gap-1">
             <h2 ref={explorerHeadingRef} tabIndex={-1} className="font-display m-0 text-xl text-ink">{strings.clarity.ontologyObjects}</h2>
           </div>
-          <div className="flex gap-2" role="group" aria-label="Ontology view">
+          <div className="flex gap-2" role="group" aria-label={strings.ui.ontologyExplorer.ontologyView}>
             <Button
               aria-pressed={view === "graph"}
               className="px-4 py-2 text-sm"
@@ -209,7 +211,7 @@ export function OntologyExplorer() {
               variant={view === "graph" ? "primary" : "secondary"}
             >
               <Share2 size={15} />
-              Graph
+              {strings.ui.ontologyExplorer.graph}
             </Button>
             <Button
               aria-pressed={view === "list"}
@@ -218,7 +220,7 @@ export function OntologyExplorer() {
               variant={view === "list" ? "primary" : "secondary"}
             >
               <List size={15} />
-              List
+              {strings.ui.ontologyExplorer.list}
             </Button>
           </div>
         </div>
@@ -284,14 +286,14 @@ export function OntologyExplorer() {
               ))}
             </div>
             <div className="hidden min-w-0 sm:grid sm:gap-4">
-            <DataTable aria-label="Ontology nodes">
+            <DataTable aria-label={strings.ui.ontologyExplorer.ontologyNodes}>
               <thead>
                 <tr>
-                  <th>Node</th>
-                  <th>Type</th>
-                  <th>Domain</th>
-                  <th>Source</th>
-                  <th>Status</th>
+                  <th>{strings.ui.common.node}</th>
+                  <th>{strings.ui.common.type}</th>
+                  <th>{strings.ui.common.domain}</th>
+                  <th>{strings.ui.common.source}</th>
+                  <th>{strings.ui.common.status}</th>
                 </tr>
               </thead>
               <tbody>
@@ -320,14 +322,14 @@ export function OntologyExplorer() {
 
             </div>
             <Disclosure title={strings.clarity.relationships}>
-            <DataTable aria-label="Ontology relationships">
+            <DataTable aria-label={strings.ui.ontologyExplorer.ontologyRelationships}>
               <thead>
                 <tr>
-                  <th>Relationship</th>
-                  <th>From</th>
-                  <th>To</th>
-                  <th>Permission</th>
-                  <th>Owner</th>
+                  <th>{strings.ui.ontologyExplorer.relationship}</th>
+                  <th>{strings.ui.ontologyExplorer.from}</th>
+                  <th>{strings.ui.ontologyExplorer.to}</th>
+                  <th>{strings.ui.common.permission}</th>
+                  <th>{strings.ui.common.owner}</th>
                 </tr>
               </thead>
               <tbody>
@@ -364,8 +366,8 @@ export function OntologyExplorer() {
       <Disclosure title={strings.clarity.ontologySources}>
         <div className="grid gap-4 lg:grid-cols-3">
           <Card className="grid content-start gap-3">
-            <Eyebrow>Source Systems</Eyebrow>
-            <h2 className="font-display m-0 text-xl text-ink">Connected context</h2>
+            <Eyebrow>{strings.ui.ontologyExplorer.sourceSystems}</Eyebrow>
+            <h2 className="font-display m-0 text-xl text-ink">{strings.ui.ontologyExplorer.connectedContext}</h2>
             <div className="flex flex-wrap gap-2">
               {ontology.source_systems.map((system) => (
                 <span
@@ -380,9 +382,9 @@ export function OntologyExplorer() {
           </Card>
 
           <Card className="grid content-start gap-3">
-            <Eyebrow>Graph Query</Eyebrow>
+            <Eyebrow>{strings.ui.ontologyExplorer.graphQuery}</Eyebrow>
             <h2 className="font-display m-0 text-xl text-ink">{ontology.graph_query.adapter}</h2>
-            <div className="flex flex-wrap gap-2" aria-label="Ontology graph query metadata">
+            <div className="flex flex-wrap gap-2" aria-label={strings.ui.ontologyExplorer.ontologyGraphQueryMetadata}>
               <span className="status-pill signal-ready">
                 <ShieldCheck size={15} />
                 {ontology.graph_query.query_mode}
@@ -404,8 +406,8 @@ export function OntologyExplorer() {
           </Card>
 
           <Card className="grid content-start gap-3">
-            <Eyebrow>Permission Notes</Eyebrow>
-            <h2 className="font-display m-0 text-xl text-ink">Read boundaries</h2>
+            <Eyebrow>{strings.ui.ontologyExplorer.permissionNotes}</Eyebrow>
+            <h2 className="font-display m-0 text-xl text-ink">{strings.ui.ontologyExplorer.readBoundaries}</h2>
             <div className="grid gap-2">
               {ontology.permission_notes.map((note) => (
                 <p className="m-0 text-sm text-muted" key={note}>

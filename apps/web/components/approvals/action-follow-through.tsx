@@ -19,13 +19,13 @@ import {
   PROVENANCE_NOT_APPLICABLE,
   type AxisSource,
 } from "@/lib/source-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 const ACTION_RUNS_ENDPOINT = `${OPERATIONS_API_PREFIX}/actions/runs`;
 
 function RunLinks({ run }: { run: ActionRunRecord }) {
-  const copy = strings.approvals.followThrough;
+  const copy = useStrings().approvals.followThrough;
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
@@ -69,7 +69,7 @@ function RunMetadata({
   timestamp: string;
   timestampLabel: string;
 }) {
-  const copy = strings.approvals.followThrough;
+  const copy = useStrings().approvals.followThrough;
 
   return (
     <dl className="m-0 grid min-w-0 gap-x-5 gap-y-2 sm:grid-cols-3">
@@ -97,7 +97,7 @@ function RunMetadata({
 }
 
 function AwaitingRun({ run }: { run: ActionRunRecord }) {
-  const copy = strings.approvals.followThrough;
+  const copy = useStrings().approvals.followThrough;
 
   return (
     <article className="grid min-w-0 gap-3 py-4">
@@ -124,7 +124,7 @@ function AwaitingRun({ run }: { run: ActionRunRecord }) {
 }
 
 function ReportedRun({ run }: { run: ActionRunRecord }) {
-  const copy = strings.approvals.followThrough;
+  const copy = useStrings().approvals.followThrough;
 
   if (!run.outcome) {
     return null;
@@ -163,7 +163,7 @@ export function ActionFollowThrough({
   errorRequestId?: string | null;
   source: AxisSource;
 }) {
-  const copy = strings.approvals.followThrough;
+  const copy = useStrings().approvals.followThrough;
   const followThrough = partitionActionRuns(actionRuns?.runs ?? []);
   const hasVisibleRuns = followThrough.awaiting.length > 0 || followThrough.reported.length > 0;
 

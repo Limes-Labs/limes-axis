@@ -8,6 +8,7 @@ import {
 } from "@/lib/platform-policies";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { useStrings } from "@/providers/locale-provider";
 
 type PolicyConditionFieldsProps = {
   conditions: PolicyConditionsFormState;
@@ -59,17 +60,18 @@ export function PolicyConditionFields({
   errors,
   labelPrefix,
 }: PolicyConditionFieldsProps) {
+  const strings = useStrings();
   function update(patch: Partial<PolicyConditionsFormState>) {
     onChange({ ...conditions, ...patch });
   }
 
   return (
     <>
-      <Field className="col-span-full" label="Action Domains">
+      <Field className="col-span-full" label={strings.ui.common.actionDomains}>
         <Input
           aria-label={`${labelPrefix} action domains`}
           onChange={(event) => update({ actionDomainsText: event.target.value })}
-          placeholder="Operations, Finance (comma separated)"
+          placeholder={strings.ui.policyConditionFields.operationsFinanceCommaSeparated}
           type="text"
           value={conditions.actionDomainsText}
         />
@@ -88,12 +90,12 @@ export function PolicyConditionFields({
         options={platformPolicyAutonomyLevels}
         selected={conditions.autonomyLevels}
       />
-      <Field label="Amount Threshold">
+      <Field label={strings.ui.common.amountThreshold}>
         <Input
           aria-label={`${labelPrefix} amount threshold`}
           min="0"
           onChange={(event) => update({ requestedAmount: event.target.value })}
-          placeholder="Optional"
+          placeholder={strings.ui.common.optional}
           step="any"
           type="number"
           value={conditions.requestedAmount}

@@ -36,7 +36,7 @@ import {
   parseConnectorManifestBatchValidationResponse,
   parseConnectorManifestDetail,
 } from "@/lib/runtime-contracts/connectors";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { buildTenantScopedPath, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
@@ -124,6 +124,7 @@ export function ManifestImportPanel({
   onApplied: () => void;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const copy = strings.connectors.manifestImport;
   const { push } = useToast();
   const { session } = useOidcConsoleSession();

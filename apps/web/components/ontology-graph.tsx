@@ -30,7 +30,7 @@ import {
 } from "@/lib/ontology-graph-layout";
 import { buildOntologyEntityRoute } from "@/lib/ontology-routes";
 import { platformStatusLabel } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 const WHEEL_ZOOM_SENSITIVITY = 0.0022;
 const BUTTON_ZOOM_STEP = 1.4;
@@ -91,6 +91,7 @@ export function OntologyGraph({
   selectedNodeId,
   onNodeActivate,
 }: OntologyGraphProps) {
+  const strings = useStrings();
   const router = useRouter();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [drawn, setDrawn] = useState(false);
@@ -275,7 +276,7 @@ export function OntologyGraph({
           data-testid="ontology-graph"
           ref={svgRef}
           role="group"
-          aria-label={`Ontology graph with ${layout.nodes.length} nodes and ${layout.edges.length} relationships`}
+          aria-label={strings.ui.ontologyGraph.graphLabel(layout.nodes.length, layout.edges.length)}
           viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
           onPointerCancel={onPointerEnd}
           onPointerDown={onPointerDown}

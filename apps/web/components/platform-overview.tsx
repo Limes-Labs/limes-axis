@@ -35,7 +35,8 @@ import {
   type ManufacturingOperationsSnapshot,
   type ManufacturingOverview,
 } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import { parseManufacturingAuditExplorer } from "@/lib/runtime-contracts/audit";
 import { parseManufacturingModelRouting } from "@/lib/runtime-contracts/model-routing";
@@ -73,13 +74,16 @@ const AUDIT_EVENTS_ENDPOINT = `${OPERATIONS_API_PREFIX}/audit/events`;
 type OverviewSources = Record<"context" | "operations" | "approvals" | "audit" | "models", OverviewSource>;
 
 /** One provenance reading per overview endpoint, shared by the banner and the tooltips. */
-function overviewSources(queries: {
-  overview: OverviewQuery<ManufacturingOverview>;
-  snapshot: OverviewQuery<ManufacturingOperationsSnapshot>;
-  approvals: OverviewQuery<ManufacturingApprovalInbox>;
-  auditEvents: OverviewQuery<ManufacturingAuditExplorer>;
-  routing: OverviewQuery<ManufacturingModelRouting>;
-}): OverviewSources {
+function overviewSources(
+  queries: {
+    overview: OverviewQuery<ManufacturingOverview>;
+    snapshot: OverviewQuery<ManufacturingOperationsSnapshot>;
+    approvals: OverviewQuery<ManufacturingApprovalInbox>;
+    auditEvents: OverviewQuery<ManufacturingAuditExplorer>;
+    routing: OverviewQuery<ManufacturingModelRouting>;
+  },
+  subjects: ConsoleStrings["overview"]["scenarioBanner"]["subjects"],
+): OverviewSources {
   const read = <T extends { provenance: ManufacturingOverview["provenance"] }>(
     subject: string,
     query: OverviewQuery<T>,
@@ -89,11 +93,11 @@ function overviewSources(queries: {
   });
 
   return {
-    context: read("Context", queries.overview),
-    operations: read("Operations", queries.snapshot),
-    approvals: read("Approvals", queries.approvals),
-    audit: read("Audit", queries.auditEvents),
-    models: read("Models", queries.routing),
+    context: read(subjects.context, queries.overview),
+    operations: read(subjects.operations, queries.snapshot),
+    approvals: read(subjects.approvals, queries.approvals),
+    audit: read(subjects.audit, queries.auditEvents),
+    models: read(subjects.models, queries.routing),
   };
 }
 
@@ -110,6 +114,7 @@ function OverviewHero({
   auditEvents: OverviewQuery<ManufacturingAuditExplorer>;
   sources: OverviewSources;
 }) {
+  const strings = useStrings();
   if (!overview.data) {
     if (overview.source === "loading") {
       return <LoadingPanel layout="detail" />;
@@ -201,7 +206,7 @@ function OverviewHero({
       {/* Provenance lives in each card's tooltip and the page banner; only
           numbers that are no longer current keep a visible warning. */}
       {staleSources.length > 0 ? (
-        <div aria-label="Overview data sources" className="flex min-w-0 flex-wrap gap-1.5">
+        <div aria-label={strings.ui.platformOverview.overviewDataSources} className="flex min-w-0 flex-wrap gap-1.5">
           {staleSources.map((source) => (
             <SourcePill compact key={source.subject} state={source.state} subject={source.subject} />
           ))}
@@ -212,6 +217,7 @@ function OverviewHero({
 }
 
 export function PlatformOverview() {
+  const strings = useStrings();
   const { apiStatus, triggerRefresh } = useConsole();
   const demoBootstrap = useDemoBootstrap();
   const identityQuery = useIdentitySession();
@@ -289,7 +295,7 @@ export function PlatformOverview() {
   if (identityQuery.source === "unavailable") {
     return (
       <ErrorPanel
-        detail="The console could not verify the current actor and tenant. Tenant-scoped data is not loaded until identity is available."
+        detail={strings.ui.platformOverview.theConsoleCouldNotVerify}
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identityQuery.errorRequestId ?? undefined}
         onRetry={identityQuery.refetch}
@@ -301,9 +307,9 @@ export function PlatformOverview() {
   if (!tenantId) {
     return (
       <ErrorPanel
-        detail="The authenticated identity response does not contain a tenant. Axis will not fall back to demo data for an authenticated actor."
+        detail={strings.ui.platformOverview.theAuthenticatedIdentityResponseDoes}
         endpoint={IDENTITY_SESSION_ENDPOINT}
-        title="Authenticated tenant missing"
+        title={strings.ui.common.authenticatedTenantMissing}
       />
     );
   }
@@ -339,7 +345,7 @@ export function PlatformOverview() {
     approvals: approvalsQuery,
     auditEvents: activityQuery,
     routing: routingQuery,
-  });
+  }, strings.overview.scenarioBanner.subjects);
 
   return (
     <div className="grid gap-4">
@@ -380,7 +386,7 @@ export function PlatformOverview() {
       />
 
       <div className="ops-dashboard-grid grid grid-cols-1 gap-4">
-        <section aria-label="Operations evidence" className="ops-dashboard-main grid min-w-0 content-start gap-4">
+        <section aria-label={strings.ui.platformOverview.operationsEvidence} className="ops-dashboard-main grid min-w-0 content-start gap-4">
           <EvidenceFeed
             auditEvents={activityQuery}
             reads={{

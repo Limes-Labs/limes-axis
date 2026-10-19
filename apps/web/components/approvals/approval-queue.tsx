@@ -9,7 +9,7 @@ import { controlClassName } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { approvalRiskClass, type ApprovalInboxItem } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 export type ApprovalQueueFilters = {
   search: string;
@@ -58,6 +58,7 @@ export function ApprovalQueue({
   onReset: () => void;
   onSelect: (approvalId: string, pushHistory: boolean) => void;
 }) {
+  const strings = useStrings();
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -120,9 +121,9 @@ export function ApprovalQueue({
           <Field label={copy.risk}>
             <Select className="min-h-11" onChange={(event) => onFilterChange({ risk: event.target.value as ApprovalQueueFilters["risk"] })} value={filters.risk}>
               <option value="all">{copy.allRisks}</option>
-              <option value="high">High risk</option>
-              <option value="medium">Medium risk</option>
-              <option value="low">Low risk</option>
+              <option value="high">{strings.ui.approvalsApprovalQueue.highRisk}</option>
+              <option value="medium">{strings.ui.approvalsApprovalQueue.mediumRisk}</option>
+              <option value="low">{strings.ui.approvalsApprovalQueue.lowRisk}</option>
             </Select>
           </Field>
           <Field label={copy.domain}>

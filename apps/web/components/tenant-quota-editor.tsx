@@ -26,6 +26,7 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InlineOperatorError } from "@/components/ui/inline-operator-error";
+import { useStrings } from "@/providers/locale-provider";
 
 type QuotaSource = "loading" | "api" | "unavailable" | "missing";
 
@@ -54,6 +55,7 @@ function formsEqual(a: TenantQuotaFormState, b: TenantQuotaFormState): boolean {
 }
 
 export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
+  const strings = useStrings();
   const { session } = useOidcConsoleSession();
   const { refreshNonce } = useConsole();
   const [quotaSet, setQuotaSet] = useState<TenantQuotaSet | null>(null);
@@ -215,11 +217,10 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
     <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
-          <p className="eyebrow m-0">Per-Tenant Quotas</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Quota overrides</h2>
+          <p className="eyebrow m-0">{strings.ui.tenantQuotaEditor.perTenantQuotas}</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.tenantQuotaEditor.quotaOverrides}</h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            Leaving a field blank clears the override and falls
-            back to the global configuration.
+            {strings.ui.tenantQuotaEditor.leavingAFieldBlankClears}
           </p>
         </div>
         <Gauge size={18} />
@@ -231,7 +232,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
         </p>
       ) : (
         <form
-          aria-label="Tenant quota update"
+          aria-label={strings.ui.tenantQuotaEditor.tenantQuotaUpdate}
           className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
           noValidate
           onSubmit={requestConfirmation}
@@ -244,7 +245,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
                 max={descriptor.max}
                 min={descriptor.min}
                 onChange={(event) => updateField(descriptor.field, event.target.value)}
-                placeholder="Global default"
+                placeholder={strings.ui.tenantQuotaEditor.globalDefault}
                 type="number"
                 value={form[descriptor.field]}
               />
@@ -260,7 +261,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
           {save.phase === "confirming" ? (
             <div className="col-span-full grid min-w-0 gap-2.5">
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
-                Confirm the quota update: blank fields clear the override.
+                {strings.ui.tenantQuotaEditor.confirmTheQuotaUpdateBlank}
               </p>
               <div className="grid w-full min-w-0 gap-2.5 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:justify-end">
                 <Button
@@ -269,21 +270,21 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
                   type="button"
                 >
                   <Gauge size={15} />
-                  Confirm quota update
+                  {strings.ui.tenantQuotaEditor.confirmQuotaUpdate}
                 </Button>
                 <Button
                   variant="ghost"
                   onClick={() => setSave({ phase: "idle" })}
                   type="button"
                 >
-                  Cancel
+                  {strings.ui.tenantQuotaEditor.cancel}
                 </Button>
               </div>
             </div>
           ) : (
             <Button disabled={save.phase === "saving"} type="submit">
               <Gauge size={15} />
-              {save.phase === "saving" ? "Saving" : "Review quota update"}
+              {save.phase === "saving" ? strings.ui.common.saving : strings.ui.tenantQuotaEditor.reviewQuotaUpdate}
             </Button>
           )}
         </form>
@@ -301,7 +302,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
 
       <Disclosure
         className="mt-4 border-t border-line/60 pt-3 text-sm text-muted dark:border-white/10"
-        title="Quota technical details"
+        title={strings.ui.tenantQuotaEditor.quotaTechnicalDetails}
         variant="plain"
       >
         <div className="grid min-w-0 grid-cols-1 gap-2.5 [&>p]:min-w-0 [&>p]:[overflow-wrap:anywhere]">

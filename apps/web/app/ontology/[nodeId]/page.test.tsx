@@ -10,6 +10,12 @@ vi.mock("@/components/console-page", () => ({
   ConsolePage: ({ children }: { children: ReactNode }) => <main>{children}</main>,
 }));
 
+// The page reads the request locale; outside Next there is no request scope.
+vi.mock("@/lib/locale-server", async () => {
+  const { strings } = await import("@/lib/strings");
+  return { getServerStrings: async () => strings };
+});
+
 vi.mock("@/components/ontology-entity-detail", () => ({
   OntologyEntityDetail: ({ nodeId }: { nodeId: string }) => (
     <output data-testid="entity-node-id">{nodeId}</output>

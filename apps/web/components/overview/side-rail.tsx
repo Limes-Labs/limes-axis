@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SourcePill, sourceStateLabel } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import type { ManufacturingAuditExplorer } from "@/lib/audit-demo";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { deriveSourceState } from "@/lib/source-state";
 
 import { normalizeLabel, type OverviewQuery } from "./overview-shared";
@@ -25,6 +25,7 @@ export function SideRail({
   hiddenReadCount?: number;
   windowLimit?: number;
 }) {
+  const strings = useStrings();
   const copy = strings.clarity.activity;
   const [view, setView] = useState("category");
   if (!auditEvents.data) {
@@ -49,21 +50,21 @@ export function SideRail({
   return (
     <Card
       as="section"
-      aria-label={view === "category" ? copy.title : "Activity by date"}
+      aria-label={view === "category" ? copy.title : strings.ui.overviewSideRail.activityByDate}
       className="grid min-w-0 content-start gap-4"
       data-source-state={sourceState}
     >
       <div className="grid gap-1">
-        <h2 className="m-0 font-display text-lg text-ink" title={sourceStateLabel(sourceState, "audit window")}>{view === "category" ? copy.title : "Activity by date"}</h2>
+        <h2 className="m-0 font-display text-lg text-ink" title={sourceStateLabel(sourceState, "audit window")}>{view === "category" ? copy.title : strings.ui.overviewSideRail.activityByDate}</h2>
         <p className="m-0 text-xs text-muted">{view === "category" ? copy.window(events.length, windowLimit) : copy.dateWindow(events.length, windowLimit)}</p>
         {hiddenReadCount > 0 ? (
           <p className="m-0 text-xs text-muted">{strings.audit.reads.hidden(hiddenReadCount)}</p>
         ) : null}
       </div>
       <Tabs value={view} onValueChange={setView}>
-        <TabsList aria-label="Activity chart view" className="w-full">
-          <TabsTrigger value="category" className="flex-1 px-2.5">Category</TabsTrigger>
-          <TabsTrigger value="date" className="flex-1 px-2.5">By date</TabsTrigger>
+        <TabsList aria-label={strings.ui.overviewSideRail.activityChartView} className="w-full">
+          <TabsTrigger value="category" className="flex-1 px-2.5">{strings.ui.overviewSideRail.category}</TabsTrigger>
+          <TabsTrigger value="date" className="flex-1 px-2.5">{strings.ui.overviewSideRail.byDate}</TabsTrigger>
         </TabsList>
         <TabsContent value="category">
       <dl className="m-0 grid gap-4">

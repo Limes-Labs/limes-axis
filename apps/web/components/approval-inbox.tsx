@@ -36,7 +36,7 @@ import { enumUrlField, opaqueStringUrlField, stringUrlField, useConsoleUrlState 
 import { formatContextPath, formatNumber, formatTimestamp } from "@/lib/format";
 import { type IdentitySessionReadModel } from "@/lib/platform-overview";
 import { deriveSourceState } from "@/lib/source-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { parseActionRunList } from "@/lib/runtime-contracts/actions";
 import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import {
@@ -119,8 +119,9 @@ function DecisionRail({ approval, decision }: {
   approval: ApprovalInboxItem;
   decision: ApprovalDecisionRecord | undefined;
 }) {
+  const strings = useStrings();
   return (
-    <ol aria-label="Decision stage rail" className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 2xl:grid-cols-4">
+    <ol aria-label={strings.ui.approvalInbox.decisionStageRail} className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 2xl:grid-cols-4">
       {buildDecisionRail(approval, decision).map((stage, index) => (
         <li className="flex min-w-0 items-start gap-2" key={stage.label}>
           <span aria-hidden="true" className={cn(
@@ -183,9 +184,10 @@ function DecisionHistory({
 }: {
   entries: readonly ApprovalDecisionHistoryEntry[];
 }) {
+  const strings = useStrings();
   return (
     <Card className="grid content-start gap-3" as="section">
-      <div aria-label="Decision history" className="grid content-start gap-3">
+      <div aria-label={strings.ui.approvalInbox.decisionHistory} className="grid content-start gap-3">
         <div className="grid gap-1">
           <Eyebrow>{strings.approvals.history.eyebrow}</Eyebrow>
           <h2 className="font-display m-0 text-xl text-ink">
@@ -281,6 +283,7 @@ function ApprovalDetail({
   onErrorChange: (approvalId: string, error: AxisOperatorError | null) => void;
   tenantId: string;
 }) {
+  const strings = useStrings();
   return (
     <Card className="grid min-w-0 content-start gap-5">
       <div className="grid min-w-0 gap-3">
@@ -335,11 +338,11 @@ function ApprovalDetail({
       <CollapsibleSection defaultOpen label={strings.approvals.sections.risksAlternatives}>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid content-start gap-1.5">
-            <p className="m-0 text-xs font-medium text-muted">Risks</p>
+            <p className="m-0 text-xs font-medium text-muted">{strings.ui.approvalInbox.risks}</p>
             <BulletList items={approval.risks} />
           </div>
           <div className="grid content-start gap-1.5">
-            <p className="m-0 text-xs font-medium text-muted">Alternatives</p>
+            <p className="m-0 text-xs font-medium text-muted">{strings.ui.approvalInbox.alternatives}</p>
             <BulletList items={approval.alternatives} />
           </div>
         </div>
@@ -347,19 +350,19 @@ function ApprovalDetail({
 
       <div aria-hidden="true" className="rule-hairline" />
 
-      <CollapsibleSection label="Decision trail">
+      <CollapsibleSection label={strings.ui.approvalInbox.decisionTrail}>
         <DecisionRail approval={approval} decision={decision} />
       </CollapsibleSection>
 
       <div className="grid gap-3">
         <DetailGrid>
-          <KeyValueRow label="Workflow" mono>
+          <KeyValueRow label={strings.ui.common.workflow} mono>
             <span className="block max-w-full truncate" title={approval.workflow_id}>
               {approval.workflow_id}
             </span>
           </KeyValueRow>
-          <KeyValueRow label="Requested by">{approval.requested_by}</KeyValueRow>
-          <KeyValueRow label="Cost exposure">{approval.estimated_cost}</KeyValueRow>
+          <KeyValueRow label={strings.ui.approvalInbox.requestedBy}>{approval.requested_by}</KeyValueRow>
+          <KeyValueRow label={strings.ui.approvalInbox.costExposure}>{approval.estimated_cost}</KeyValueRow>
         </DetailGrid>
         <InspectDrawer
           record={{ tenant_id: tenantId, ...approval }}
@@ -379,6 +382,7 @@ function ApprovalDetail({
 }
 
 export function ApprovalInbox() {
+  const strings = useStrings();
   const { labelDomain } = useTenantVocabulary();
   const { triggerRefresh } = useConsole();
   const identity = useIdentitySession();
@@ -437,7 +441,7 @@ export function ApprovalInbox() {
   if (identity.source === "unavailable") {
     return (
       <ErrorPanel
-        detail="The approval queue is not loaded until the current actor and tenant are verified."
+        detail={strings.ui.approvalInbox.theApprovalQueueIsNot}
         endpoint="/identity/session"
         reference={identity.errorRequestId ?? undefined}
         onRetry={identity.refetch}
@@ -449,9 +453,9 @@ export function ApprovalInbox() {
   if (identity.source === "api" && !tenantId) {
     return (
       <ErrorPanel
-        detail="The authenticated identity response does not contain a tenant."
+        detail={strings.ui.common.theAuthenticatedIdentityResponseDoes}
         endpoint="/identity/session"
-        title="Authenticated tenant missing"
+        title={strings.ui.common.authenticatedTenantMissing}
       />
     );
   }
@@ -459,7 +463,7 @@ export function ApprovalInbox() {
   if (!inbox) {
     if (source === "loading") {
       return (
-        <div aria-label="Loading approval API" className="grid gap-4">
+        <div aria-label={strings.ui.approvalInbox.loadingApprovalApi} className="grid gap-4">
           <LoadingPanel layout="metrics" rows={3} />
           <MasterDetail
             detail={<LoadingPanel layout="detail" />}
@@ -568,7 +572,7 @@ export function ApprovalInbox() {
   return (
     <div className="grid gap-4">
       <div
-        aria-label="Approval source and status"
+        aria-label={strings.ui.approvalInbox.approvalSourceAndStatus}
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm break-words text-muted">
@@ -585,12 +589,12 @@ export function ApprovalInbox() {
         </div>
       </div>
 
-      <div aria-label="Approval metrics" className={cn("grid grid-cols-3 divide-x divide-line overflow-hidden rounded-xl border border-line bg-surface dark:divide-white/10 dark:border-white/10", detailOpen && "hidden lg:grid")} role="list">
+      <div aria-label={strings.ui.approvalInbox.approvalMetrics} className={cn("grid grid-cols-3 divide-x divide-line overflow-hidden rounded-xl border border-line bg-surface dark:divide-white/10 dark:border-white/10", detailOpen && "hidden lg:grid")} role="list">
         {metrics.map((metric) => (
           <div className="grid min-w-0 gap-1 px-3 py-3 sm:px-4" key={metric.label} role="listitem">
             <p className="m-0 text-xs font-medium text-muted">{metric.label}</p>
             <p className="m-0 text-xl font-medium tabular-nums text-ink">
-              <span className="sr-only">{metric.tone === "ready" ? "Ready:" : metric.tone === "watch" ? "Needs watching:" : "Action required:"} </span>
+              <span className="sr-only">{metric.tone === "ready" ? strings.ui.approvalInbox.ready : metric.tone === "watch" ? strings.ui.approvalInbox.needsWatching : strings.ui.approvalInbox.actionRequired} </span>
               {formatNumber(Number(metric.value))}
             </p>
             <p className="m-0 hidden text-xs text-muted sm:block">{metric.detail}</p>
@@ -618,8 +622,8 @@ export function ApprovalInbox() {
           <>
           {detailOpen && actionableApprovals.some((approval) => approval.approval_id === selectedApproval.approval_id) && !filteredApprovals.some((approval) => approval.approval_id === selectedApproval.approval_id) ? (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface p-3 text-sm dark:border-white/10">
-              <p className="m-0 text-muted">This linked approval is outside the current queue filters.</p>
-              <button className="min-h-9 cursor-pointer font-medium text-signal" onClick={() => setUrlState({ search: "", risk: "all", domain: "" })} type="button">Clear queue filters</button>
+              <p className="m-0 text-muted">{strings.ui.approvalInbox.thisLinkedApprovalIsOutside}</p>
+              <button className="min-h-9 cursor-pointer font-medium text-signal" onClick={() => setUrlState({ search: "", risk: "all", domain: "" })} type="button">{strings.ui.approvalInbox.clearQueueFilters}</button>
             </div>
           ) : null}
           <ApprovalDetail
@@ -652,7 +656,7 @@ export function ApprovalInbox() {
       />
 
       <Card className="grid content-start gap-3">
-        <Eyebrow>Policy Notes</Eyebrow>
+        <Eyebrow>{strings.ui.approvalInbox.policyNotes}</Eyebrow>
         <div className="grid gap-2">
           {inbox.policy_notes.map((note) => (
             <p className="m-0 text-sm text-muted" key={note}>

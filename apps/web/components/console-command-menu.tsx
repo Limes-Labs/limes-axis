@@ -17,10 +17,11 @@ import {
 import type { ManufacturingAgentRegistry } from "@/lib/agent-demo";
 import { axisFetchParsedJson } from "@/lib/axis-api";
 import type { ManufacturingConnectorRegistry } from "@/lib/connectors-demo";
-import { navGroups } from "@/lib/nav";
+import { useNavGroups } from "@/lib/use-nav-groups";
 import type { OidcConsoleSession } from "@/lib/oidc-session";
 import type { PlatformPolicyRegistry } from "@/lib/platform-policies";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import { buildTenantScopedPath, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { parseManufacturingAgentRegistry } from "@/lib/runtime-contracts/agents";
 import { parseManufacturingConnectorRegistry } from "@/lib/runtime-contracts/connectors";
@@ -46,15 +47,13 @@ type EntityCommand = {
   kind: string;
 };
 
-const copy = strings.commandMenu;
-
 /**
  * Best-effort entity index for the search menu: fetched in parallel when the
  * menu opens; endpoints that fail are silently skipped.
  */
 async function loadEntityCommands(
   session: OidcConsoleSession | null,
-  tenantId: string,
+  tenantId: string, strings: ConsoleStrings,
 ): Promise<EntityCommand[]> {
   const acceptTenant = <T extends { tenant_id: string }>(payload: T | null): T | null =>
     payload?.tenant_id === tenantId ? payload : null;
@@ -117,6 +116,9 @@ export function ConsoleCommandMenu({
   tenantId,
   tenantQueriesEnabled,
 }: CommandMenuProps) {
+  const strings = useStrings();
+  const copy = strings.commandMenu;
+  const navGroups = useNavGroups();
   const router = useRouter();
   const { session } = useOidcConsoleSession();
   const { resolvedTheme, setTheme } = useTheme();
@@ -132,7 +134,7 @@ export function ConsoleCommandMenu({
 
     let cancelled = false;
 
-    void loadEntityCommands(session, tenantId).then((commands) => {
+    void loadEntityCommands(session, tenantId, strings).then((commands) => {
       if (!cancelled) {
         setEntityIndex({ tenantId, commands });
       }
@@ -141,7 +143,7 @@ export function ConsoleCommandMenu({
     return () => {
       cancelled = true;
     };
-  }, [open, session, tenantId, tenantQueriesEnabled]);
+  }, [open, session, strings, tenantId, tenantQueriesEnabled]);
 
   // Never expose a previous principal's results while a new tenant index is
   // loading or identity has become unresolved.
@@ -240,7 +242,7 @@ export function ConsoleCommandMenu({
         ) : null}
       </CommandList>
       <div
-        aria-label="Current API status"
+        aria-label={strings.ui.consoleCommandMenu.currentApiStatus}
         className="flex items-center justify-between border-t border-line px-3.5 py-2 font-mono text-[10.5px] font-medium tracking-[0.16em] text-muted uppercase dark:border-white/10"
       >
         <span>{copy.apiStatus}</span>

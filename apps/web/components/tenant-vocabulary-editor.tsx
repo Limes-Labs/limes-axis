@@ -19,7 +19,8 @@ import {
   type TenantVocabularySet,
 } from "@/lib/platform-tenants";
 import { toAxisOperatorError, type AxisOperatorError } from "@/lib/axis-api";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useTenantVocabulary } from "@/providers/tenant-vocabulary-provider";
 import { InlineOperatorError } from "@/components/ui/inline-operator-error";
@@ -74,7 +75,7 @@ function formsEqual(left: VocabularyFormState, right: VocabularyFormState): bool
   );
 }
 
-function validateForm(form: VocabularyFormState): VocabularyFieldErrors {
+function validateForm(form: VocabularyFormState, strings: ConsoleStrings): VocabularyFieldErrors {
   const copy = strings.tenantVocabulary.validation;
   const errors: VocabularyFieldErrors = {};
 
@@ -121,11 +122,12 @@ function vocabularyFromForm(form: VocabularyFormState): TenantVocabulary {
   };
 }
 
-function sourceLabel(source: ReturnType<typeof useTenantVocabulary>["source"]): string {
+function sourceLabel(source: ReturnType<typeof useTenantVocabulary>["source"], strings: ConsoleStrings): string {
   return strings.tenantVocabulary.source[source];
 }
 
 export function TenantVocabularyEditor({ tenantId }: { tenantId: string }) {
+  const strings = useStrings();
   const { session } = useOidcConsoleSession();
   const {
     tenantId: loadedTenantId,
@@ -237,7 +239,7 @@ export function TenantVocabularyEditor({ tenantId }: { tenantId: string }) {
       return;
     }
 
-    const errors = validateForm(form);
+    const errors = validateForm(form, strings);
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
@@ -334,7 +336,7 @@ export function TenantVocabularyEditor({ tenantId }: { tenantId: string }) {
 
       {!recordReady ? (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
-          {sourceLabel(loadedTenantId === tenantId ? source : "loading")}
+          {sourceLabel(loadedTenantId === tenantId ? source : "loading", strings)}
         </p>
       ) : (
         <>
@@ -514,7 +516,7 @@ export function TenantVocabularyEditor({ tenantId }: { tenantId: string }) {
 
       <Disclosure
         className="mt-4 border-t border-line/60 pt-3 text-sm text-muted dark:border-white/10"
-        title="Vocabulary technical details"
+        title={strings.ui.tenantVocabularyEditor.vocabularyTechnicalDetails}
         variant="plain"
       >
         <div className="grid min-w-0 grid-cols-1 gap-2.5 [&>p]:min-w-0 [&>p]:[overflow-wrap:anywhere]">

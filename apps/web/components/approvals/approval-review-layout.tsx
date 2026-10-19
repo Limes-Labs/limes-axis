@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 /** One review at a time on mobile, with the same queue and detail on desktop. */
 export function ApprovalReviewLayout({ queue, detail, open, approvalId, onBack }: {
@@ -15,6 +15,7 @@ export function ApprovalReviewLayout({ queue, detail, open, approvalId, onBack }
   approvalId?: string;
   onBack: () => void;
 }) {
+  const strings = useStrings();
   const queueRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLElement>(null);
   const previous = useRef({ open: false, approvalId });

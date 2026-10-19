@@ -31,7 +31,8 @@ import {
   type SourceDiscoveryOutcome,
   type SourceVerificationOutcome,
 } from "@/lib/runtime-contracts/connectors";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import { OPERATIONS_API_PREFIX, buildTenantScopedPath } from "@/lib/tenant-scope";
 import type { ConnectorRegistries } from "@/lib/use-connector-registries";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
@@ -58,7 +59,7 @@ type ActivationSelection = {
 };
 
 /** Operator copy per API failure class; unknown reasons stay honest. */
-function sourceOperationErrorCopy(error: AxisOperatorError): string {
+function sourceOperationErrorCopy(error: AxisOperatorError, strings: ConsoleStrings): string {
   const copy = strings.connectors.sourceDiscovery;
   if (error.status === 403) {
     return error.reason === `missing_scope:${SOURCE_DISCOVERY_SCOPE}`
@@ -85,6 +86,7 @@ function driftPillClass(driftState: string): string {
 }
 
 function PrerequisiteRow({ met, label }: { met: boolean; label: string }) {
+  const strings = useStrings();
   const copy = strings.connectors.sourceDiscovery;
   return (
     <li className="flex min-w-0 flex-wrap items-center justify-between gap-2">
@@ -107,6 +109,7 @@ export function ConnectorSourceDiscoveryPanel({
   registries: ConnectorRegistries;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const copy = strings.connectors.sourceDiscovery;
   const activationCopy = strings.connectors.sourceActivation;
   const { session } = useOidcConsoleSession();
@@ -204,7 +207,7 @@ export function ConnectorSourceDiscoveryPanel({
         || caught instanceof AxisApiDecodeError
       ) {
         const operatorError = toAxisOperatorError(caught, copy.genericError);
-        setError({ ...operatorError, message: sourceOperationErrorCopy(operatorError) });
+        setError({ ...operatorError, message: sourceOperationErrorCopy(operatorError, strings) });
       } else {
         setError({
           code: null,

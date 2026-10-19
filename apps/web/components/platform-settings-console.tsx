@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Database } from "lucide-react";
 
 import { ConsolePage } from "@/components/console-page";
+import { LocaleSwitch } from "@/components/locale-switch";
 import { InspectDrawer } from "@/components/ui/inspect-drawer";
 import { Disclosure } from "@/components/ui/disclosure";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
@@ -25,7 +26,7 @@ import {
   type SettingsCheck,
   type SupportDiagnosticsReport,
 } from "@/lib/platform-settings";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import {
   parseAxisReadyReport,
   parseDeploymentReadinessReport,
@@ -51,8 +52,6 @@ const READY_ENDPOINT = "/ready";
 const OIDC_READINESS_ENDPOINT = "/identity/oidc/readiness";
 const DEPLOYMENT_READINESS_ENDPOINT = "/deployment/readiness";
 const SUPPORT_DIAGNOSTICS_ENDPOINT = "/support/diagnostics";
-
-const copy = strings.settings;
 
 const settingsTabs = ["readiness", "identity", "deployment", "support"] as const;
 type SettingsTab = (typeof settingsTabs)[number];
@@ -97,6 +96,7 @@ function PanelState<T>({
   error: { title: string; detail: string };
   children: (data: T) => ReactNode;
 }) {
+  const copy = useStrings().settings;
   if (query.data) {
     return (
       <div className="grid min-w-0 gap-2">
@@ -131,6 +131,7 @@ function CheckList({
 }: {
   checks: ReadonlyArray<SettingsCheck & { production_required?: boolean }>;
 }) {
+  const strings = useStrings();
   return (
     <div className="grid min-w-0 gap-0 border-t border-line/60 pt-1 dark:border-white/10">
       {sortSettingsChecks(checks).map((check) => {
@@ -214,6 +215,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 function ReadyPanel({ query }: { query: SettingsQuery<AxisReadyReport> }) {
+  const copy = useStrings().settings;
   return (
     <PanelState endpoint={READY_ENDPOINT} error={copy.ready.error} query={query}>
       {(report) => (
@@ -268,6 +270,7 @@ function openProductionGates(report: DeploymentReadinessReport) {
 }
 
 function ProductionGatesPanel({ query }: { query: SettingsQuery<DeploymentReadinessReport> }) {
+  const copy = useStrings().settings;
   return (
     <PanelState endpoint={DEPLOYMENT_READINESS_ENDPOINT} error={copy.deployment.error} query={query}>
       {(report) => (
@@ -296,6 +299,7 @@ function ProductionGatesPanel({ query }: { query: SettingsQuery<DeploymentReadin
 }
 
 function OidcPanel({ query }: { query: SettingsQuery<OidcReadinessReport> }) {
+  const copy = useStrings().settings;
   return (
     <PanelState endpoint={OIDC_READINESS_ENDPOINT} error={copy.oidc.error} query={query}>
       {(report) => (
@@ -319,6 +323,7 @@ function OidcPanel({ query }: { query: SettingsQuery<OidcReadinessReport> }) {
 }
 
 function SessionPanel({ query }: { query: SettingsQuery<IdentitySessionReadModel> }) {
+  const copy = useStrings().settings;
   return (
     <PanelState endpoint={IDENTITY_SESSION_ENDPOINT} error={copy.session.error} query={query}>
       {(session) => (
@@ -349,6 +354,7 @@ function SessionPanel({ query }: { query: SettingsQuery<IdentitySessionReadModel
 }
 
 function DeploymentPanel({ query }: { query: SettingsQuery<DeploymentReadinessReport> }) {
+  const copy = useStrings().settings;
   return (
     <PanelState endpoint={DEPLOYMENT_READINESS_ENDPOINT} error={copy.deployment.error} query={query}>
       {(report) => (
@@ -390,6 +396,7 @@ function DeploymentPanel({ query }: { query: SettingsQuery<DeploymentReadinessRe
 }
 
 function SupportPanel({ query }: { query: SettingsQuery<SupportDiagnosticsReport> }) {
+  const copy = useStrings().settings;
   return (
     <PanelState endpoint={SUPPORT_DIAGNOSTICS_ENDPOINT} error={copy.support.error} query={query}>
       {(report) => (
@@ -433,6 +440,7 @@ function SupportPanel({ query }: { query: SettingsQuery<SupportDiagnosticsReport
 }
 
 export function PlatformSettingsConsole() {
+  const copy = useStrings().settings;
   const [urlState, setUrlState] = useConsoleUrlState(settingsUrlSchema);
   const ready = useAxisQuery<AxisReadyReport>(READY_ENDPOINT, { parse: parseAxisReadyReport });
   const oidc = useAxisQuery<OidcReadinessReport>(OIDC_READINESS_ENDPOINT, {
@@ -458,7 +466,7 @@ export function PlatformSettingsConsole() {
   return (
     // The h1 comes from `strings.pages.settings`, so it matches the
     // "Settings" nav label that leads here.
-    <ConsolePage pageKey="settings" sourceLabel={sourceLabel}>
+    <ConsolePage controls={<LocaleSwitch />} pageKey="settings" sourceLabel={sourceLabel}>
       <Tabs
         className="grid min-w-0 gap-1"
         onValueChange={(tab) =>

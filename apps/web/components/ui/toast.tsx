@@ -16,6 +16,7 @@ import Link from "next/link";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/cn";
+import { useStrings } from "@/providers/locale-provider";
 
 /*
  * Lightweight toast system — React context + portal, no dependency. Toasts
@@ -62,6 +63,7 @@ const toneClasses: Record<ToastTone, string> = {
 };
 
 function ToastCard({ toast, onDismiss }: { toast: ToastRecord; onDismiss: (id: number) => void }) {
+  const strings = useStrings();
   const { id } = toast;
   // Hovering or tabbing into a toast holds it open: a 6s auto-dismiss would
   // otherwise pull the card (and its link) out from under the pointer, and
@@ -105,12 +107,12 @@ function ToastCard({ toast, onDismiss }: { toast: ToastRecord; onDismiss: (id: n
             className="mt-1.5 inline-flex text-xs font-medium text-signal hover:underline"
             href={toast.href}
           >
-            {toast.hrefLabel ?? "View details"}
+            {toast.hrefLabel ?? strings.ui.uiToast.viewDetails}
           </Link>
         ) : null}
       </div>
       <button
-        aria-label="Dismiss notification"
+        aria-label={strings.ui.uiToast.dismissNotification}
         className="icon-button h-7 w-7 min-w-7 shrink-0"
         type="button"
         onClick={() => onDismiss(toast.id)}
