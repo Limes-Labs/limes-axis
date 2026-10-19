@@ -17,7 +17,7 @@ import {
   type ApiStatusState,
   type ApiStatusSummary,
 } from "@/lib/api-status";
-import { AXIS_BROWSER_SESSION_SIGNED_OUT_EVENT } from "@/lib/axis-api";
+import { AXIS_BROWSER_SESSION_SIGNED_OUT_EVENT, anyAbortSignal } from "@/lib/axis-api";
 
 type ConsoleContextValue = {
   apiStatus: ApiStatusSummary;
@@ -28,10 +28,14 @@ type ConsoleContextValue = {
 
 const ConsoleContext = createContext<ConsoleContextValue | null>(null);
 
+/** A probe that hangs reports the API as unreachable instead of "Checking". */
+const API_PROBE_TIMEOUT_MS = 5_000;
+
 export async function probeApi(baseUrl: string, signal: AbortSignal) {
+  const probeSignal = anyAbortSignal([signal, AbortSignal.timeout(API_PROBE_TIMEOUT_MS)]);
   const [healthResult, readyResult] = await Promise.allSettled([
-    fetch(`${baseUrl}/health`, { signal, cache: "no-store" }),
-    fetch(`${baseUrl}/ready`, { signal, cache: "no-store" }),
+    fetch(`${baseUrl}/health`, { signal: probeSignal, cache: "no-store" }),
+    fetch(`${baseUrl}/ready`, { signal: probeSignal, cache: "no-store" }),
   ]);
 
   return summarizeApiStatus({
@@ -75,11 +79,9 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
     async function checkApi() {
       const probeId = ++latestProbe;
       try {
-        setApiStatus({
-          state: "checking",
-          label: "Checking",
-          detail: "Probing Axis API health and readiness.",
-        });
+        // Only the first probe shows "Checking". Later probes keep the last
+        // settled status on screen, so the pill doesn't flicker and context
+        // consumers don't re-render every 30 s.
         const nextStatus = await probeApi(apiBaseUrl, controller.signal);
         if (!controller.signal.aborted && probeId === latestProbe) {
           settle(nextStatus);
@@ -94,7 +96,15 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
     function settle(nextStatus: ApiStatusSummary) {
       const previous = settledApiStateRef.current;
       settledApiStateRef.current = nextStatus.state;
-      setApiStatus(nextStatus);
+      // Keep the previous object when nothing changed so the memoized context
+      // value stays referentially stable.
+      setApiStatus((current) =>
+        current.state === nextStatus.state
+        && current.label === nextStatus.label
+        && current.detail === nextStatus.detail
+          ? current
+          : nextStatus,
+      );
       if (previous === "unavailable" && nextStatus.state !== "unavailable") {
         // The API came back after an outage. Every query (identity first —
         // tenant queries wait on it) failed while it was down and nothing else

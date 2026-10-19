@@ -373,6 +373,13 @@ release-bound behavior, not the complete commit history.
 
 ### Changed
 
+- Console API requests now give up after 30 s (`AXIS_REQUEST_TIMEOUT_MS` in
+  `apps/web/lib/axis-api.ts`;
+  per-call `timeoutMs`, `null` to opt out) and the health/readiness probe after
+  5 s, so a hung API shows as unavailable instead of loading forever. The
+  periodic probe no longer flips the status to "Checking" or re-renders every
+  console consumer when the status is unchanged.
+
 - Console first impression and trust (#945): a new tenant now sees guided
   setup instead of error panels when the API answers `TENANT_NOT_FOUND`; the
   console refreshes once when the API comes back after an outage, and error

@@ -76,4 +76,36 @@ describe("ConsoleProvider API recovery", () => {
     });
     expect(screen.getByTestId("console-state")).toHaveTextContent("online:1");
   });
+
+  it("does not re-render consumers when a periodic probe returns the same status", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(null, { status: 200 }));
+    const onRender = vi.fn();
+    function CountingConsumer() {
+      useConsole();
+      onRender();
+      return null;
+    }
+
+    render(
+      <ConsoleProvider>
+        <CountingConsumer />
+        <ConsoleProbe />
+      </ConsoleProvider>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByTestId("console-state")).toHaveTextContent("online:0");
+    const settledRenders = onRender.mock.calls.length;
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(90_000);
+    });
+
+    // Three more probes ran (two fetches each), but none changed the status.
+    expect(fetch).toHaveBeenCalledTimes(8);
+    expect(onRender).toHaveBeenCalledTimes(settledRenders);
+    expect(screen.getByTestId("console-state")).toHaveTextContent("online:0");
+  });
 });
