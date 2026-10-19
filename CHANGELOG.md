@@ -15,13 +15,29 @@ release-bound behavior, not the complete commit history.
   installation remains unverified
   ([#930](https://github.com/Limes-Labs/limes-axis/issues/930)).
 
+- End-to-end portability conformance harness: two isolated deployment facades
+  run the canonical #324/#876 export bundle through the real #877 validation
+  and #878 restore paths with the source permanently disconnected before the
+  destination is touched; zero runtime source access is enforced by the
+  destination view, logical identities/digests/effective permissions are
+  compared against the approved plan, imported audit evidence stays
+  source-origin while new destination actions append separate attributable
+  evidence, and one machine-readable PASS/FAIL/BLOCKED/NOT RUN report carries
+  the exact reason, release and profile per row. `portable` is claimed only
+  on an all-PASS supported profile; missing handlers, planned exclusions,
+  blocked rows or NOT RUN infrastructure yield the narrower
+  `partially_portable`, and corrupt bundles or incompatible versions yield
+  `not_portable` with the exact validator reason
+  ([#879](https://github.com/Limes-Labs/limes-axis/issues/879)).
+
 - Resumable restore runner for portability: persisted run/step state machine
   over versioned component restore ports, dependency-ordered sequencing with
   per-step digest evidence, worker fencing and idempotent retries, quarantine
   and resume of interrupted runs (only identical bundle/plan digests are
   resumed), targets gated on the persisted suspended tenant row (never a
   tenant with lifecycle history) and bound to one bundle, steps settled only
-  by their fencing worker, unsupported plans refused, fail-closed operator authorization, missing handlers recorded as
+  by their fencing worker, unsupported plans refused, fail-closed operator
+  authorization, missing handlers recorded as
   blocked instead of fabricated completion, and activation blockers surfaced
   for the later verification slice
   ([#878](https://github.com/Limes-Labs/limes-axis/issues/878)).
