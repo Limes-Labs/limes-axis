@@ -5,19 +5,32 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import socket
 import zipfile
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    NoEncryption,
+    PrivateFormat,
+)
+from pydantic import ValidationError
 
 from axis_api.assurance_issuance import (
-    ALGORITHM_HMAC_SHA256,
+    ALGORITHM_ED25519,
+    SIGNATURE_SEMANTICS_NOTE,
+    SIGNING_MODE_SELF_HOSTED_ED25519,
     AssuranceIssuanceError,
+    Ed25519PackSigner,
     IssuanceApproval,
-    SelfHostedHmacPackSigner,
-    SigningProfile,
+    IssuedAssurancePack,
+    SignatureProof,
     TrustedVerificationMaterial,
     VerificationClock,
+    issuance_digest,
     issue_assurance_pack,
+    unsigned_issuance_payload,
     verify_assurance_pack_offline,
 )
 from axis_api.assurance_pack_contracts import (
@@ -31,7 +44,16 @@ from axis_api.assurance_packaging import build_assurance_pack
 
 ATTACHMENT = b"pentest-report-2026q3\n"
 CORRECTED_ATTACHMENT = b"pentest-report-2026q3-corrected\n"
-CUSTODY_SECRET = "custody-secret-2026h2"
+_ISSUER_KEY = Ed25519PrivateKey.from_private_bytes(bytes(range(32)))
+_ATTACKER_KEY = Ed25519PrivateKey.from_private_bytes(bytes(range(1, 33)))
+_SIGNER = Ed25519PackSigner("issuance-key-2026h2", _ISSUER_KEY)
+_TRUST = _SIGNER.verification_material()
+
+_CURRENT_CLOCK = VerificationClock(
+    verification_time="2026-09-18",
+    revocation_observed_at="2026-09-15",
+    revocation_state="not_revoked",
+)
 
 
 def _digest(value: bytes) -> str:
@@ -76,6 +98,7 @@ def _manifest(attachment: bytes = ATTACHMENT) -> PackManifest:
                 as_of="2026-09-01",
             ),
         ),
+        issued_on="2026-09-15",
         valid_through="2027-09-01",
     )
 
@@ -93,23 +116,14 @@ class _Scanner:
         return b"sk-live-" not in content
 
 
-class _MemberArtifacts:
-    """Serves attachment bytes extracted from the package under test."""
-
-    def __init__(self, archive: zipfile.ZipFile) -> None:
-        self._names = {name: archive.read(name) for name in archive.namelist()}
-
-    def resolve(self, entry_id: str) -> bytes:
-        return self._names[f"attachments/{entry_id}.bin"]
-
-
 class _RsaSigner:
     """A signer with a custody mode this issuance layer does not approve."""
 
     key_id = "kms-rsa-1"
     algorithm = "rsa-sha256"
+    signing_mode = "kms_rsa"
 
-    def sign_payload(self, payload: dict) -> dict:  # pragma: no cover
+    def sign_payload(self, payload: dict) -> SignatureProof:  # pragma: no cover
         raise AssertionError("unsupported signer must never be invoked")
 
 
@@ -117,10 +131,11 @@ def _assemble(manifest: PackManifest, attachment: bytes):
     return build_assurance_pack(manifest, _Artifacts(attachment), _Scanner())
 
 
-def _approval(manifest: PackManifest) -> IssuanceApproval:
+def _approval(manifest: PackManifest, pack) -> IssuanceApproval:  # noqa: ANN001
     return IssuanceApproval(
         approver_ref="approver.dana",
         manifest_sha256=manifest.digest(),
+        package_sha256=pack.package_sha256,
         audience=manifest.context.audience,
         released_release=manifest.release_snapshot.release,
         released_profile=manifest.release_snapshot.profile,
@@ -130,58 +145,63 @@ def _approval(manifest: PackManifest) -> IssuanceApproval:
 
 def _issue(manifest: PackManifest, attachment: bytes = ATTACHMENT, **kwargs):
     pack = _assemble(manifest, attachment)
-    signer = SelfHostedHmacPackSigner(
-        key_id="issuance-key-2026h2", secret_key=CUSTODY_SECRET
-    )
     record = issue_assurance_pack(
-        pack_id=manifest.pack_id,
-        purpose="Q3 enterprise evidence",
         assembled=pack,
-        approval=kwargs.pop("approval", _approval(manifest)),
-        signer=kwargs.pop("signer", signer),
-        capture_time="2026-09-18T10:00:00Z",
+        approval=kwargs.pop("approval", _approval(manifest, pack)),
+        signer=kwargs.pop("signer", _SIGNER),
+        capture_time="2026-09-18T10:00:00+00:00",
         **kwargs,
     )
     return pack, record
 
 
-def _extracted(pack) -> tuple[PackManifest, _MemberArtifacts]:
-    archive = zipfile.ZipFile(io.BytesIO(pack.package_bytes))
-    manifest = PackManifest.model_validate_json(archive.read("manifest.json"))
-    return manifest, _MemberArtifacts(archive)
-
-
-_TRUST = TrustedVerificationMaterial(
-    key_id="issuance-key-2026h2",
-    algorithm=ALGORITHM_HMAC_SHA256,
-    signing_mode="self_hosted_hmac",
-    secret_key=CUSTODY_SECRET,
-)
-
-_CURRENT_CLOCK = VerificationClock(
-    verification_time="2026-09-18", revocation_observed_at="2026-09-15"
-)
-
-
-def _verify(pack, record, manifest, members, *, trust=_TRUST, clock=_CURRENT_CLOCK,
+def _verify(pack, record, *, trust=_TRUST, clock=_CURRENT_CLOCK,  # noqa: ANN001
             package_bytes=None, issuance_json=None):
     return verify_assurance_pack_offline(
         issuance_json=issuance_json or record.model_dump_json().encode("utf-8"),
         package_bytes=package_bytes or pack.package_bytes,
-        manifest=manifest,
-        artifacts=members,
         trust_material=trust,
         clock=clock,
     )
 
 
+def _rewrite(package_bytes: bytes, replace: dict[str, bytes | None]) -> bytes:
+    buffer = io.BytesIO()
+    with (
+        zipfile.ZipFile(buffer, "w") as target,
+        zipfile.ZipFile(io.BytesIO(package_bytes)) as source,
+    ):
+        for info in source.infolist():
+            content = replace.get(info.filename, source.read(info))
+            if content is not None:
+                target.writestr(info, content)
+    return buffer.getvalue()
+
+
+def _resign(record: IssuedAssurancePack, key: Ed25519PrivateKey, **updates) -> bytes:
+    """Recompute a record with updates and sign it with ``key``."""
+
+    data = record.model_dump(mode="json")
+    data.update(updates)
+    statement = IssuedAssurancePack.model_validate(data)
+    signer = Ed25519PackSigner(statement.signing_profile.key_id, key)
+    proof = signer.sign_payload(unsigned_issuance_payload(statement))
+    data["signature"] = proof.model_dump(mode="json")
+    return json.dumps(data).encode("utf-8")
+
+
 # AC1: a synthetic issued package verifies in an isolated environment with
-# trusted material and no network access — every input is a local argument.
-def test_issued_package_verifies_offline_with_trusted_material():
+# trusted public material and no network access.
+def test_issued_package_verifies_offline_with_trusted_material(monkeypatch):
     manifest = _manifest()
     pack, record = _issue(manifest)
-    extracted, members = _extracted(pack)
-    result = _verify(pack, record, extracted, members)
+
+    def _no_network(*args, **kwargs):  # noqa: ANN002, ANN003
+        raise AssertionError("offline verification must not open sockets")
+
+    monkeypatch.setattr(socket, "socket", _no_network)
+    monkeypatch.setattr(socket, "create_connection", _no_network)
+    result = _verify(pack, record)
     assert result.qualified_result == "verified_current"
     assert result.signature_integrity == "verified"
     assert result.package_integrity == "verified"
@@ -190,94 +210,96 @@ def test_issued_package_verifies_offline_with_trusted_material():
     assert result.revocation_status == "observed_at:2026-09-15"
 
 
-# AC2: a modified attachment fails verification (rebuild the ZIP with a
-# genuinely different attachment member; DEFLATE hides plaintext edits).
+def test_issuance_is_deterministic_and_binds_the_approval():
+    manifest = _manifest()
+    pack, first = _issue(manifest)
+    _, second = _issue(manifest)
+    assert first == second
+    assert first.approver_ref == "approver.dana"
+    assert first.pack_id == manifest.pack_id
+    assert first.package_sha256 == pack.package_sha256
+    assert first.manifest_sha256 == manifest.digest()
+    with pytest.raises(ValidationError):
+        first.pack_id = "other"  # frozen record
+
+
+# AC2: a modified attachment fails verification, even when the record's
+# package digest is recomputed for the tampered archive.
 def test_modified_attachment_fails_verification():
+    pack, record = _issue(_manifest())
+    tampered = _rewrite(pack.package_bytes, {"attachments/pentest.bin": b"tampered-report\n"})
+    assert _verify(pack, record, package_bytes=tampered).package_integrity == "failed"
+
+    rebound = record.model_copy(update={"package_sha256": _digest(tampered)})
+    result = _verify(pack, rebound, package_bytes=tampered)
+    assert result.qualified_result == "failed"
+    assert result.package_integrity == "failed"
+    assert "attachment digest mismatch" in result.notes[-1]
+
+
+# AC2: a modified manifest cannot pass the digest binding.
+def test_modified_manifest_fails_verification():
     manifest = _manifest()
     pack, record = _issue(manifest)
-    extracted, members = _extracted(pack)
-    buffer = io.BytesIO()
-    with (
-        zipfile.ZipFile(buffer, "w") as target,
-        zipfile.ZipFile(io.BytesIO(pack.package_bytes)) as source,
-    ):
-        for name in source.namelist():
-            content = source.read(name)
-            if name == "attachments/pentest.bin":
-                content = b"tampered-report-body\n"
-            target.writestr(name, content)
-    tampered = buffer.getvalue()
-    result = _verify(pack, record, extracted, members, package_bytes=tampered)
+    forged = manifest.model_copy(update={"title": "Rewritten title"})
+    tampered = _rewrite(
+        pack.package_bytes,
+        {"manifest.json": json.dumps(forged.model_dump(mode="json"), sort_keys=True,
+                                     separators=(",", ":")).encode()},
+    )
+    rebound = record.model_copy(update={"package_sha256": _digest(tampered)})
+    result = _verify(pack, rebound, package_bytes=tampered)
     assert result.qualified_result == "failed"
     assert result.package_integrity == "failed"
 
 
-# AC2: a modified manifest (or issuance) cannot pass the digest binding.
-def test_modified_manifest_fails_verification():
-    manifest = _manifest()
-    pack, record = _issue(manifest)
-    extracted, members = _extracted(pack)
-    forged = extracted.model_copy(update={"title": "Rewritten title"})
-    result = _verify(pack, record, forged, members)
+def test_modified_index_and_extra_member_fail_verification():
+    pack, record = _issue(_manifest())
+    for replace in ({"index.md": b"# Fully certified pack\n"},):
+        tampered = _rewrite(pack.package_bytes, replace)
+        rebound = record.model_copy(update={"package_sha256": _digest(tampered)})
+        assert _verify(pack, rebound, package_bytes=tampered).qualified_result == "failed"
+    buffer = io.BytesIO(pack.package_bytes)
+    with zipfile.ZipFile(buffer, "a") as archive:
+        archive.writestr("attachments/extra.bin", b"smuggled")
+    extra = buffer.getvalue()
+    rebound = record.model_copy(update={"package_sha256": _digest(extra)})
+    result = _verify(pack, rebound, package_bytes=extra)
     assert result.qualified_result == "failed"
+    assert "members differ" in result.notes[-1]
 
 
-# AC2: trust material for a different signer identity fails verification.
+# AC2: trust material for a different signer identity or key fails.
 def test_wrong_signer_fails_verification():
-    manifest = _manifest()
-    pack, record = _issue(manifest)
-    extracted, members = _extracted(pack)
-    result = _verify(
-        pack,
-        record,
-        extracted,
-        members,
-        trust=TrustedVerificationMaterial(
-            key_id="other-key",
-            algorithm=ALGORITHM_HMAC_SHA256,
-            signing_mode="self_hosted_hmac",
-            secret_key=CUSTODY_SECRET,
-        ),
-    )
+    pack, record = _issue(_manifest())
+    other_id = _TRUST.model_copy(update={"key_id": "other-key"})
+    result = _verify(pack, record, trust=other_id)
     assert result.qualified_result == "failed"
     assert result.package_integrity == "verified"
+
+    other_key = Ed25519PackSigner("issuance-key-2026h2", _ATTACKER_KEY).verification_material()
+    result = _verify(pack, record, trust=other_key)
+    assert result.qualified_result == "failed"
+    assert result.signature_integrity == "failed"
 
 
 # AC2: an unsupported algorithm fails closed before any signature math.
 def test_unsupported_algorithm_fails_verification():
-    manifest = _manifest()
-    pack, record = _issue(manifest)
-    extracted, members = _extracted(pack)
-    rewritten = record.model_copy(
-        update={
-            "signing_profile": SigningProfile(
-                mode="kms_rsa", key_id="kms-rsa-1", algorithm="rsa-sha256"
-            )
-        }
-    )
-    result = _verify(pack, rewritten, extracted, members)
+    pack, record = _issue(_manifest())
+    payload = json.loads(record.model_dump_json())
+    payload["signing_profile"]["algorithm"] = "hmac-sha256"
+    payload["signature"]["algorithm"] = "hmac-sha256"
+    result = _verify(pack, record, issuance_json=json.dumps(payload).encode())
     assert result.qualified_result == "failed"
+    assert "unsupported signature algorithm" in result.notes[-1]
 
 
-# AC2: a required attachment member missing from the package fails. The
-# record's package digest is re-bound to the stripped archive so the check
-# reaches the membership gate instead of failing earlier on the digest.
+# AC2: a required attachment member missing from the package fails.
 def test_missing_required_attachment_member_fails():
-    manifest = _manifest()
-    pack, record = _issue(manifest)
-    extracted, members = _extracted(pack)
-    buffer = io.BytesIO()
-    with (
-        zipfile.ZipFile(buffer, "w") as archive,
-        zipfile.ZipFile(io.BytesIO(pack.package_bytes)) as source,
-    ):
-        for name in ("manifest.json", "index.md"):
-            archive.writestr(name, source.read(name))
-    stripped = buffer.getvalue()
-    rebound = record.model_copy(
-        update={"package_sha256": hashlib.sha256(stripped).hexdigest()}
-    )
-    result = _verify(pack, rebound, extracted, members, package_bytes=stripped)
+    pack, record = _issue(_manifest())
+    stripped = _rewrite(pack.package_bytes, {"attachments/pentest.bin": None})
+    rebound = record.model_copy(update={"package_sha256": _digest(stripped)})
+    result = _verify(pack, rebound, package_bytes=stripped)
     assert result.qualified_result == "failed"
     assert result.package_integrity == "failed"
     assert "required package member missing" in result.notes[-1]
@@ -285,99 +307,114 @@ def test_missing_required_attachment_member_fails():
 
 # AC2: a tampered issuance record fails.
 def test_tampered_issuance_record_fails():
-    manifest = _manifest()
-    pack, record = _issue(manifest)
-    extracted, members = _extracted(pack)
+    pack, record = _issue(_manifest())
     payload = json.loads(record.model_dump_json())
-    payload["pack_id"] = "pack-enterprise-q4"
-    result = _verify(
-        pack, record, extracted, members,
-        issuance_json=json.dumps(payload).encode("utf-8"),
-    )
+    payload["approver_ref"] = "approver.mallory"
+    result = _verify(pack, record, issuance_json=json.dumps(payload).encode("utf-8"))
     assert result.qualified_result == "failed"
+    assert result.signature_integrity == "failed"
+
+
+def test_malformed_and_oversized_inputs_fail_closed():
+    pack, record = _issue(_manifest())
+    assert _verify(pack, record, issuance_json=b"{").qualified_result == "failed"
+    not_zip = b"not a zip archive"
+    rebound = record.model_copy(update={"package_sha256": _digest(not_zip)})
+    result = _verify(pack, rebound, package_bytes=not_zip)
+    assert result.qualified_result == "failed"
+    assert "not a readable archive" in result.notes[-1]
+    huge = b"\0" * (16 * 1024 * 1024 + 1)
+    assert _verify(pack, record, package_bytes=huge).qualified_result == "failed"
 
 
 # AC5: a forged embedded trust anchor cannot authenticate its own package.
 def test_forged_embedded_anchor_cannot_authenticate():
-    manifest = _manifest()
-    pack, record = _issue(manifest)
-    extracted, members = _extracted(pack)
-    attacker_trust = TrustedVerificationMaterial(
-        key_id="issuance-key-2026h2",
-        algorithm=ALGORITHM_HMAC_SHA256,
-        signing_mode="self_hosted_hmac",
-        secret_key="attacker-secret",
-    )
-    result = _verify(pack, record, extracted, members, trust=attacker_trust)
+    pack, record = _issue(_manifest())
+    # A record cannot carry a trust anchor at all ...
+    payload = json.loads(record.model_dump_json())
+    payload["trust_anchor"] = _ATTACKER_KEY.public_key().public_bytes_raw().hex()
+    assert _verify(
+        pack, record, issuance_json=json.dumps(payload).encode()
+    ).qualified_result == "failed"
+    # ... and a record re-signed by an attacker under the issuer's key id
+    # fails against the separately trusted public key.
+    forged = _resign(record, _ATTACKER_KEY, approver_ref="approver.mallory")
+    result = _verify(pack, record, issuance_json=forged)
     assert result.qualified_result == "failed"
     assert result.signature_integrity == "failed"
 
 
 # AC5: without separately trusted material the result is never verified.
 def test_missing_trust_material_is_untrusted_not_verified():
-    manifest = _manifest()
-    pack, record = _issue(manifest)
-    extracted, members = _extracted(pack)
-    result = _verify(pack, record, extracted, members, trust=None)
+    pack, record = _issue(_manifest())
+    result = _verify(pack, record, trust=None)
     assert result.qualified_result == "untrusted_input"
     assert result.signature_integrity == "unverifiable"
-    assert result.package_integrity == "verified"
+    assert result.package_integrity == "consistent_unauthenticated"
     assert "embedded key cannot authenticate" in result.notes[-1]
 
 
 # AC5: stale revocation information cannot yield an unqualified result.
-def test_stale_revocation_information_quals_not_current():
-    manifest = _manifest()
-    pack, record = _issue(manifest)
-    extracted, members = _extracted(pack)
-    stale_clock = VerificationClock(
-        verification_time="2026-09-18",
-        revocation_observed_at="2026-06-01",
-    )
-    result = _verify(pack, record, extracted, members, clock=stale_clock)
+def test_stale_revocation_information_qualifies_not_current():
+    pack, record = _issue(_manifest())
+    stale_clock = _CURRENT_CLOCK.model_copy(update={"revocation_observed_at": "2026-06-01"})
+    result = _verify(pack, record, clock=stale_clock)
     assert result.qualified_result == "verified_but_qualified"
     assert result.revocation_status == "stale_revocation_information"
 
 
+def test_observed_revocation_blocks_current_reuse():
+    pack, record = _issue(_manifest())
+    revoked = _CURRENT_CLOCK.model_copy(update={"revocation_state": "revoked_for_future_use"})
+    result = _verify(pack, record, clock=revoked)
+    assert result.qualified_result == "verified_but_qualified"
+    assert result.revocation_status == "revoked_for_future_use"
+    assert result.signature_integrity == "verified"
+
+
 # AC5: no revocation information or an uncertain clock stays qualified.
 def test_uncertain_clock_and_missing_revocation_stay_qualified():
-    manifest = _manifest()
-    pack, record = _issue(manifest)
-    extracted, members = _extracted(pack)
-    no_clock = _verify(pack, record, extracted, members, clock=None)
+    pack, record = _issue(_manifest())
+    no_clock = _verify(pack, record, clock=None)
     assert no_clock.qualified_result == "verified_but_qualified"
     assert no_clock.clock_status == "uncertain"
     assert no_clock.revocation_status == "no_current_revocation_information"
-    time_only = _verify(
-        pack, record, extracted, members,
-        clock=VerificationClock(verification_time="2026-09-18"),
-    )
+    time_only = _verify(pack, record, clock=VerificationClock(verification_time="2026-09-18"))
     assert time_only.qualified_result == "verified_but_qualified"
+    no_state = _verify(
+        pack, record,
+        clock=_CURRENT_CLOCK.model_copy(update={"revocation_state": None}),
+    )
+    assert no_state.revocation_status == "no_current_revocation_information"
+    future = _verify(
+        pack, record,
+        clock=_CURRENT_CLOCK.model_copy(update={"revocation_observed_at": "2026-10-01"}),
+    )
+    assert future.qualified_result == "verified_but_qualified"
+    garbled = _verify(
+        pack, record,
+        clock=_CURRENT_CLOCK.model_copy(update={"verification_time": "soon"}),
+    )
+    assert garbled.clock_status == "uncertain"
+    assert garbled.qualified_result == "verified_but_qualified"
 
 
 # AC3: evidence expiring after issuance blocks current reuse while the exact
 # historical package keeps its valid historical signature result.
 def test_expiry_blocks_current_reuse_but_preserves_history():
-    manifest = _manifest()
-    pack, record = _issue(manifest)
-    extracted, members = _extracted(pack)
+    pack, record = _issue(_manifest())
     issuance_bytes = record.model_dump_json().encode("utf-8")
 
-    before = _verify(pack, record, extracted, members,
-                     clock=VerificationClock(
-                         verification_time="2027-08-31",
-                         revocation_observed_at="2027-08-28",
-                     ))
-    after = _verify(pack, record, extracted, members,
-                    clock=VerificationClock(
-                        verification_time="2027-09-02",
-                        revocation_observed_at="2027-08-28",
-                    ))
-    again = _verify(pack, record, extracted, members,
-                    clock=VerificationClock(
-                        verification_time="2027-08-31",
-                        revocation_observed_at="2027-08-28",
-                    ))
+    def at(day: str) -> VerificationClock:
+        return VerificationClock(
+            verification_time=day,
+            revocation_observed_at="2027-08-28",
+            revocation_state="not_revoked",
+        )
+
+    before = _verify(pack, record, clock=at("2027-08-31"))
+    after = _verify(pack, record, clock=at("2027-09-02"))
+    again = _verify(pack, record, clock=at("2027-08-31"))
     assert before.qualified_result == "verified_current"
     assert after.qualified_result == "verified_but_qualified"
     assert after.evidence_freshness == "expired"
@@ -389,86 +426,93 @@ def test_expiry_blocks_current_reuse_but_preserves_history():
 # AC4: a corrected answer creates an explicitly superseding issue while the
 # previous issue stays independently verifiable.
 def test_superseding_issue_keeps_previous_verifiable():
-    original_manifest = _manifest()
-    original_pack, original_record = _issue(original_manifest)
-    original_extracted, original_members = _extracted(original_pack)
-
-    corrected_manifest = _manifest(CORRECTED_ATTACHMENT)
+    original_pack, original_record = _issue(_manifest())
     corrected_pack, corrected_record = _issue(
-        corrected_manifest,
+        _manifest(CORRECTED_ATTACHMENT),
         CORRECTED_ATTACHMENT,
-        supersedes=(original_record.pack_id,),
+        supersedes=(issuance_digest(original_record),),
     )
-    corrected_extracted, corrected_members = _extracted(corrected_pack)
 
     assert corrected_record.manifest_sha256 != original_record.manifest_sha256
     assert corrected_record.package_sha256 != original_record.package_sha256
-    assert corrected_record.lifecycle.supersession == (original_record.pack_id,)
-    assert original_record.lifecycle.supersession == ()
+    assert corrected_record.lifecycle.supersedes == (issuance_digest(original_record),)
+    assert original_record.lifecycle.supersedes == ()
 
-    original_result = _verify(
-        original_pack, original_record, original_extracted, original_members
-    )
-    corrected_result = _verify(
-        corrected_pack, corrected_record, corrected_extracted, corrected_members
-    )
-    assert original_result.qualified_result == "verified_current"
-    assert corrected_result.qualified_result == "verified_current"
+    assert _verify(original_pack, original_record).qualified_result == "verified_current"
+    assert _verify(corrected_pack, corrected_record).qualified_result == "verified_current"
 
 
 # AC3/AC4: lifecycle facts are recorded as separate explicit fields.
 def test_lifecycle_fields_are_separate_and_explicit():
     _, record = _issue(_manifest())
-    assert record.lifecycle.capture_time == "2026-09-18T10:00:00Z"
+    assert record.lifecycle.capture_time == "2026-09-18T10:00:00+00:00"
     assert record.lifecycle.valid_through == "2027-09-01"
     assert record.lifecycle.revocation_status == "not_revoked"
-    assert record.lifecycle.supersession == ()
+    assert record.lifecycle.supersedes == ()
+
+
+def test_issuance_rejects_invalid_capture_time():
+    manifest = _manifest()
+    pack = _assemble(manifest, ATTACHMENT)
+    with pytest.raises(AssuranceIssuanceError) as excinfo:
+        issue_assurance_pack(
+            assembled=pack,
+            approval=_approval(manifest, pack),
+            signer=_SIGNER,
+            capture_time="yesterday-ish",
+        )
+    assert excinfo.value.code == AssuranceIssuanceError.INVALID_INPUT
 
 
 # Issuance gate: an approval not covering this exact package is refused.
-def test_issuance_rejects_approval_not_covering_package():
+@pytest.mark.parametrize("field", ["manifest_sha256", "package_sha256", "audience"])
+def test_issuance_rejects_approval_not_covering_package(field):
     manifest = _manifest()
     pack = _assemble(manifest, ATTACHMENT)
-    signer = SelfHostedHmacPackSigner(
-        key_id="issuance-key-2026h2", secret_key=CUSTODY_SECRET
-    )
+    value = "other-audience" if field == "audience" else _digest(b"other")
+    approval = _approval(manifest, pack).model_copy(update={field: value})
     with pytest.raises(AssuranceIssuanceError) as excinfo:
         issue_assurance_pack(
-            pack_id=manifest.pack_id,
-            purpose="Q3 enterprise evidence",
             assembled=pack,
-            approval=IssuanceApproval(
-                approver_ref="approver.dana",
-                manifest_sha256=_digest(b"other-manifest"),
-                audience=manifest.context.audience,
-                released_release=manifest.release_snapshot.release,
-                released_profile=manifest.release_snapshot.profile,
-                recheck={"soc2": "current", "pentest": "current"},
-            ),
-            signer=signer,
-            capture_time="2026-09-18T10:00:00Z",
+            approval=approval,
+            signer=_SIGNER,
+            capture_time="2026-09-18T10:00:00+00:00",
         )
     assert excinfo.value.code == AssuranceIssuanceError.APPROVAL_MISMATCH
+
+
+def test_issuance_rejects_inconsistent_assembled_package():
+    manifest = _manifest()
+    pack = _assemble(manifest, ATTACHMENT)
+
+    class _Forged:
+        manifest = pack.manifest
+        package_sha256 = pack.package_sha256
+        package_bytes = pack.package_bytes + b"x"
+
+    with pytest.raises(AssuranceIssuanceError) as excinfo:
+        issue_assurance_pack(
+            assembled=_Forged(),
+            approval=_approval(manifest, pack),
+            signer=_SIGNER,
+            capture_time="2026-09-18T10:00:00+00:00",
+        )
+    assert excinfo.value.code == AssuranceIssuanceError.NOT_ASSEMBLED
 
 
 # Issuance gate: support drift between approval and signing time is refused.
 def test_issuance_rejects_stale_support_at_sign_time():
     manifest = _manifest()
     pack = _assemble(manifest, ATTACHMENT)
-    signer = SelfHostedHmacPackSigner(
-        key_id="issuance-key-2026h2", secret_key=CUSTODY_SECRET
-    )
-    approval = _approval(manifest).model_copy(
+    approval = _approval(manifest, pack).model_copy(
         update={"recheck": {"soc2": "superseded_answer", "pentest": "current"}}
     )
     with pytest.raises(AssuranceIssuanceError) as excinfo:
         issue_assurance_pack(
-            pack_id=manifest.pack_id,
-            purpose="Q3 enterprise evidence",
             assembled=pack,
             approval=approval,
-            signer=signer,
-            capture_time="2026-09-18T10:00:00Z",
+            signer=_SIGNER,
+            capture_time="2026-09-18T10:00:00+00:00",
         )
     assert excinfo.value.code == AssuranceIssuanceError.STALE_SUPPORT
 
@@ -479,33 +523,38 @@ def test_issuance_rejects_unsupported_signer():
     pack = _assemble(manifest, ATTACHMENT)
     with pytest.raises(AssuranceIssuanceError) as excinfo:
         issue_assurance_pack(
-            pack_id=manifest.pack_id,
-            purpose="Q3 enterprise evidence",
             assembled=pack,
-            approval=_approval(manifest),
+            approval=_approval(manifest, pack),
             signer=_RsaSigner(),
-            capture_time="2026-09-18T10:00:00Z",
+            capture_time="2026-09-18T10:00:00+00:00",
         )
     assert excinfo.value.code == AssuranceIssuanceError.UNSUPPORTED_SIGNER
 
 
-# Security: no custody secret in the record, the package or the signature.
+# Security: no private key material in the record, the package or the
+# distributed verification material.
 def test_issuance_never_carries_secret_material():
-    manifest = _manifest()
-    pack, record = _issue(manifest)
+    pack, record = _issue(_manifest())
+    private = _ISSUER_KEY.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
     record_json = record.model_dump_json()
-    assert CUSTODY_SECRET not in record_json
-    assert CUSTODY_SECRET.encode("utf-8") not in pack.package_bytes
-    assert record.signature.algorithm == ALGORITHM_HMAC_SHA256
-    assert record.signing_profile.mode == "self_hosted_hmac"
+    for blob in (record_json.encode(), pack.package_bytes, _TRUST.model_dump_json().encode()):
+        assert private not in blob
+        assert private.hex().encode() not in blob
+    assert "private" not in repr(_SIGNER).lower()
+    assert record.signature.algorithm == ALGORITHM_ED25519
+    assert record.signing_profile.mode == SIGNING_MODE_SELF_HOSTED_ED25519
+    assert set(TrustedVerificationMaterial.model_fields) == {
+        "key_id", "algorithm", "signing_mode", "public_key",
+    }
 
 
 # AC6: the wording bounds what a signature proves, everywhere it is shown.
 def test_signature_wording_is_bounded():
-    manifest = _manifest()
-    pack, record = _issue(manifest)
-    extracted, members = _extracted(pack)
-    note = _verify(pack, record, extracted, members).signature_semantics_note()
+    pack, record = _issue(_manifest())
+    result = _verify(pack, record)
+    note = result.signature_semantics_note()
+    assert note == SIGNATURE_SEMANTICS_NOTE
+    assert SIGNATURE_SEMANTICS_NOTE in result.notes
     assert "integrity" in note
     assert "provenance" in note
     assert "not regulatory certification" in note
