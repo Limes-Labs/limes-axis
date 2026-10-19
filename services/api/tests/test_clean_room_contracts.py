@@ -60,12 +60,18 @@ def _parties() -> tuple[Party, ...]:
     )
 
 
-def _approval(party_id: str, organization: str, at: str = "2026-09-01T10:00:00Z") -> PartyApproval:
+def _approval(
+    party_id: str,
+    organization: str,
+    at: str = "2026-09-01T10:00:00Z",
+    terms: str | None = None,
+) -> PartyApproval:
     return PartyApproval(
         party_id=party_id,
         decided_by_organization=organization,
         decided_at=at,
         authority_ref=f"{organization}/board/2026-clean-room",
+        terms_digest=terms or _agreement().terms_digest(),
     )
 
 
@@ -148,7 +154,7 @@ def test_readiness_surfaces_exact_gaps() -> None:
     assert digest == bare.digest()
     assert not ready
     assert "input_classes_undeclared" in blocking
-    assert "governance_references_recorded" in blocking
+    assert "governance_references_missing" in blocking
     assert "confidential_compute_attestation_required" in blocking
 
 
@@ -162,6 +168,7 @@ def test_authority_ref_must_match_the_signing_organization() -> None:
             decided_by_organization="initech",
             decided_at="2026-09-01T10:00:00Z",
             authority_ref="globex/board/2026",
+            terms_digest="a" * 64,
         )
 
 
@@ -345,6 +352,7 @@ def test_guest_membership_does_not_substitute_domain_approval() -> None:
                     decided_by_organization="guest-vendor",
                     decided_at="2026-09-01T10:00:00Z",
                     authority_ref="guest-vendor/board/2026",
+                    terms_digest=_agreement().terms_digest(),
                 ),
             )
         )
@@ -429,3 +437,104 @@ def test_parse_reports_malformed_payload_with_safe_code() -> None:
     with pytest.raises(CleanRoomError) as blocked:
         parse_clean_room_agreement("not-an-agreement")
     assert blocked.value.code == CleanRoomError.INVALID_AGREEMENT
+
+
+# --- review hardening ---------------------------------------------------------
+
+
+def test_one_organization_cannot_enrol_twice_to_self_approve() -> None:
+    sock_puppet = Party(
+        party_id="party-acme-two",
+        organization="acme",
+        domain="acme-two.example.com",
+        roles=("data_contributor",),
+        owner_contact="ops@acme.example.com",
+        contributes_inputs=True,
+    )
+    with pytest.raises(ValidationError, match="duplicate_clean_room_party"):
+        _agreement(parties=(_parties()[0], sock_puppet))
+    same_domain = sock_puppet.model_copy(
+        update={"organization": "acme-two", "domain": "acme.example.com"}
+    )
+    with pytest.raises(ValidationError, match="duplicate_clean_room_party"):
+        _agreement(parties=(_parties()[0], same_domain))
+
+
+def test_authority_ref_prefix_requires_the_organization_separator() -> None:
+    with pytest.raises(ValidationError, match="approval_not_by_party_owner"):
+        PartyApproval(
+            party_id="party-acme",
+            decided_by_organization="acme",
+            decided_at="2026-09-01T10:00:00Z",
+            authority_ref="acme-evil/board/2026",
+            terms_digest="a" * 64,
+        )
+
+
+def test_approvals_cannot_be_copied_onto_amended_terms() -> None:
+    approved = _fully_approved()
+    amended = amend_agreement(
+        approved,
+        {"governance_refs": ("legal/dpa-2026-12",)},
+        kind="purpose",
+    )
+    payload = amended.model_dump(mode="json")
+    payload["approvals"] = [approval.model_dump(mode="json") for approval in approved.approvals]
+    with pytest.raises(ValidationError, match="approval_not_for_these_terms"):
+        AgreementRevision.model_validate(payload)
+
+
+def test_parsed_activation_without_approvals_is_refused() -> None:
+    activated = activate_agreement(_fully_approved(), now="2026-09-02T08:00:00Z")
+    payload = activated.model_dump(mode="json")
+    payload["approvals"] = payload["approvals"][:1]
+    with pytest.raises(CleanRoomError) as blocked:
+        parse_clean_room_agreement(payload)
+    assert blocked.value.code == CleanRoomError.INVALID_AGREEMENT
+    with pytest.raises(ValidationError, match="agreement_not_executable"):
+        AgreementRevision.model_validate(payload)
+
+
+def test_activation_cannot_precede_approvals() -> None:
+    with pytest.raises(ValidationError, match="precede the approvals"):
+        activate_agreement(_fully_approved(), now="2026-08-31T08:00:00Z")
+
+
+def test_activation_refuses_structural_readiness_gaps() -> None:
+    bare = _agreement(governance_refs=())
+    approvals = tuple(
+        _approval(party.party_id, party.organization, terms=bare.terms_digest())
+        for party in bare.parties
+    )
+    with pytest.raises(CleanRoomError) as blocked:
+        activate_agreement(
+            bare.model_copy(update={"approvals": approvals}), now="2026-09-02T08:00:00Z"
+        )
+    assert blocked.value.code == CleanRoomError.NOT_EXECUTABLE
+
+
+def test_amendment_cannot_rewrite_identity_or_approvals() -> None:
+    with pytest.raises(ValueError, match="identity, lifecycle or approvals"):
+        amend_agreement(
+            _fully_approved(),
+            {"governance_refs": ("legal/dpa-2026-12",), "host_organization": "globex"},
+            kind="purpose",
+        )
+
+
+def test_execution_gate_rejects_malformed_dates() -> None:
+    activated = activate_agreement(_fully_approved(), now="2026-09-02T08:00:00Z")
+    assert not authorizes_execution(activated, on_date="2026-09-10x")
+    assert not authorizes_execution(activated, on_date="2026-1")
+
+
+def test_purpose_items_and_boundary_refs_are_bounded() -> None:
+    with pytest.raises(ValidationError):
+        PurposeScope(intents=("x" * 501,), statement="s")
+    with pytest.raises(ValidationError):
+        IsolationProfile(
+            compute="isolated_job",
+            egress="review_gate",
+            tenant_boundary_refs=("https://elsewhere.example/tenant",),
+            retention_days=30,
+        )

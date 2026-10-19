@@ -25,6 +25,8 @@ never rendered.
   participant data.
 - The host must itself be a party; a clean room without contributing
   parties is not a clean room.
+- Organizations and domains are unique across parties: one organization
+  cannot enrol itself twice and then supply every "independent" approval.
 
 ## Purpose and classes as enforcement inputs
 
@@ -43,18 +45,29 @@ never rendered.
 
 - `PartyApproval` records one party's sign-off signed by **its own
   organization**, with an `authority_ref` that must cite the signing
-  organization. Forging another party's approval, signing from an
-  organization outside the agreement, and duplicate approvals are all
-  construction failures (`approval_not_by_party_owner`,
-  `unknown_clean_room_party`).
-- `activate_agreement` requires every party's record; a lone signature can
-  never activate anything. `agreement_readiness` exposes the exact blocking
-  gaps (missing approvals by party, undeclared input classes, governance
-  references, confidential-compute attestation) before approval.
+  organization (`<organization>/...`), and a `terms_digest` that must equal
+  `AgreementRevision.terms_digest()` — the digest of every field except
+  lifecycle and approval evidence. Forging another party's approval, signing
+  from an organization outside the agreement, duplicate approvals and
+  approvals copied from other terms or revisions are all construction
+  failures (`approval_not_by_party_owner`, `unknown_clean_room_party`,
+  `approval_not_for_these_terms`). The organization is recorded evidence;
+  authenticating that the signer really acts for it belongs to the approval
+  workflow slice, not this contract.
+- Activated states (`approved_current`, `suspended`, `expired`,
+  `terminated`, `archived`) require every party's approval and an
+  `activated_at` no earlier than any approval, also when parsed from an
+  untrusted payload. `agreement_readiness` exposes the exact blocking gaps
+  (missing approvals by party, undeclared input classes,
+  `governance_references_missing`, confidential-compute attestation);
+  `activate_agreement` refuses every gap except the confidential-compute
+  attestation, which is runtime evidence the compute slice must still
+  verify before running anything.
 
 ## Material amendment invalidates approvals
 
-`amend_agreement` refuses non-material changes and, for material ones
+`amend_agreement` refuses non-material changes and changes to identity,
+lifecycle or approval fields and, for material ones
 (participants, purpose, input/output classes, isolation, validity,
 governance), produces a new revision with **empty approvals** and no
 activation timestamp — nothing is silently carried forward. Prior revisions
@@ -64,13 +77,21 @@ stay untouched with their historical approval evidence.
 
 - `suspend_agreement` / `terminate_agreement` stamp when execution stopped;
   `authorizes_execution` returns true only for a current agreement inside
-  its validity window — expiry and suspension block new computation at
+  its validity window (a malformed `on_date` is refused, not compared) —
+  expiry and suspension block new computation at
   contract level regardless of session validity or cleanup-worker lag.
 - `remove_party` amends the agreement (pruning that party's input classes)
   and returns the **historical digest** released-result and audit records
   must keep citing; the removed party's inputs become unusable in the new
   revision while historical evidence survives. A clean room never drops
   below two parties.
+
+## Not covered by this slice
+
+`metadata_visibility` is recorded, but no projection for non-participants is
+implemented here; visibility enforcement belongs to the API slice that
+serves agreement metadata. The `expiring` lifecycle state, quotas/budgets and
+notifications from the issue scope are not modeled yet.
 
 ## Round-trips at untrusted boundaries
 

@@ -31,7 +31,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Literal
+from typing import Annotated, Literal
 
 from axis_sdk.connector_authoring.contracts import ContractModel, Digest
 from pydantic import Field, ValidationError, model_validator
@@ -59,9 +59,28 @@ _RESOURCE_PREFIX = r"^[a-z][a-z0-9._-]{2,63}$"
 # Governance/handling citations are document paths (policy/..., legal/...).
 _REF_PATH = r"^[a-z][a-z0-9._/-]{2,99}$"
 _REF_PATH_OK = re.compile(_REF_PATH)
-_REVISION = r"^\d+$"
-_DATE = r"^\d{4}-\d{2}-\d{2}$"
-_TIMESTAMP = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
+# ASCII digits only: ``\d`` admits other Unicode digits, which would break
+# the lexicographic date/timestamp comparisons below.
+_REVISION = r"^[1-9][0-9]{0,8}$"
+_DATE = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+_DATE_OK = re.compile(_DATE)
+_TIMESTAMP = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+
+_PurposeItem = Annotated[str, Field(min_length=1, max_length=_MAX_TEXT)]
+_RefPath = Annotated[str, Field(pattern=_REF_PATH)]
+
+#: Fields that carry the agreement's lifecycle and approval evidence rather
+#: than its terms. Approvals sign the digest of everything else.
+_NON_TERM_FIELDS = frozenset(
+    {"state", "approvals", "activated_at", "suspended_at", "terminated_at"}
+)
+#: Identity fields an amendment can never rewrite.
+_AMENDMENT_FORBIDDEN = _NON_TERM_FIELDS | {
+    "format", "schema_version", "agreement_id", "revision", "host_organization"
+}
+_ACTIVATED_STATES = frozenset(
+    {"approved_current", "suspended", "expired", "terminated", "archived"}
+)
 
 PartyRole = Literal[
     "data_contributor", "analyst", "result_reviewer", "administrator", "auditor"
@@ -91,6 +110,7 @@ class CleanRoomError(ValueError):
     DUPLICATE_PARTY = "duplicate_clean_room_party"
     UNKNOWN_PARTY = "unknown_clean_room_party"
     NOT_EXECUTABLE = "agreement_not_executable"
+    STALE_APPROVAL = "approval_not_for_these_terms"
 
     def __init__(self, code: str) -> None:
         self.code = code
@@ -150,8 +170,8 @@ class Party(ContractModel):
 class PurposeScope(ContractModel):
     """Versioned purpose/use-case; an enforcement input, not prose."""
 
-    intents: tuple[str, ...] = Field(min_length=1, max_length=_MAX_PURPOSE_ITEMS)
-    prohibited_uses: tuple[str, ...] = Field(default=(), max_length=_MAX_PURPOSE_ITEMS)
+    intents: tuple[_PurposeItem, ...] = Field(min_length=1, max_length=_MAX_PURPOSE_ITEMS)
+    prohibited_uses: tuple[_PurposeItem, ...] = Field(default=(), max_length=_MAX_PURPOSE_ITEMS)
     statement: str = Field(min_length=1, max_length=_MAX_TEXT)
 
 
@@ -160,7 +180,7 @@ class IsolationProfile(ContractModel):
 
     compute: ComputeMode
     egress: EgressMode
-    tenant_boundary_refs: tuple[str, ...] = Field(min_length=1, max_length=8)
+    tenant_boundary_refs: tuple[_RefPath, ...] = Field(min_length=1, max_length=8)
     retention_days: int = Field(ge=1, strict=True, le=_MAX_RETENTION_DAYS)
     requires_confidential_compute: bool = False
 
@@ -197,16 +217,21 @@ class PartyApproval(ContractModel):
     Another organization recording an approval on this party's behalf is a
     construction failure; a lone party's signature can never activate the
     agreement because activation requires every party's record.
+    ``terms_digest`` binds the approval to the exact terms it signed
+    (:meth:`AgreementRevision.terms_digest`), so an approval cannot be copied
+    onto a different revision or onto amended terms.
     """
 
     party_id: str = Field(pattern=_IDENTIFIER)
     decided_by_organization: str = Field(pattern=_ORG)
     decided_at: str = Field(pattern=_TIMESTAMP, min_length=20, max_length=40)
     authority_ref: str = Field(min_length=3, max_length=_MAX_TEXT)
+    terms_digest: Digest
 
     @model_validator(mode="after")
     def party_owned_signature(self) -> PartyApproval:
-        if not self.authority_ref.startswith(self.decided_by_organization):
+        # Require the separator so ``acme`` cannot cite ``acme-evil/...``.
+        if not self.authority_ref.startswith(f"{self.decided_by_organization}/"):
             raise CleanRoomError(CleanRoomError.FORGED_APPROVAL)
         return self
 
@@ -248,6 +273,12 @@ class AgreementRevision(ContractModel):
         party_ids = [party.party_id for party in self.parties]
         if len(set(party_ids)) != len(party_ids):
             raise CleanRoomError(CleanRoomError.DUPLICATE_PARTY)
+        # One organization (or domain) per party: otherwise one organization
+        # could enrol itself twice and supply every "independent" approval.
+        organizations = [party.organization for party in self.parties]
+        domains = [party.domain for party in self.parties]
+        if len(set(organizations)) != len(organizations) or len(set(domains)) != len(domains):
+            raise CleanRoomError(CleanRoomError.DUPLICATE_PARTY)
         if self.host_organization not in {party.organization for party in self.parties}:
             raise ValueError("The host must itself be a party of the agreement")
         contributing = {party.party_id for party in self.parties if party.contributes_inputs}
@@ -256,7 +287,7 @@ class AgreementRevision(ContractModel):
         for input_class in self.input_classes:
             if not set(input_class.contributing_parties) <= contributing:
                 raise CleanRoomError(CleanRoomError.UNKNOWN_PARTY)
-        if any(not _REF_PATH_OK.match(ref) for ref in self.governance_refs):
+        if any(not _REF_PATH_OK.fullmatch(ref) for ref in self.governance_refs):
             raise ValueError("Governance references are recorded document paths")
         if self.valid_until < self.valid_from:
             raise ValueError("Agreement validity end cannot precede its start")
@@ -264,21 +295,24 @@ class AgreementRevision(ContractModel):
         if len(set(approvals_by_party)) != len(approvals_by_party):
             raise ValueError("Each party approves a revision at most once")
         parties_by_id = {party.party_id: party for party in self.parties}
+        terms_digest = self.terms_digest()
         for approval in self.approvals:
             party = parties_by_id.get(approval.party_id)
             if party is None:
                 raise CleanRoomError(CleanRoomError.UNKNOWN_PARTY)
             if approval.decided_by_organization != party.organization:
                 raise CleanRoomError(CleanRoomError.FORGED_APPROVAL)
-            if approval.decided_by_organization not in {
-                member.organization for member in self.parties
-            }:
-                raise CleanRoomError(CleanRoomError.FORGED_APPROVAL)
-        if self.state in {"approved_current", "suspended", "expired", "terminated", "archived"}:
+            if approval.terms_digest != terms_digest:
+                raise CleanRoomError(CleanRoomError.STALE_APPROVAL)
+        if self.state in _ACTIVATED_STATES:
             if self.activated_at is None:
                 raise ValueError("An activated agreement records its activation timestamp")
-            if self.valid_until < self.valid_from:
-                raise ValueError("Invalid validity window")
+            # Fail closed on parsed payloads too: an activated state without
+            # every party's approval is a fabricated activation.
+            if self.required_approvals():
+                raise CleanRoomError(CleanRoomError.NOT_EXECUTABLE)
+            if any(approval.decided_at > self.activated_at for approval in self.approvals):
+                raise ValueError("Activation cannot precede the approvals it relies on")
         else:
             if self.activated_at is not None:
                 raise ValueError("Only activated states record an activation timestamp")
@@ -294,6 +328,21 @@ class AgreementRevision(ContractModel):
 
     def digest(self) -> Digest:
         return canonical_clean_room_digest(self.model_dump(mode="json"))
+
+    def terms_digest(self) -> Digest:
+        """Digest of the agreement terms each party approval signs.
+
+        Excludes only lifecycle and approval evidence; identity, revision,
+        parties, purpose, classes, isolation, validity and governance are
+        all covered, so any change invalidates existing approvals.
+        """
+
+        payload = {
+            key: value
+            for key, value in self.model_dump(mode="json").items()
+            if key not in _NON_TERM_FIELDS
+        }
+        return canonical_clean_room_digest(payload)
 
     def required_approvals(self) -> frozenset[str]:
         """Parties whose independent sign-off the revision still awaits."""
@@ -319,16 +368,22 @@ def agreement_readiness(agreement: AgreementRevision) -> tuple[Digest, bool, tup
     if agreement.isolation.requires_confidential_compute:
         blocking.append("confidential_compute_attestation_required")
     if not agreement.governance_refs:
-        blocking.append("governance_references_recorded")
+        blocking.append("governance_references_missing")
     return agreement.digest(), not blocking, tuple(blocking)
 
 
 def activate_agreement(agreement: AgreementRevision, *, now: str) -> AgreementRevision:
-    """Activate a revision only when every party approval is present."""
+    """Activate a revision only when every readiness gap is closed.
 
-    if agreement.state not in {"draft", "under_review"}:
-        raise CleanRoomError(CleanRoomError.NOT_EXECUTABLE)
-    if agreement.required_approvals():
+    The confidential-compute attestation is the one gap this contract cannot
+    close: it is evidence of the runtime environment, so the compute slice
+    must still verify it before running anything. Every other readiness gap
+    (missing approvals, undeclared input classes, missing governance
+    references) refuses activation.
+    """
+
+    _, _, blocking = agreement_readiness(agreement)
+    if any(code != "confidential_compute_attestation_required" for code in blocking):
         raise CleanRoomError(CleanRoomError.NOT_EXECUTABLE)
     return AgreementRevision.model_validate(
         {
@@ -365,6 +420,8 @@ def amend_agreement(
     )
     if not _MATERIAL.intersection(changes):
         raise ValueError("Amendment must change at least one material term")
+    if _AMENDMENT_FORBIDDEN.intersection(changes):
+        raise ValueError("Amendments cannot rewrite identity, lifecycle or approvals")
     if kind not in {
         "participants",
         "purpose",
@@ -463,6 +520,8 @@ def authorizes_execution(agreement: AgreementRevision, *, on_date: str) -> bool:
     """
 
     if agreement.state != "approved_current":
+        return False
+    if not isinstance(on_date, str) or not _DATE_OK.fullmatch(on_date):
         return False
     return agreement.valid_from <= on_date <= agreement.valid_until
 

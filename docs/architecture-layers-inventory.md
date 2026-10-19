@@ -42,12 +42,12 @@ collaborations, not permission to import a vertical into shared core.
 | approval-decisions | workflow | trust, operational-model, experience | [`services/api/src/axis_api/approval_decisions.py`](../services/api/src/axis_api/approval_decisions.py) |
 | approval-outbox | workflow | trust | [`services/api/src/axis_api/approval_outbox.py`](../services/api/src/axis_api/approval_outbox.py) |
 | scenario-replay | workflow | trust, operational-model | [`services/api/src/axis_api/replay_simulation.py`](../services/api/src/axis_api/replay_simulation.py) |
+| clean-room-contracts | trust | None | [`services/api/src/axis_api/clean_room_contracts.py`](../services/api/src/axis_api/clean_room_contracts.py) |
 | model-provider-port | intelligence | trust | [`services/api/src/axis_api/model_providers.py`](../services/api/src/axis_api/model_providers.py) |
 | model-invocations | intelligence | trust, operational-model, experience | [`services/api/src/axis_api/model_invocations.py`](../services/api/src/axis_api/model_invocations.py) |
 | agent-runs | intelligence | trust, workflow, operational-model, experience | [`services/api/src/axis_api/agent_runs.py`](../services/api/src/axis_api/agent_runs.py) |
 | reference-vertical | experience | trust, data, operational-model, workflow, intelligence | [`services/api/src/axis_api/manufacturing_operations.py`](../services/api/src/axis_api/manufacturing_operations.py) |
 | legacy-response-contracts | experience | trust, data, operational-model, workflow, intelligence | [`services/api/src/axis_api/demo.py`](../services/api/src/axis_api/demo.py) |
-| clean-room-contracts | trust | None | [`services/api/src/axis_api/clean_room_contracts.py`](../services/api/src/axis_api/clean_room_contracts.py) |
 
 ## Issue snapshot
 
