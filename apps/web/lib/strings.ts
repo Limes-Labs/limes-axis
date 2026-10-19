@@ -1938,6 +1938,25 @@ const ontology = {
         "No ontology entity exists with this id. It may have been renamed or removed from the graph.",
     },
   },
+  entity: {
+    type: "Type",
+    domain: "Domain",
+    source: "Source",
+    attention: {
+      action_required: "Why this needs action",
+      watch: "Why this is on watch",
+      connected: "Connected records that need attention",
+      reviewApprovals: "Review approvals",
+      openWorkflows: "Open workflows",
+    },
+    direction: {
+      inbound: "Incoming",
+      outbound: "Outgoing",
+    },
+    ownerVerification: (owner: string, verification: string) =>
+      `Owner: ${owner} · ${verification}`,
+    evidenceIds: "Evidence references",
+  },
 } as const;
 
 /** Topbar pill marking a tenant that runs the bootstrapped demo scenario. */

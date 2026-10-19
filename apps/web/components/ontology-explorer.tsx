@@ -330,7 +330,10 @@ export function OntologyExplorer() {
                       </p>
                     </td>
                     <td>
-                      {relationship.metadata.owner_role}
+                      <span title={relationship.metadata.owner_role}>
+                        {humanizeIdentifier(relationship.metadata.owner_role)
+                          ?? strings.identifiers.notRecorded}
+                      </span>
                       <p className="m-0 mt-1 font-mono text-xs text-muted">
                         {relationship.metadata.verification_status} /{" "}
                         {relationship.metadata.last_verified_at}
