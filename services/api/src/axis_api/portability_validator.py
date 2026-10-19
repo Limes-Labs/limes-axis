@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import unicodedata
 from collections.abc import Mapping
-from typing import Literal
+from typing import Annotated, Literal
 
 from axis_sdk.connector_authoring.contracts import ContractModel, Digest, Identifier
 from cryptography.exceptions import InvalidSignature
@@ -192,8 +192,17 @@ class PortabilityBundle(ContractModel):
     format: Literal["axis.tenant-portability-bundle"] = BUNDLE_FORMAT
     manifest: PortabilityManifest
     archive: BundleArchive
-    component_payloads: dict[str, tuple[PayloadRecord, ...]] = Field(max_length=64)
+    component_payloads: dict[
+        str, Annotated[tuple[PayloadRecord, ...], Field(max_length=_MAX_PAYLOAD_RECORDS)]
+    ] = Field(max_length=64)
     signature: BundleSignature
+
+    @model_validator(mode="after")
+    def bounded_payloads(self) -> PortabilityBundle:
+        total = sum(len(records) for records in self.component_payloads.values())
+        if total > _MAX_PAYLOAD_RECORDS:
+            raise PortabilityValidationError(PortabilityValidationError.ARCHIVE_TOO_LARGE)
+        return self
 
 
 class IdentityMapping(ContractModel):
@@ -332,6 +341,8 @@ def validate_bundle(
         for records in bundle.component_payloads.values()
         for record in records
     }
+    if len(payload_identities) > _MAX_IDENTITIES:
+        raise PortabilityValidationError(PortabilityValidationError.ARCHIVE_TOO_LARGE)
     identity_mappings: list[IdentityMapping] = []
     for identity in sorted(payload_identities):
         entry = mapping.get(identity)
