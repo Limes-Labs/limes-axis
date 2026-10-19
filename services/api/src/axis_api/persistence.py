@@ -2489,16 +2489,63 @@ class AxisPersistenceRepository:
         workflow_id: str,
         limit: int = 100,
     ) -> list[WorkflowTimelineRecord]:
+        """The newest ``limit`` events of one workflow, oldest first.
+
+        A capped timeline keeps its most recent events: the cap previously
+        kept the oldest and silently dropped what happened last.
+        """
         statement: Select[tuple[WorkflowTimelineRecord]] = (
             select(WorkflowTimelineRecord)
             .where(
                 WorkflowTimelineRecord.tenant_id == tenant_id,
                 WorkflowTimelineRecord.workflow_id == workflow_id,
             )
-            .order_by(WorkflowTimelineRecord.sequence.asc())
+            .order_by(WorkflowTimelineRecord.sequence.desc())
             .limit(limit)
         )
-        return list(self.session.scalars(statement))
+        return list(reversed(list(self.session.scalars(statement))))
+
+    def list_workflow_timeline_events_for_workflows(
+        self,
+        tenant_id: str,
+        workflow_ids: Sequence[str],
+        limit: int = 100,
+    ) -> dict[str, list[WorkflowTimelineRecord]]:
+        """Batched :meth:`list_workflow_timeline_events` for a page of runs.
+
+        One windowed query per 500 workflow ids instead of one query per run;
+        each workflow keeps its newest ``limit`` events, oldest first.
+        """
+        grouped: dict[str, list[WorkflowTimelineRecord]] = {}
+        for chunk in batched(sorted(set(workflow_ids)), 500):
+            rank = (
+                func.row_number()
+                .over(
+                    partition_by=WorkflowTimelineRecord.workflow_id,
+                    order_by=WorkflowTimelineRecord.sequence.desc(),
+                )
+                .label("timeline_rank")
+            )
+            ranked = (
+                select(WorkflowTimelineRecord.id.label("id"), rank)
+                .where(
+                    WorkflowTimelineRecord.tenant_id == tenant_id,
+                    WorkflowTimelineRecord.workflow_id.in_(chunk),
+                )
+                .subquery()
+            )
+            statement = (
+                select(WorkflowTimelineRecord)
+                .join(ranked, ranked.c.id == WorkflowTimelineRecord.id)
+                .where(ranked.c.timeline_rank <= limit)
+                .order_by(
+                    WorkflowTimelineRecord.workflow_id.asc(),
+                    WorkflowTimelineRecord.sequence.asc(),
+                )
+            )
+            for record in self.session.scalars(statement):
+                grouped.setdefault(record.workflow_id, []).append(record)
+        return grouped
 
     def create_replay_simulation_output(
         self,
@@ -3485,6 +3532,32 @@ class AxisPersistenceRepository:
         )
         return result.rowcount == 1
 
+    def renew_connector_source_ingestion_request_lease(
+        self,
+        ingestion_request_id: UUID,
+        claim_token: UUID,
+        *,
+        now: datetime,
+        lease_expires_at: datetime,
+    ) -> bool:
+        """Extend a still-live claim; the same fence as a lease-checked completion.
+
+        Only the current claim holder can renew, and only before its lease has
+        expired: an expired lease may already be reclaimable by another worker,
+        so it is never silently revived.
+        """
+        result = self.session.execute(
+            update(ConnectorSourceIngestionRequest)
+            .where(
+                ConnectorSourceIngestionRequest.id == ingestion_request_id,
+                ConnectorSourceIngestionRequest.claim_token == claim_token,
+                ConnectorSourceIngestionRequest.status == "dispatching",
+                ConnectorSourceIngestionRequest.lease_expires_at > now,
+            )
+            .values(lease_expires_at=lease_expires_at, updated_at=now)
+        )
+        return result.rowcount == 1
+
     def retry_connector_source_ingestion_request(
         self,
         ingestion_request_id: UUID,
@@ -4071,6 +4144,51 @@ class AxisPersistenceRepository:
             .limit(limit)
         )
         return list(self.session.scalars(statement))
+
+    def list_connector_credential_rotations_for_handles(
+        self,
+        tenant_id: str,
+        handle_ids: Sequence[str],
+        limit: int = 100,
+    ) -> dict[str, list[ConnectorCredentialRotation]]:
+        """Batched :meth:`list_connector_credential_rotations` for a page of handles.
+
+        Same ordering and per-handle cap, in one windowed query per 500 handle
+        ids instead of one query per handle.
+        """
+        grouped: dict[str, list[ConnectorCredentialRotation]] = {}
+        for chunk in batched(sorted(set(handle_ids)), 500):
+            rank = (
+                func.row_number()
+                .over(
+                    partition_by=ConnectorCredentialRotation.handle_id,
+                    order_by=(
+                        ConnectorCredentialRotation.rotated_at.desc(),
+                        ConnectorCredentialRotation.created_at.desc(),
+                    ),
+                )
+                .label("rotation_rank")
+            )
+            ranked = (
+                select(ConnectorCredentialRotation.id.label("id"), rank)
+                .where(
+                    ConnectorCredentialRotation.tenant_id == tenant_id,
+                    ConnectorCredentialRotation.handle_id.in_(chunk),
+                )
+                .subquery()
+            )
+            statement = (
+                select(ConnectorCredentialRotation)
+                .join(ranked, ranked.c.id == ConnectorCredentialRotation.id)
+                .where(ranked.c.rotation_rank <= limit)
+                .order_by(
+                    ConnectorCredentialRotation.handle_id.asc(),
+                    ranked.c.rotation_rank.asc(),
+                )
+            )
+            for record in self.session.scalars(statement):
+                grouped.setdefault(record.handle_id, []).append(record)
+        return grouped
 
     def create_connector_credential_lease(
         self,

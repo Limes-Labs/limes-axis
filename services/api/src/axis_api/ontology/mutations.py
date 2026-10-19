@@ -156,6 +156,8 @@ class TypeDBOntologyMutationConfig:
     password: str = "password"
     database: str = "axis"
     tls_enabled: bool = False
+    # The driver default is two hours; a request-path call must not wait that long.
+    request_timeout_millis: int = 10_000
 
 
 class TypeDBOntologyMutationRuntime:
@@ -169,6 +171,7 @@ class TypeDBOntologyMutationRuntime:
                 password=config.password,
                 database=config.database,
                 tls_enabled=config.tls_enabled,
+                request_timeout_millis=config.request_timeout_millis,
             )
         )
 

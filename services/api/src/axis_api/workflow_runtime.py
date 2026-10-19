@@ -1,4 +1,6 @@
 import asyncio
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Protocol
@@ -245,35 +247,88 @@ class TemporalWorkflowSignalConfig:
     address: str = "localhost:7233"
     namespace: str = "default"
     signal_timeout_seconds: float = 2.0
+    connect_backoff_max_seconds: float = 30.0
+
+
+_CONNECT_BACKOFF_BASE_SECONDS = 1.0
+
+
+class TemporalConnectBackoffError(RuntimeError):
+    """A recent Temporal connect failed and the retry window has not elapsed."""
 
 
 class TemporalWorkflowSignalRuntime:
+    """Signal Temporal workflows with a bounded connect and RPC deadline.
+
+    One client is shared by every request. Its creation is serialized by a lock
+    so concurrent requests wait for a single connect attempt, and a failed
+    attempt is negatively cached: requests inside the backoff window fail fast
+    instead of each opening another connect against an unavailable frontend.
+    Connect and signal together are bounded by ``signal_timeout_seconds``.
+    """
+
     adapter_name = "axis-temporal-adapter"
 
-    def __init__(self, config: TemporalWorkflowSignalConfig) -> None:
+    def __init__(
+        self,
+        config: TemporalWorkflowSignalConfig,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         self.config = config
         self._client: Client | None = None
+        self._client_lock = asyncio.Lock()
+        self._clock = clock
+        self._connect_failures = 0
+        self._connect_retry_at: float | None = None
 
     async def client(self) -> Client:
-        if self._client is None:
-            self._client = await Client.connect(
-                self.config.address,
-                namespace=self.config.namespace,
+        if self._client is not None:
+            return self._client
+        async with self._client_lock:
+            if self._client is not None:
+                return self._client
+            if self._connect_retry_at is not None and self._clock() < self._connect_retry_at:
+                raise TemporalConnectBackoffError("temporal_connect_backoff")
+            try:
+                async with asyncio.timeout(self.config.signal_timeout_seconds):
+                    client = await Client.connect(
+                        self.config.address,
+                        namespace=self.config.namespace,
+                    )
+            except BaseException:
+                # Cancellation by the caller's deadline is also a failed attempt.
+                self._record_connect_failure()
+                raise
+            self._client = client
+            self._connect_failures = 0
+            self._connect_retry_at = None
+            return client
+
+    def _record_connect_failure(self) -> None:
+        self._connect_failures += 1
+        delay = min(
+            self.config.connect_backoff_max_seconds,
+            _CONNECT_BACKOFF_BASE_SECONDS * (2 ** (self._connect_failures - 1)),
+        )
+        self._connect_retry_at = self._clock() + delay
+
+    async def _signal(self, workflow_id: str, signal_name: str, payload: dict) -> None:
+        async with asyncio.timeout(self.config.signal_timeout_seconds):
+            client = await self.client()
+            handle = client.get_workflow_handle(workflow_id)
+            await handle.signal(
+                signal_name,
+                payload,
+                rpc_timeout=timedelta(seconds=self.config.signal_timeout_seconds),
             )
-        return self._client
 
     async def signal_approval_decision(
         self,
         request: WorkflowSignalRequest,
     ) -> WorkflowSignalResult:
         try:
-            client = await self.client()
-            handle = client.get_workflow_handle(request.workflow_id)
-            await handle.signal(
-                request.signal_name,
-                request.runtime_payload,
-                rpc_timeout=timedelta(seconds=self.config.signal_timeout_seconds),
-            )
+            await self._signal(request.workflow_id, request.signal_name, request.runtime_payload)
         except RPCError as exc:
             raise WorkflowSignalError(
                 exc.__class__.__name__,
@@ -298,9 +353,9 @@ class TemporalWorkflowSignalRuntime:
         turning the dispatcher into an unbounded long poll.
         """
         try:
-            client = await self.client()
-            handle = client.get_workflow_handle(workflow_id)
             async with asyncio.timeout(self.config.signal_timeout_seconds):
+                client = await self.client()
+                handle = client.get_workflow_handle(workflow_id)
                 result = await handle.result(
                     rpc_timeout=timedelta(seconds=self.config.signal_timeout_seconds)
                 )
@@ -315,12 +370,10 @@ class TemporalWorkflowSignalRuntime:
         request: WorkflowActionSignalRequest,
     ) -> WorkflowSignalResult:
         try:
-            client = await self.client()
-            handle = client.get_workflow_handle(request.workflow_id)
-            await handle.signal(
+            await self._signal(
+                request.workflow_id,
                 request.signal_name,
                 _with_trace_context(request.runtime_payload),
-                rpc_timeout=timedelta(seconds=self.config.signal_timeout_seconds),
             )
         except (OSError, RuntimeError, TemporalError, RPCError) as exc:
             raise WorkflowSignalError(exc.__class__.__name__) from exc
@@ -338,12 +391,10 @@ class TemporalWorkflowSignalRuntime:
         request: WorkflowConnectorManualImportSignalRequest,
     ) -> WorkflowSignalResult:
         try:
-            client = await self.client()
-            handle = client.get_workflow_handle(request.workflow_id)
-            await handle.signal(
+            await self._signal(
+                request.workflow_id,
                 request.signal_name,
                 _with_trace_context(request.runtime_payload),
-                rpc_timeout=timedelta(seconds=self.config.signal_timeout_seconds),
             )
         except (OSError, RuntimeError, TemporalError, RPCError) as exc:
             raise WorkflowSignalError(exc.__class__.__name__) from exc
@@ -361,12 +412,10 @@ class TemporalWorkflowSignalRuntime:
         request: WorkflowConnectorEvidenceSnapshotExportSignalRequest,
     ) -> WorkflowSignalResult:
         try:
-            client = await self.client()
-            handle = client.get_workflow_handle(request.workflow_id)
-            await handle.signal(
+            await self._signal(
+                request.workflow_id,
                 request.signal_name,
                 _with_trace_context(request.runtime_payload),
-                rpc_timeout=timedelta(seconds=self.config.signal_timeout_seconds),
             )
         except (OSError, RuntimeError, TemporalError, RPCError) as exc:
             raise WorkflowSignalError(exc.__class__.__name__) from exc

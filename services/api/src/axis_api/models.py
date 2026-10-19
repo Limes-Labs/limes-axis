@@ -289,6 +289,18 @@ class AuditEvent(Base):
         DateTime(timezone=True), default=utc_now, nullable=False
     )
 
+    __table_args__ = (
+        # Migration 0069: tenant audit lists read newest-first with a LIMIT.
+        Index("ix_audit_events_tenant_created", "tenant_id", "created_at", "id"),
+        Index(
+            "ix_audit_events_tenant_event_type_created",
+            "tenant_id",
+            "event_type",
+            "created_at",
+            "id",
+        ),
+    )
+
 
 class AuditLegalHold(Base):
     __tablename__ = "audit_legal_holds"
@@ -346,6 +358,7 @@ class ApprovalRecord(Base):
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "approval_id", name="uq_approval_records_tenant_approval"),
+        Index("ix_approval_records_tenant_created", "tenant_id", "created_at"),
     )
 
 
@@ -449,6 +462,7 @@ class ActionRun(Base):
             "idempotency_key",
             name="uq_action_runs_tenant_action_idempotency",
         ),
+        Index("ix_action_runs_tenant_created", "tenant_id", "created_at", "id"),
     )
 
 
@@ -957,6 +971,7 @@ class ConnectorRun(Base):
             "run_id",
             name="uq_connector_runs_tenant_run",
         ),
+        Index("ix_connector_runs_tenant_created", "tenant_id", "created_at", "id"),
     )
 
 

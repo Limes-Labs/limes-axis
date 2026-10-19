@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import logging
 from collections.abc import AsyncIterator, Generator
@@ -736,6 +737,7 @@ from axis_api.search_queries import (
 )
 from axis_api.session_lifecycle import (
     browser_session_lifecycle_failure,
+    browser_session_touch_due,
     ensure_aware_datetime,
 )
 from axis_api.session_metadata import extract_session_client_metadata
@@ -864,6 +866,38 @@ def _audit_export_worm_settings(settings: Settings) -> bool:
     return settings.connector_export_s3_retention_mode.strip().upper() == (
         COMPLIANCE_RETENTION_MODE
     )
+
+
+async def _warm_audit_export_object_lock_capability_off_loop(app: FastAPI) -> None:
+    """Run the startup object-lock warm-up in a thread under a deadline.
+
+    The probe is synchronous network I/O. Running it inline blocked the event
+    loop and held startup for as long as the object store took to answer. The
+    deadline is one bounded connect plus read; past it, startup continues and
+    the export gate keeps failing closed per request until a probe verifies
+    the bucket (the background probe may still cache a positive result).
+    """
+
+    if not _audit_export_worm_settings(app.state.settings):
+        return
+    settings = app.state.settings
+    deadline = (
+        settings.connector_export_s3_connect_timeout_seconds
+        + settings.connector_export_s3_read_timeout_seconds
+    )
+    try:
+        await asyncio.wait_for(
+            asyncio.shield(
+                asyncio.to_thread(_warm_audit_export_object_lock_capability, app)
+            ),
+            timeout=deadline,
+        )
+    except TimeoutError:
+        _LOGGER.warning(
+            "Audit-export object-lock capability probe exceeded its %.1f s startup "
+            "deadline; COMPLIANCE exports will fail closed until the bucket is verified.",
+            deadline,
+        )
 
 
 def _warm_audit_export_object_lock_capability(app: FastAPI) -> None:
@@ -1084,7 +1118,9 @@ def _resolve_request_principal(
                         ):
                             cookie_failure_reason = "invalid_session_cookie"
                         else:
-                            repository.touch_oidc_browser_session(session_hash, datetime.now(UTC))
+                            seen_at = datetime.now(UTC)
+                            if browser_session_touch_due(stored_session, settings, seen_at):
+                                repository.touch_oidc_browser_session(session_hash, seen_at)
                             principal = OidcPrincipal(
                                 actor_id=stored_session.actor_id,
                                 tenant_id=stored_session.tenant_id,
@@ -2346,7 +2382,7 @@ def _usage_metering_projection_loop(
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    _warm_audit_export_object_lock_capability(app)
+    await _warm_audit_export_object_lock_capability_off_loop(app)
     projection_thread: Thread | None = None
     projection_stop = Event()
     if app.state.settings.usage_metering_enabled:
@@ -2530,6 +2566,9 @@ def create_app(
                 address=resolved_settings.temporal_address,
                 namespace=resolved_settings.temporal_namespace,
                 signal_timeout_seconds=resolved_settings.temporal_signal_timeout_seconds,
+                connect_backoff_max_seconds=(
+                    resolved_settings.temporal_connect_backoff_max_seconds
+                ),
             )
         )
         if resolved_settings.workflow_signals_enabled
@@ -2548,6 +2587,9 @@ def create_app(
                 username=resolved_settings.typedb_username,
                 password=resolved_settings.typedb_password,
                 database=resolved_settings.typedb_database,
+                request_timeout_millis=int(
+                    resolved_settings.typedb_request_timeout_seconds * 1000
+                ),
             )
         )
         if resolved_settings.ontology_mutations_enabled
@@ -2560,6 +2602,9 @@ def create_app(
                 username=resolved_settings.typedb_username,
                 password=resolved_settings.typedb_password,
                 database=resolved_settings.typedb_database,
+                request_timeout_millis=int(
+                    resolved_settings.typedb_request_timeout_seconds * 1000
+                ),
             )
         )
         if resolved_settings.ontology_queries_enabled

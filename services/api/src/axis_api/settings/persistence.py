@@ -31,6 +31,12 @@ class PersistenceSettings(BaseModel):
     typedb_username: str = Field(default="admin", alias="AXIS_TYPEDB_USERNAME")
     typedb_password: str = Field(default="password", alias="AXIS_TYPEDB_PASSWORD")
     typedb_database: str = Field(default="axis", alias="AXIS_TYPEDB_DATABASE")
+    typedb_request_timeout_seconds: float = Field(
+        default=10.0,
+        gt=0,
+        le=300,
+        alias="AXIS_TYPEDB_REQUEST_TIMEOUT_SECONDS",
+    )
     ontology_mutations_enabled: bool = Field(
         default=False,
         alias="AXIS_ONTOLOGY_MUTATIONS_ENABLED",
@@ -54,6 +60,24 @@ class PersistenceSettings(BaseModel):
     connector_export_s3_region: str | None = Field(
         default=None,
         alias="AXIS_CONNECTOR_EXPORT_S3_REGION",
+    )
+    connector_export_s3_connect_timeout_seconds: float = Field(
+        default=5.0,
+        gt=0,
+        le=120,
+        alias="AXIS_CONNECTOR_EXPORT_S3_CONNECT_TIMEOUT_SECONDS",
+    )
+    connector_export_s3_read_timeout_seconds: float = Field(
+        default=30.0,
+        gt=0,
+        le=600,
+        alias="AXIS_CONNECTOR_EXPORT_S3_READ_TIMEOUT_SECONDS",
+    )
+    connector_export_s3_max_retries: int = Field(
+        default=2,
+        ge=0,
+        le=10,
+        alias="AXIS_CONNECTOR_EXPORT_S3_MAX_RETRIES",
     )
     connector_export_s3_bucket: str | None = Field(
         default=None,

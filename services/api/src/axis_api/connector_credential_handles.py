@@ -133,15 +133,13 @@ def build_connector_credential_handle_registry(
         status=query.status,
         limit=query.limit,
     )
+    rotations = repository.list_connector_credential_rotations_for_handles(
+        query.tenant_id,
+        [record.handle_id for record in records],
+        limit=25,
+    )
     handles = [
-        _credential_handle_from_record(
-            record,
-            repository.list_connector_credential_rotations(
-                query.tenant_id,
-                record.handle_id,
-                limit=25,
-            ),
-        )
+        _credential_handle_from_record(record, rotations.get(record.handle_id, []))
         for record in records
     ]
     rotation_due = sum(1 for handle in handles if handle.rotation_status == "rotation_due")

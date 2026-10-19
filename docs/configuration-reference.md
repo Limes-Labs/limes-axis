@@ -66,12 +66,16 @@ operational profiles and secret injection.
 | `AXIS_TYPEDB_USERNAME` | `typedb_username` | string | `"admin"` |  |
 | `AXIS_TYPEDB_PASSWORD` | `typedb_password` | string | `"<redacted>"` |  |
 | `AXIS_TYPEDB_DATABASE` | `typedb_database` | string | `"axis"` |  |
+| `AXIS_TYPEDB_REQUEST_TIMEOUT_SECONDS` | `typedb_request_timeout_seconds` | number | `10.0` | exclusiveMinimum: 0; maximum: 300 |
 | `AXIS_ONTOLOGY_MUTATIONS_ENABLED` | `ontology_mutations_enabled` | boolean | `false` |  |
 | `AXIS_ONTOLOGY_QUERIES_ENABLED` | `ontology_queries_enabled` | boolean | `false` |  |
 | `AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ROOT` | `connector_export_object_store_root` | string | `".axis/object-store"` |  |
 | `AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ADAPTER` | `connector_export_object_store_adapter` | string | `"local_filesystem"` |  |
 | `AXIS_CONNECTOR_EXPORT_S3_ENDPOINT` | `connector_export_s3_endpoint` | string / null | `null` |  |
 | `AXIS_CONNECTOR_EXPORT_S3_REGION` | `connector_export_s3_region` | string / null | `null` |  |
+| `AXIS_CONNECTOR_EXPORT_S3_CONNECT_TIMEOUT_SECONDS` | `connector_export_s3_connect_timeout_seconds` | number | `5.0` | exclusiveMinimum: 0; maximum: 120 |
+| `AXIS_CONNECTOR_EXPORT_S3_READ_TIMEOUT_SECONDS` | `connector_export_s3_read_timeout_seconds` | number | `30.0` | exclusiveMinimum: 0; maximum: 600 |
+| `AXIS_CONNECTOR_EXPORT_S3_MAX_RETRIES` | `connector_export_s3_max_retries` | integer | `2` | maximum: 10; minimum: 0 |
 | `AXIS_CONNECTOR_EXPORT_S3_BUCKET` | `connector_export_s3_bucket` | string / null | `null` |  |
 | `AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY` | `connector_export_s3_access_key` | string / null | `null` |  |
 | `AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY` | `connector_export_s3_secret_key` | string / null | `null` |  |
@@ -212,7 +216,8 @@ operational profiles and secret injection.
 | `AXIS_SCHEDULED_TENANT_RECONCILIATION_INTERVAL_SECONDS` | `scheduled_tenant_reconciliation_interval_seconds` | integer | `3600` | minimum: 60 |
 | `AXIS_TEMPORAL_ADDRESS` | `temporal_address` | string | `"localhost:7233"` |  |
 | `AXIS_TEMPORAL_NAMESPACE` | `temporal_namespace` | string | `"default"` |  |
-| `AXIS_TEMPORAL_SIGNAL_TIMEOUT_SECONDS` | `temporal_signal_timeout_seconds` | number | `2.0` |  |
+| `AXIS_TEMPORAL_SIGNAL_TIMEOUT_SECONDS` | `temporal_signal_timeout_seconds` | number | `2.0` | exclusiveMinimum: 0 |
+| `AXIS_TEMPORAL_CONNECT_BACKOFF_MAX_SECONDS` | `temporal_connect_backoff_max_seconds` | number | `30.0` | maximum: 600; minimum: 1 |
 | `AXIS_WORKFLOW_SIGNALS_ENABLED` | `workflow_signals_enabled` | boolean | `true` |  |
 | `AXIS_APPROVAL_DECISION_OUTBOX_ENABLED` | `approval_decision_outbox_enabled` | boolean | `false` |  |
 | `AXIS_APPROVAL_DECISION_OUTBOX_DISPATCH_ENABLED` | `approval_decision_outbox_dispatch_enabled` | boolean | `false` |  |

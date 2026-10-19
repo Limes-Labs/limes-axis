@@ -353,6 +353,36 @@ def _s3_client_factory(**kwargs: Any) -> S3PutObjectClient:
     return Minio(**kwargs)
 
 
+def build_s3_http_client(settings: Settings) -> Any:
+    """A bounded transport for the export store's MinIO client.
+
+    The library default is a 300 s connect and read timeout with five retries,
+    so one unreachable endpoint can hold a request or startup for many minutes.
+    Certificate handling matches the library default: verification required,
+    CA bundle from ``SSL_CERT_FILE`` or certifi.
+    """
+    import os
+
+    import certifi
+    import urllib3
+
+    retries = settings.connector_export_s3_max_retries
+    return urllib3.PoolManager(
+        timeout=urllib3.Timeout(
+            connect=settings.connector_export_s3_connect_timeout_seconds,
+            read=settings.connector_export_s3_read_timeout_seconds,
+        ),
+        maxsize=10,
+        cert_reqs="CERT_REQUIRED",
+        ca_certs=os.environ.get("SSL_CERT_FILE") or certifi.where(),
+        retries=urllib3.Retry(
+            total=retries,
+            backoff_factor=0.2,
+            status_forcelist=[500, 502, 503, 504],
+        ),
+    )
+
+
 def build_object_store_readiness(
     settings: Settings,
     *,
@@ -523,6 +553,7 @@ def build_connector_export_object_store(
         secret_key=settings.connector_export_s3_secret_key,
         secure=secure,
         region=settings.connector_export_s3_region,
+        http_client=build_s3_http_client(settings),
     )
     return S3CompatibleObjectStore(
         client=client,

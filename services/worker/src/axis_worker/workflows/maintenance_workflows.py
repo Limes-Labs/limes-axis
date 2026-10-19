@@ -20,6 +20,7 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
+    from axis_worker.activity_execution import ACTIVITY_HEARTBEAT_TIMEOUT
     from axis_worker.maintenance_activities import (
         AUDIT_RETENTION_ACTIVITY,
         SESSION_SWEEP_ACTIVITY,
@@ -32,6 +33,13 @@ _RETRY_POLICY = RetryPolicy(
     maximum_interval=timedelta(minutes=1),
     maximum_attempts=3,
 )
+# The activities heartbeat while their DB work runs in a thread, so a dead
+# worker is noticed within the heartbeat timeout, not after ten minutes.
+ACTIVITY_OPTIONS = {
+    "start_to_close_timeout": _START_TO_CLOSE,
+    "heartbeat_timeout": ACTIVITY_HEARTBEAT_TIMEOUT,
+    "retry_policy": _RETRY_POLICY,
+}
 
 
 @workflow.defn
@@ -40,8 +48,7 @@ class AuditRetentionDeletionWorkflow:
     async def run(self) -> dict:
         return await workflow.execute_activity(
             AUDIT_RETENTION_ACTIVITY,
-            start_to_close_timeout=_START_TO_CLOSE,
-            retry_policy=_RETRY_POLICY,
+            **ACTIVITY_OPTIONS,
         )
 
 
@@ -51,8 +58,7 @@ class OrphanedSessionSweepWorkflow:
     async def run(self) -> dict:
         return await workflow.execute_activity(
             SESSION_SWEEP_ACTIVITY,
-            start_to_close_timeout=_START_TO_CLOSE,
-            retry_policy=_RETRY_POLICY,
+            **ACTIVITY_OPTIONS,
         )
 
 
@@ -62,6 +68,5 @@ class TenantStateReconciliationWorkflow:
     async def run(self) -> dict:
         return await workflow.execute_activity(
             TENANT_RECONCILIATION_ACTIVITY,
-            start_to_close_timeout=_START_TO_CLOSE,
-            retry_policy=_RETRY_POLICY,
+            **ACTIVITY_OPTIONS,
         )

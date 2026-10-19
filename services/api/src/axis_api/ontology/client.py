@@ -1,3 +1,4 @@
+import threading
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
@@ -25,6 +26,17 @@ class OntologyClient:
     def __init__(self, config: OntologyClientConfig) -> None:
         self.config = config
         self._driver = None
+        # Request-path runtimes are shared across worker threads: one lock
+        # serializes the lazy dial and the one-time database check.
+        self._lock = threading.Lock()
+        self._database_ready = False
+
+    def _ensure_connected(self) -> None:
+        if self._driver is not None:
+            return
+        with self._lock:
+            if self._driver is None:
+                self.connect()
 
     def connect(self) -> None:
         from typedb.driver import Credentials, DriverOptions, DriverTlsConfig, TypeDB
@@ -51,15 +63,24 @@ class OntologyClient:
     def database_exists(self) -> bool:
         """Return database reachability without creating or mutating state."""
 
-        if self._driver is None:
-            self.connect()
+        self._ensure_connected()
         return bool(self._driver.databases.contains(self.config.database))
 
     def ensure_database(self) -> None:
-        if self._driver is None:
-            self.connect()
-        if not self._driver.databases.contains(self.config.database):
-            self._driver.databases.create(self.config.database)
+        """Create the database if missing; checked once per client.
+
+        A failed transaction clears the cached result, so a database dropped
+        out from under a long-lived client is noticed on the next call.
+        """
+        if self._database_ready and self._driver is not None:
+            return
+        self._ensure_connected()
+        with self._lock:
+            if self._database_ready:
+                return
+            if not self._driver.databases.contains(self.config.database):
+                self._driver.databases.create(self.config.database)
+            self._database_ready = True
 
     def load_schema(self, schema_text: str) -> None:
         if not schema_text.strip():
@@ -67,11 +88,16 @@ class OntologyClient:
         from typedb.driver import TransactionType
 
         self.ensure_database()
-        transaction = self._driver.transaction(self.config.database, TransactionType.SCHEMA)
+        try:
+            transaction = self._driver.transaction(self.config.database, TransactionType.SCHEMA)
+        except Exception:
+            self._database_ready = False
+            raise
         try:
             transaction.query(schema_text).resolve()
             transaction.commit()
         except Exception:
+            self._database_ready = False
             if transaction.is_open():
                 transaction.rollback()
             raise
@@ -82,11 +108,16 @@ class OntologyClient:
         from typedb.driver import TransactionType
 
         self.ensure_database()
-        transaction = self._driver.transaction(self.config.database, TransactionType.WRITE)
+        try:
+            transaction = self._driver.transaction(self.config.database, TransactionType.WRITE)
+        except Exception:
+            self._database_ready = False
+            raise
         try:
             transaction.query(query_text).resolve()
             transaction.commit()
         except Exception:
+            self._database_ready = False
             if transaction.is_open():
                 transaction.rollback()
             raise
@@ -97,9 +128,16 @@ class OntologyClient:
         from typedb.driver import TransactionType
 
         self.ensure_database()
-        transaction = self._driver.transaction(self.config.database, TransactionType.READ)
+        try:
+            transaction = self._driver.transaction(self.config.database, TransactionType.READ)
+        except Exception:
+            self._database_ready = False
+            raise
         try:
             return normalize_query_answer(transaction.query(query_text).resolve())
+        except Exception:
+            self._database_ready = False
+            raise
         finally:
             if transaction.is_open():
                 transaction.close()
@@ -109,15 +147,17 @@ class OntologyClient:
         return self._driver.databases.get(self.config.database).schema()
 
     def drop_database(self) -> None:
-        if self._driver is None:
-            self.connect()
+        self._ensure_connected()
+        self._database_ready = False
         if self._driver.databases.contains(self.config.database):
             self._driver.databases.get(self.config.database).delete()
 
     def close(self) -> None:
-        if self._driver is not None:
-            self._driver.close()
-            self._driver = None
+        with self._lock:
+            self._database_ready = False
+            if self._driver is not None:
+                self._driver.close()
+                self._driver = None
 
 
 def normalize_query_answer(answer: object) -> list[OntologyQueryRow]:

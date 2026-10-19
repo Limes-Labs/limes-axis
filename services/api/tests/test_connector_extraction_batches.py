@@ -255,14 +255,14 @@ def run_dispatcher(factory, settings=None, store=None, *, rows=None, fail_second
     )
 
     if fail_second:
-        original = runtime.extract_selection
+        original = runtime.prepare_selection
 
-        def failing_second(**kwargs):
+        def failing_second(repository, **kwargs):
             if kwargs["binding_id"] == "binding_b11_r":
                 return SourceExtractionOutcome(ok=False, reason="stale_fingerprint")
-            return original(**kwargs)
+            return original(repository, **kwargs)
 
-        runtime.extract_selection = failing_second  # type: ignore[method-assign]
+        runtime.prepare_selection = failing_second  # type: ignore[method-assign]
 
     dispatcher = SourceIngestionOutboxDispatcher(
         settings=settings,
@@ -916,16 +916,16 @@ def test_db_failure_after_store_write_converges_on_same_key(session_factory) -> 
         extraction_runtime=runtime,
         random_uniform=lambda lo, hi: lo,
     )
-    real_extract = runtime.extract_selection
+    real_extract = runtime.extract_prepared
 
-    def extract_with_db_failure(**kwargs):
-        outcome = real_extract(**kwargs)
+    def extract_with_db_failure(prepared):
+        outcome = real_extract(prepared)
         if outcome.ok:
             # Simulate the crash AFTER the store write, BEFORE the DB commit.
             raise RuntimeError("crash between stores")
         return outcome
 
-    runtime.extract_selection = extract_with_db_failure  # type: ignore[method-assign]
+    runtime.extract_prepared = extract_with_db_failure  # type: ignore[method-assign]
     first = asyncio.run(dispatcher.run_once())
     assert first.retried == 1
     key_after_crash = next(iter(store.writes))

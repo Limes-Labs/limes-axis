@@ -690,14 +690,14 @@ def run_dispatcher(factory, settings=None, store=None, read_result=None, fail_se
     store = store or RecordingObjectStore()
     runtime = make_runtime(factory, settings, store)
 
-    original = runtime.extract_selection
+    original = runtime.prepare_selection
 
-    def maybe_failing(**kwargs):
+    def maybe_failing(repository, **kwargs):
         if fail_second and kwargs["binding_id"] == "binding_extract_002":
             return SourceExtractionOutcome(ok=False, reason="stale_fingerprint")
-        return original(**kwargs)
+        return original(repository, **kwargs)
 
-    runtime.extract_selection = maybe_failing  # type: ignore[method-assign]
+    runtime.prepare_selection = maybe_failing  # type: ignore[method-assign]
     if read_result is not None:
         runtime._read_bounded = lambda *a, **k: read_result  # type: ignore[method-assign]
 
@@ -856,9 +856,13 @@ def test_partial_extraction_failure_dead_letters_without_fake_success(
         assert row.status == "failed"
         evidence = dict(row.evidence)
         assert evidence["failed_stage"] == "extract"
-        # The first batch genuinely happened and stays recorded; the request
-        # still terminates failed so a half-read never looks complete.
-        assert len(evidence["batches"]) == 1
+        # The first selection was read and stored, but nothing of the failed
+        # request is recorded: batches commit only with a completed request.
+        assert "batches" not in evidence
+        assert evidence["source_dial_performed"] is True
+        from axis_api.models import ConnectorSourceExtractionBatch
+
+        assert session.scalars(select(ConnectorSourceExtractionBatch)).all() == []
         assert len(store.writes) == 1
 
 
@@ -1048,3 +1052,95 @@ def test_cross_tenant_extract_submission_is_rejected(session_factory) -> None:
     )
     assert response.status_code == 422
     assert response.json()["detail"]["reason"] == "binding_not_found"
+
+
+class _TransactionCounter:
+    """Counts Axis database transactions open on the engine at any moment."""
+
+    def __init__(self, engine) -> None:
+        from sqlalchemy import event
+
+        self.open = 0
+        event.listen(engine, "begin", self._begin)
+        event.listen(engine, "commit", self._end)
+        event.listen(engine, "rollback", self._end)
+
+    def _begin(self, _connection) -> None:
+        self.open += 1
+
+    def _end(self, _connection) -> None:
+        self.open = max(0, self.open - 1)
+
+
+def _postgres_dispatcher(factory, store, read):
+    runtime = make_runtime(factory, store=store)
+    runtime._read_bounded = read  # type: ignore[method-assign]
+    return SourceIngestionOutboxDispatcher(
+        settings=both_gates(),
+        session_factory=factory,
+        runtime=ObservationFreshnessIngestionRuntime(),
+        extraction_runtime=runtime,
+        random_uniform=lambda low, high: low,
+    )
+
+
+def test_postgres_extraction_holds_no_axis_transaction_across_read_or_store(
+    session_factory,
+) -> None:
+    seed_two_bindings_with_request(session_factory)
+    counter = _TransactionCounter(session_factory.kw["bind"])
+    observed: dict[str, list[int]] = {"read": [], "put_json": []}
+
+    class ObservingStore(RecordingObjectStore):
+        def put_json(self, key: str, payload: dict):
+            observed["put_json"].append(counter.open)
+            return super().put_json(key, payload)
+
+    def read(resource_name, limits, hardening):
+        observed["read"].append(counter.open)
+        return bounded_result([{"order_id": "o-1"}], watermark={"order_id": "o-1"})
+
+    store = ObservingStore()
+    result = asyncio.run(_postgres_dispatcher(session_factory, store, read).run_once())
+
+    assert result.completed == 1
+    assert observed == {"read": [0, 0], "put_json": [0, 0]}
+    with session_scope(session_factory) as session:
+        from axis_api.models import ConnectorSourceExtractionBatch
+
+        assert len(session.scalars(select(ConnectorSourceExtractionBatch)).all()) == 2
+
+
+def test_later_selection_failure_commits_no_batch_from_earlier_selections(
+    session_factory,
+) -> None:
+    import psycopg
+
+    seed_two_bindings_with_request(session_factory)
+
+    def read(resource_name, limits, hardening):
+        if resource_name == "operations.quality_checks":
+            raise psycopg.OperationalError("private-source-failure-details")
+        return bounded_result([{"order_id": "o-1"}], watermark={"order_id": "o-1"})
+
+    store = RecordingObjectStore()
+    result = asyncio.run(_postgres_dispatcher(session_factory, store, read).run_once())
+
+    assert result.dead_lettered == 1
+    with session_scope(session_factory) as session:
+        from axis_api.models import ConnectorSourceExtractionBatch
+
+        assert session.scalars(select(ConnectorSourceExtractionBatch)).all() == []
+        batch_events = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "connector.source.extraction.batch_recorded"
+            )
+        ).all()
+        assert batch_events == []
+        row = session.scalars(select(ConnectorSourceIngestionRequest)).first()
+        assert row.status == "failed"
+        assert "batches" not in row.evidence
+        assert "private-source-failure-details" not in json.dumps(row.evidence)
+    # The first selection's object was written before the failure; with no
+    # batch row it is an unreferenced object (documented reconciliation).
+    assert len(store.writes) == 1

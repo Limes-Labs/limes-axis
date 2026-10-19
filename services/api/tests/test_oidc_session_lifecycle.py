@@ -459,6 +459,48 @@ def test_idle_timeout_revokes_session() -> None:
         ]
 
 
+def test_cookie_requests_touch_the_session_row_at_most_once_per_window() -> None:
+    from sqlalchemy import event
+
+    settings = _settings()
+    client, factory, token_endpoint = _build_app(settings)
+    _login(client, token_endpoint)
+    updates: list[str] = []
+
+    @event.listens_for(factory.kw["bind"], "before_cursor_execute")
+    def record(_conn, _cursor, statement, _params, _context, _executemany):
+        if statement.lstrip().upper().startswith("UPDATE oidc_browser_sessions".upper()):
+            updates.append(statement)
+
+    with factory() as session:
+        stored = _sessions(session)[0]
+        stored.last_seen_at = datetime.now(UTC)
+        session.commit()
+    updates.clear()
+
+    for _ in range(10):
+        response = client.get("/identity/session")
+        assert response.json()["authenticated"] is True
+
+    # Within the window the cookie path reads the row but never rewrites it.
+    assert updates == []
+
+    with factory() as session:
+        stored = _sessions(session)[0]
+        stale = datetime.now(UTC) - timedelta(seconds=61)
+        stored.last_seen_at = stale
+        session.commit()
+    updates.clear()
+    client.get("/identity/session")
+    client.get("/identity/session")
+
+    assert len(updates) == 1
+    with factory() as session:
+        last_seen = _sessions(session)[0].last_seen_at
+        assert last_seen is not None
+        assert last_seen.replace(tzinfo=UTC) > stale.replace(tzinfo=UTC) + timedelta(seconds=30)
+
+
 def test_absolute_timeout_rejects_and_revokes_session() -> None:
     settings = _settings()
     client, factory, token_endpoint = _build_app(settings)

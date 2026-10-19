@@ -480,8 +480,14 @@ def test_expired_claim_lease_cannot_advance_the_checkpoint(host):
         return original(key, payload)
 
     host.store.put_json = expire_claim
-    assert dispatch(host).fenced == 1
+    # The expired claim commits nothing but still counts as an attempt, so it
+    # is retried (and dead-lettered at max attempts) instead of looping.
+    assert dispatch(host).retried == 1
     assert state(host) == (0, None, [])
+    with session_scope(host.factory) as session:
+        row = session.scalar(select(ConnectorSourceIngestionRequest))
+        assert row.status == "pending"
+        assert row.last_error == "claim_lease_expired"
 
 
 def test_two_prepared_results_cannot_both_advance_one_generation(host):

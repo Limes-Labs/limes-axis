@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import json
+from types import SimpleNamespace
 
 import pytest
 from jose import jwt
@@ -526,3 +527,108 @@ def test_bind_request_actor_tolerates_models_without_scope_field() -> None:
     )
 
     assert bound.transitioned_by == "operator"
+
+
+class _JwksEndpoint:
+    """A JWKS endpoint that can go down, with a controllable clock."""
+
+    def __init__(self, monkeypatch, secret: str) -> None:
+        self.now = 1_000_000.0
+        self.up = True
+        self.fetches = 0
+        self.payload = json.dumps(_oct_jwks(secret, "known-key")).encode()
+        endpoint = self
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            def read(self) -> bytes:
+                return endpoint.payload
+
+        def fake_urlopen(_url: str, timeout: int):
+            endpoint.fetches += 1
+            if not endpoint.up:
+                raise OSError("idp unreachable")
+            return FakeResponse()
+
+        monkeypatch.setattr("axis_api.identity.urlopen", fake_urlopen)
+        monkeypatch.setattr(
+            "axis_api.identity.time", SimpleNamespace(time=lambda: endpoint.now)
+        )
+
+
+def _remote_verifier(cache_seconds: int = 300) -> RemoteJwksOidcVerifier:
+    return RemoteJwksOidcVerifier(
+        issuer="https://issuer.example/realms/axis",
+        audience="limes-axis-api",
+        algorithms=["HS256"],
+        jwks_url="https://issuer.example/jwks",
+        cache_seconds=cache_seconds,
+        tenant_claim="axis_tenant",
+    )
+
+
+_STALE_CLAIMS = {
+    "iss": "https://issuer.example/realms/axis",
+    "aud": "limes-axis-api",
+    "sub": "operator",
+    "axis_tenant": "tenant_demo_manufacturing",
+    "exp": 4102444800,
+}
+
+
+def test_remote_jwks_keeps_last_good_keys_when_refresh_fails(monkeypatch) -> None:
+    secret = "axis-known-secret"
+    endpoint = _JwksEndpoint(monkeypatch, secret)
+    verifier = _remote_verifier(cache_seconds=300)
+    header = f"Bearer {_token(secret, _STALE_CLAIMS, kid='known-key')}"
+    assert verifier.verify_authorization_header(header).actor_id == "operator"
+
+    endpoint.up = False
+    endpoint.now += 301  # the cache has expired and the IdP is unreachable
+    results = [verifier.verify_authorization_header(header).actor_id for _ in range(8)]
+
+    assert results == ["operator"] * 8
+    # One failed refresh, then a brief backoff instead of one fetch per request.
+    assert endpoint.fetches == 2
+
+    endpoint.now += 31
+    verifier.verify_authorization_header(header)
+    assert endpoint.fetches == 3
+
+    endpoint.up = True
+    endpoint.now += 31
+    verifier.verify_authorization_header(header)
+    assert endpoint.fetches == 4
+    endpoint.now += 100
+    verifier.verify_authorization_header(header)
+    assert endpoint.fetches == 4  # healthy again: back on the normal cache
+
+
+def test_remote_jwks_stale_keys_are_bounded_then_fail_closed(monkeypatch) -> None:
+    secret = "axis-known-secret"
+    endpoint = _JwksEndpoint(monkeypatch, secret)
+    verifier = _remote_verifier(cache_seconds=300)
+    header = f"Bearer {_token(secret, _STALE_CLAIMS, kid='known-key')}"
+    verifier.verify_authorization_header(header)
+
+    endpoint.up = False
+    # Last good keys may be served for one further cache period at most.
+    endpoint.now += 2 * 300 + 1
+    with pytest.raises(OidcAuthenticationError, match="jwks_fetch_failed"):
+        verifier.verify_authorization_header(header)
+
+
+def test_remote_jwks_without_a_prior_fetch_fails_closed(monkeypatch) -> None:
+    endpoint = _JwksEndpoint(monkeypatch, "axis-known-secret")
+    endpoint.up = False
+    verifier = _remote_verifier()
+    header = f"Bearer {_token('axis-known-secret', _STALE_CLAIMS, kid='known-key')}"
+
+    for _ in range(2):
+        with pytest.raises(OidcAuthenticationError, match="jwks_fetch_failed"):
+            verifier.verify_authorization_header(header)

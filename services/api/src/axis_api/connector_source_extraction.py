@@ -20,6 +20,7 @@ import hashlib
 import json
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
@@ -149,6 +150,24 @@ class SourceExtractionOutcome(BaseModel):
     stored: dict | None = None
 
 
+@dataclass(frozen=True)
+class PreparedPostgresExtraction:
+    """Plain values captured under the Axis transaction before a source read."""
+
+    tenant_id: str
+    connector_id: str
+    request_id: str
+    batch_key: str
+    binding_id: str
+    resource_name: str
+    pinned_schema_fingerprint: str
+    observed_schema_fingerprint: str
+    executed_by: str
+    classification: str
+    limits: ExtractionLimits
+    hardening: dict[str, str]
+
+
 def _qualified_name_is_safe(resource_name: str) -> bool:
     parts = resource_name.split(".")
     if len(parts) != 2:
@@ -195,6 +214,46 @@ class SelfHostedPostgresExtractionRuntime:
         pinned_schema_fingerprint: str,
         executed_by: str,
     ) -> SourceExtractionOutcome:
+        """Gate, read and store one selection in a single call.
+
+        Kept for embedded callers. The dispatcher uses :meth:`prepare_selection`
+        inside a short Axis transaction and :meth:`extract_prepared` with no
+        transaction open, so the source read and the object-store write never
+        hold an Axis connection.
+        """
+        prepared = self.prepare_selection(
+            repository,
+            tenant_id=tenant_id,
+            connector_id=connector_id,
+            request_id=request_id,
+            batch_key=batch_key,
+            binding_id=binding_id,
+            resource_name=resource_name,
+            pinned_schema_fingerprint=pinned_schema_fingerprint,
+            executed_by=executed_by,
+        )
+        if isinstance(prepared, SourceExtractionOutcome):
+            return prepared
+        return self.extract_prepared(prepared)
+
+    def prepare_selection(
+        self,
+        repository: AxisPersistenceRepository,
+        *,
+        tenant_id: str,
+        connector_id: str,
+        request_id: str,
+        batch_key: str,
+        binding_id: str,
+        resource_name: str,
+        pinned_schema_fingerprint: str,
+        executed_by: str,
+    ) -> PreparedPostgresExtraction | SourceExtractionOutcome:
+        """Evaluate every Axis-side gate; returns a failure outcome or a plan.
+
+        Reads only Axis state. The returned plan holds plain values, so the
+        caller can end its transaction before the source is dialled.
+        """
         if not _qualified_name_is_safe(resource_name):
             return SourceExtractionOutcome(ok=False, reason="unsafe_resource_name")
 
@@ -239,28 +298,48 @@ class SelfHostedPostgresExtractionRuntime:
         )
         if stewardship is not None:
             classification = stewardship.classification
+        return PreparedPostgresExtraction(
+            tenant_id=tenant_id,
+            connector_id=connector_id,
+            request_id=request_id,
+            batch_key=batch_key,
+            binding_id=binding_id,
+            resource_name=resource_name,
+            pinned_schema_fingerprint=pinned_schema_fingerprint,
+            observed_schema_fingerprint=observed_fingerprint,
+            executed_by=executed_by,
+            classification=classification,
+            limits=limits,
+            hardening=dict(hardening),
+        )
 
+    def extract_prepared(self, prepared: PreparedPostgresExtraction) -> SourceExtractionOutcome:
+        """Read the source and store the envelope; touches no Axis state."""
         started = self._clock()
         try:
-            read = self._read_bounded(resource_name, limits, hardening)
+            read = self._read_bounded(prepared.resource_name, prepared.limits, prepared.hardening)
         except psycopg.Error as exc:
-            return SourceExtractionOutcome(ok=False, reason=_classify_postgres_error(exc))
+            return SourceExtractionOutcome(
+                ok=False,
+                source_dial_performed=True,
+                reason=_classify_postgres_error(exc),
+            )
 
         duration_ms = int((self._clock() - started) * 1000)
         envelope = {
             "schema_version": ENVELOPE_SCHEMA_VERSION,
-            "tenant_id": tenant_id,
-            "connector_id": connector_id,
-            "request_id": request_id,
-            "binding_id": binding_id,
-            "resource_name": resource_name,
-            "pinned_schema_fingerprint": pinned_schema_fingerprint,
-            "observed_schema_fingerprint": observed_fingerprint,
+            "tenant_id": prepared.tenant_id,
+            "connector_id": prepared.connector_id,
+            "request_id": prepared.request_id,
+            "binding_id": prepared.binding_id,
+            "resource_name": prepared.resource_name,
+            "pinned_schema_fingerprint": prepared.pinned_schema_fingerprint,
+            "observed_schema_fingerprint": prepared.observed_schema_fingerprint,
             "ordering_mode": read["ordering_mode"],
             "cursor_watermark": read["cursor_watermark"],
             "truncated": read["truncated"],
             "limit_reason": read["limit_reason"],
-            "limits_applied": limits.model_dump(),
+            "limits_applied": prepared.limits.model_dump(),
             "row_count": len(read["rows"]),
             "rows": read["rows"],
         }
@@ -268,7 +347,8 @@ class SelfHostedPostgresExtractionRuntime:
         digest = hashlib.sha256(encoded).hexdigest()
 
         storage_key = (
-            f"tenants/{tenant_id}/source-ingestion/{request_id}/{binding_id}/{batch_key}.json"
+            f"tenants/{prepared.tenant_id}/source-ingestion/{prepared.request_id}/"
+            f"{prepared.binding_id}/{prepared.batch_key}.json"
         )
         stored_meta = self._object_store.put_json(storage_key, json.loads(encoded.decode()))
 
@@ -284,7 +364,7 @@ class SelfHostedPostgresExtractionRuntime:
             limit_reason=read["limit_reason"],
             duration_ms=duration_ms,
             digest_sha256=digest,
-            observed_schema_fingerprint=observed_fingerprint,
+            observed_schema_fingerprint=prepared.observed_schema_fingerprint,
             payload_envelope=envelope,
             stored={
                 "storage_adapter": stored_meta.storage_adapter,
@@ -294,8 +374,8 @@ class SelfHostedPostgresExtractionRuntime:
                 "stored_size_bytes": stored_meta.size_bytes,
                 "checksum_sha256": stored_meta.checksum_sha256,
                 "digest_sha256": digest,
-                "classification": classification,
-                "executed_by": executed_by,
+                "classification": prepared.classification,
+                "executed_by": prepared.executed_by,
             },
         )
 

@@ -36,7 +36,15 @@ operator opts in.
 | `AXIS_APPROVAL_DECISION_OUTBOX_RETRY_MAX_SECONDS` | `300` | Cap for exponential retry delay (`1`–`86400`). Keep it at least as large as the base delay. |
 
 The claim timeout is validated to exceed the Temporal signal timeout and should
-also cover expected database and scheduling latency. Raising batch size increases database and
+also cover expected database and scheduling latency. That comparison is
+enforced at runtime: each delivery's external phase — the shared client
+connect, the signal and any closed-workflow reconciliation read — runs under one
+`AXIS_TEMPORAL_SIGNAL_TIMEOUT_SECONDS` deadline, so a blackholed frontend or a
+runtime that ignores its RPC timeout is retried as `TimeoutError` before the
+lease can expire. A failed connect is negatively cached: requests and deliveries
+inside the backoff window (1 s doubling up to
+`AXIS_TEMPORAL_CONNECT_BACKOFF_MAX_SECONDS`, default `30`) fail fast with
+`TemporalConnectBackoffError` instead of opening another connect. Raising batch size increases database and
 Temporal load; scale only after measuring dispatch duration and backlog age.
 
 Approval workflow IDs are non-reusable: the worker starts them with Temporal's

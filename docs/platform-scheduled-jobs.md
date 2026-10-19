@@ -220,6 +220,17 @@ permission decision.
   **summary evidence is always written in a fresh transaction**, so partial
   failures are recorded even when a working transaction was aborted.
 
+- **Off-loop execution with heartbeats.** The maintenance and scheduled
+  live-sync activities run their synchronous DB and connector work in a thread
+  (`axis_worker.activity_execution.run_blocking`), not on the event loop that
+  also runs the Temporal pollers and the outbox dispatch loops. While the work
+  runs the activity heartbeats every 10 s, and the workflows schedule it with a
+  60 s `heartbeat_timeout`, so a worker that dies mid-job is retried after about
+  a minute instead of at the 10-minute start-to-close timeout. A cancelled
+  activity cannot interrupt its thread: the job finishes its current
+  transaction and the result is discarded; the jobs are idempotent and
+  lease-fenced, so the retry is safe.
+
 ## Observability
 
 Every job returns a structured `JobRunResult` (job name, status, tenants/items

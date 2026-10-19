@@ -254,6 +254,11 @@ path is off by default; existing deployments are unaffected until it is enabled.
   ```
 
   The command is idempotent and creates the database if absent.
+- **TypeDB request bound.** Request-path ontology reads and promotions use
+  `AXIS_TYPEDB_REQUEST_TIMEOUT_SECONDS` (default `10`, at most `300`) as the
+  driver request timeout instead of the driver's two-hour default. Each runtime
+  dials TypeDB once (serialized across worker threads) and checks that the
+  database exists once, re-checking only after a failed transaction.
 - **Safety.** Each promotion is one atomic TypeDB write transaction using an
   idempotent `put` pipeline keyed on `axis_id`, followed by a read-back that must
   observe the node before the proposal is marked `promoted_to_graph`. TypeDB
@@ -831,6 +836,14 @@ For S3-compatible evaluation or production-style deployments, configure:
 - `AXIS_CONNECTOR_EXPORT_S3_RETENTION_DAYS=<positive integer>`
 - `AXIS_CONNECTOR_EXPORT_S3_LEGAL_HOLD_ENABLED=true` when legal hold should be
   applied to written objects.
+- Optionally `AXIS_CONNECTOR_EXPORT_S3_CONNECT_TIMEOUT_SECONDS` (default `5`),
+  `AXIS_CONNECTOR_EXPORT_S3_READ_TIMEOUT_SECONDS` (default `30`) and
+  `AXIS_CONNECTOR_EXPORT_S3_MAX_RETRIES` (default `2`). They bound the export
+  store's client, which otherwise inherits the MinIO defaults of 300 s and five
+  retries. The COMPLIANCE startup object-lock probe runs in a worker thread and
+  startup waits at most one connect plus one read timeout for it; past that the
+  API starts and COMPLIANCE exports keep failing closed until a probe verifies
+  the bucket.
 
 **The bucket must be created with S3 object-lock enabled.** Object-lock can only
 be turned on at bucket creation (`make_bucket(..., object_lock=True)` /
@@ -1207,7 +1220,9 @@ Configure non-sensitive client and endpoint values in the chart ConfigMap:
   so the browser binds them to the exact host and the `/` path.
 - `AXIS_OIDC_SESSION_IDLE_TIMEOUT_SECONDS` (default 1800): sessions with no
   authenticated request inside this window are revoked with
-  `idle_timeout` audit evidence.
+  `idle_timeout` audit evidence. Activity is recorded at most once per 60 s
+  (or a tenth of this timeout when shorter), so a session can be expired up to
+  that much earlier than its true last request.
 - `AXIS_OIDC_SESSION_ABSOLUTE_TIMEOUT_SECONDS` (default 28800): the hard cap
   on a login's total lifetime; refresh rotation extends sessions only inside
   this cap.

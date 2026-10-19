@@ -1360,6 +1360,19 @@ operational failures retry then dead-letter after `AXIS_SOURCE_INGESTION_MAX_ATT
 | `AXIS_SOURCE_INGESTION_RETRY_MAX_SECONDS` | `60` (≥1) | Backoff cap |
 | `AXIS_SOURCE_INGESTION_MAX_ATTEMPTS` | `3` (≤20) | Attempts before dead-letter |
 
+Extraction renews the claim lease before each selection, through the same
+token-and-expiry fence as completion, so a request with many selections stays
+inside a live lease as long as each selection's read fits the claim timeout.
+Production validation requires `AXIS_SOURCE_INGESTION_CLAIM_TIMEOUT_SECONDS` to
+exceed `AXIS_SOURCE_INGESTION_EXTRACTION_TIME_BUDGET_SECONDS`, the per-selection
+bound; there is no requirement on the selection count. The design fails closed:
+a renewal against a lost or expired claim stops before the next source read,
+and a lease that expires during the read or before the final commit counts as
+an attempt (`claim_lease_expired`) — retried, then dead-lettered at
+`AXIS_SOURCE_INGESTION_MAX_ATTEMPTS` — with no batch committed. An expired claim
+reclaimed past its final attempt (a worker died holding it) is dead-lettered
+without reading the source again.
+
 ### Extraction stage (default-off)
 
 When the deployment enables both dispatch and extraction gates, a request may
@@ -1376,6 +1389,15 @@ deterministic tenant-scoped key; Postgres stores counts, digests, watermarks,
 provenance and classification — never row values, in any view, audit event,
 log or error. Stage is part of request identity: re-submitting an ID with a
 different stage is a `request_id_conflict`, never a silent mutation.
+
+Postgres extraction uses the same transaction shape as the S3 and REST
+hosts. Each selection's gates, lease renewal and batch identity are evaluated
+in a short Axis transaction that ends before the source is dialled; the bounded
+read and the object-store write run with no Axis transaction open; then one
+fenced transaction records every batch, its `batch_recorded` audit event and
+the terminal completion together. A failure on any selection dead-letters the
+request and commits no batch from earlier selections; their objects may exist
+in the store without a row, and a retry overwrites the same deterministic key.
 
 Pending requests can be cancelled (write scope, fenced, audited once;
 identical repeats replay, dispatched/terminal states conflict). Object-store

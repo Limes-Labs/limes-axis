@@ -61,7 +61,14 @@ class RuntimeSettings(BaseModel):
     temporal_namespace: str = Field(default="default", alias="AXIS_TEMPORAL_NAMESPACE")
     temporal_signal_timeout_seconds: float = Field(
         default=2.0,
+        gt=0,
         alias="AXIS_TEMPORAL_SIGNAL_TIMEOUT_SECONDS",
+    )
+    temporal_connect_backoff_max_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=600,
+        alias="AXIS_TEMPORAL_CONNECT_BACKOFF_MAX_SECONDS",
     )
     workflow_signals_enabled: bool = Field(
         default=True,

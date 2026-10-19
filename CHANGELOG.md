@@ -373,6 +373,76 @@ release-bound behavior, not the complete commit history.
 
 ### Changed
 
+- Worker maintenance and scheduled live-sync activities no longer block the
+  worker event loop shared with the Temporal pollers and outbox loops: their
+  synchronous DB and connector work runs in a thread while the activity
+  heartbeats every 10 s, and the workflows set a 60 s `heartbeat_timeout`, so a
+  dead worker is detected in about a minute rather than at the 10-minute
+  start-to-close timeout.
+- Cookie-authenticated requests no longer rewrite the browser-session row on
+  every request. `last_seen_at` is updated at most once per 60 s per session,
+  or a tenth of `AXIS_OIDC_SESSION_IDLE_TIMEOUT_SECONDS` when that is shorter,
+  so idle expiry may fire up to that interval early.
+- `GET /operations/workflows/runs` and the connector credential-handle
+  registry read their timelines and rotations in one batched query per page
+  instead of one per row (1 + N statements before). Workflow timelines capped
+  at 100 events now keep the newest 100, returned oldest first; previously the
+  newest events beyond the 100th were dropped.
+- Bearer-token verification keeps the last good JWKS when a scheduled refresh
+  fails (stale-if-error) and retries after a short backoff (a tenth of
+  `AXIS_OIDC_JWKS_CACHE_SECONDS`, 1 to 30 s) instead of on every request.
+  Previously an unreachable JWKS endpoint rejected every token once the cache
+  expired, even ones signed by a cached key. Stale keys are served for at most
+  one further cache period after the last successful fetch; past that, and when
+  no fetch has ever succeeded, verification still fails closed with
+  `jwks_fetch_failed`.
+- The S3-compatible export store's MinIO client now uses a bounded transport
+  (new `AXIS_CONNECTOR_EXPORT_S3_CONNECT_TIMEOUT_SECONDS` default `5`,
+  `AXIS_CONNECTOR_EXPORT_S3_READ_TIMEOUT_SECONDS` default `30`,
+  `AXIS_CONNECTOR_EXPORT_S3_MAX_RETRIES` default `2`) instead of the library's
+  300 s timeouts and five retries, with certificate verification unchanged. The
+  COMPLIANCE object-lock warm-up no longer blocks the event loop or holds
+  startup: it runs in a thread and startup waits at most one connect plus one
+  read timeout.
+- Request-path TypeDB calls (ontology graph reads and connector promotions) are
+  bounded by the new `AXIS_TYPEDB_REQUEST_TIMEOUT_SECONDS` (default `10`)
+  instead of the driver's two-hour default. The lazy driver dial is serialized
+  by a lock so concurrent first requests share one connection, and the
+  database-exists check runs once per client instead of before every read.
+- Postgres source extraction no longer holds an Axis transaction across the
+  source read and the object-store write, and no longer commits partial
+  results. It now matches the S3/REST shape: prepare each selection in a short
+  transaction, read and store with no transaction open, then record every batch
+  with the fenced completion. A dead-lettered request previously still
+  committed the first selection's batch row and audit event; now it commits
+  none. `SelfHostedPostgresExtractionRuntime.extract_selection` remains for
+  embedded callers and composes the new `prepare_selection` and
+  `extract_prepared` steps.
+- Source ingestion no longer loops forever when extraction outlives its claim
+  lease. The lease is renewed (fenced) before each selection; a lease that
+  expires anyway now counts as an attempt with error `claim_lease_expired` and
+  dead-letters at `AXIS_SOURCE_INGESTION_MAX_ATTEMPTS`, where previously the
+  expired row was reclaimed with an ever-growing `attempt_count` and re-read its
+  source on every pass. An expired claim reclaimed past the final attempt is
+  dead-lettered without another source read.
+- Migration `0069_tenant_created_at_list_indexes` adds composite
+  `(tenant_id, created_at, id)` indexes on `audit_events`, `action_runs` and
+  `connector_runs`, `(tenant_id, event_type, created_at, id)` on
+  `audit_events` and `(tenant_id, created_at)` on `approval_records`, so
+  newest-first tenant list reads stop scanning and sorting the tenant's whole
+  history. PostgreSQL builds them with `CREATE INDEX CONCURRENTLY` (no write
+  lock, but a full scan of each table); an interrupted build leaves an invalid
+  index to drop before rerunning.
+- Temporal signalling is bounded end to end. `Client.connect` previously had
+  no deadline (a blackholed frontend hung requests for 135 s with their
+  transaction open, exhausting the database pool); connect and signal now share
+  one `AXIS_TEMPORAL_SIGNAL_TIMEOUT_SECONDS` deadline, client creation is
+  serialized so concurrent requests share one connect attempt, and a failed
+  connect is negatively cached with exponential backoff capped by the new
+  `AXIS_TEMPORAL_CONNECT_BACKOFF_MAX_SECONDS` (default `30`). The approval
+  outbox dispatcher bounds each delivery's signal and reconciliation by the same
+  deadline, so the validated claim-lease > signal-timeout invariant holds.
+  `AXIS_TEMPORAL_SIGNAL_TIMEOUT_SECONDS` must now be positive.
 - Closing ontology entity details returns keyboard focus to the opening graph
   node or list control, with the explorer heading as a fallback for direct links,
   removed nodes or responsive hidden controls. Peer navigation, browser history,

@@ -30,6 +30,7 @@ from temporalio.common import RetryPolicy
 from temporalio.exceptions import ActivityError
 
 with workflow.unsafe.imports_passed_through():
+    from axis_worker.activity_execution import ACTIVITY_HEARTBEAT_TIMEOUT
     from axis_worker.connector_live_sync_activities import (
         CLAIM_ACTIVITY,
         EXECUTE_ACTIVITY,
@@ -43,6 +44,13 @@ _RETRY_POLICY = RetryPolicy(
     maximum_interval=timedelta(minutes=1),
     maximum_attempts=3,
 )
+# The activities heartbeat while their DB and source work runs in a thread, so
+# a dead worker is noticed within the heartbeat timeout, not after ten minutes.
+ACTIVITY_OPTIONS = {
+    "start_to_close_timeout": _START_TO_CLOSE,
+    "heartbeat_timeout": ACTIVITY_HEARTBEAT_TIMEOUT,
+    "retry_policy": _RETRY_POLICY,
+}
 
 COMPLETED_EXECUTION_STATUS = "sync_execution_completed"
 RELEASE_REASON_COMPLETED = "scheduled_live_sync_completed"
@@ -125,8 +133,7 @@ class _TemporalActivityPort:
         return await workflow.execute_activity(
             activity_name,
             *args,
-            start_to_close_timeout=_START_TO_CLOSE,
-            retry_policy=_RETRY_POLICY,
+            **ACTIVITY_OPTIONS,
         )
 
 
