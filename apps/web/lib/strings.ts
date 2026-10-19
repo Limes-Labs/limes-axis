@@ -512,7 +512,8 @@ const workflows = {
   empty: {
     title: "No workflow runs yet",
     detail:
-      "When a governed workflow starts, its run will appear here with a step-by-step timeline.",
+      "A governed workflow starts when someone decides an approval. Its run will then appear here with a step-by-step timeline.",
+    action: "Review pending approvals",
   },
   noMatch: {
     title: "No workflows match the current filters",
@@ -1540,7 +1541,9 @@ const simulation = {
   },
   noArtifacts: {
     title: "No replay history yet",
-    detail: "Replay previews will appear after this tenant has governed workflow history.",
+    detail:
+      "Replays are built from governed workflow history. Previews will appear here once this tenant has recorded workflow runs.",
+    action: "Open workflow runs",
   },
   noPolicyResult: "No policy result recorded for this replay.",
 } as const;
