@@ -19,6 +19,9 @@ separately authorized execution (#878).
   contents. The archive description is the producer's declaration; a later
   reader that extracts real members must enforce the same limits on the
   actual bytes it reads.
+- Carried payloads are bounded too: at most 100,000 records per bundle and
+  50,000 distinct principals in the identity plan; larger bundles fail with
+  `archive_resource_limits_exceeded` instead of an unbounded plan.
 - The bundle carries an Ed25519 signature over the canonical manifest digest
   (domain-separated as `axis.tenant-portability-bundle:manifest:<digest>`).
   It is verified against **operator-supplied** raw public keys

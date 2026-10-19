@@ -435,6 +435,24 @@ def test_archive_total_size_limit() -> None:
         BundleArchive(members=members)
 
 
+def test_payload_record_total_limit() -> None:
+    manifest = _manifest()
+    record = PayloadRecord(identity="user:planner", data={})
+    # 2 x 50_001 records: each component is within its own bound, the bundle
+    # total is not, and the bundle is refused before any digest is computed.
+    payloads = {
+        "ontology": (record,) * 50_001,
+        "audit-ledger": (record,) * 50_001,
+    }
+    with pytest.raises(ValidationError, match="archive_resource_limits_exceeded"):
+        PortabilityBundle(
+            manifest=manifest,
+            archive=_bundle(manifest).archive,
+            component_payloads=payloads,
+            signature=_bundle(manifest).signature,
+        )
+
+
 def test_duplicate_member_paths_are_rejected() -> None:
     with pytest.raises(ValidationError, match="unsafe_archive_member"):
         BundleArchive(
