@@ -561,6 +561,18 @@ def test_retry_after_is_bounded_by_configuration(host):
     assert row.available_at <= datetime.now(UTC).replace(tzinfo=None) + timedelta(seconds=35)
 
 
+def test_provider_unauthorized_is_terminal_for_the_lease_and_never_retried(host):
+    host.transport.queue(FakeResponse({"error": "invalid token"}, status=401))
+    submit(host)
+    assert dispatch(host).dead_lettered == 1
+    row = request_row(host)
+    assert row.status == "failed" and row.dead_lettered_at is not None
+    assert row.attempt_count == 1
+    assert row.last_error == "source_unavailable"
+    assert state(host) == (0, None, [])
+    assert len(host.transport.urls) == 1
+
+
 # --------------------------------------------------------------------------
 # Acceptance group 4: expired cursor / changed profile / revoked lease stop.
 # --------------------------------------------------------------------------
