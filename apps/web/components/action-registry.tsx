@@ -46,7 +46,7 @@ import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 type ActionRunSource = "api";
 
@@ -94,6 +94,7 @@ function PayloadRows({ payload }: { payload: Record<string, string> }) {
 }
 
 export function ActionRegistry() {
+  const strings = useStrings();
   const identity = useIdentitySession();
   const tenantScope = resolveConsoleTenantScope(identity.data);
   const tenantId = tenantScope.tenantId;

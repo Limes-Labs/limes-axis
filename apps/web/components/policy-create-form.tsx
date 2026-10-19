@@ -33,7 +33,7 @@ import {
   type PolicyDraftFormState,
 } from "@/lib/platform-policies";
 import { opaqueStringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useIdentitySession } from "@/lib/use-identity-session";
 import { useConsole } from "@/providers/console-provider";
@@ -45,6 +45,7 @@ type SubmissionState =
   | { phase: "failed"; error: AxisOperatorError };
 
 export function PolicyCreateForm({ tenantId }: { tenantId: string }) {
+  const strings = useStrings();
   const { session } = useOidcConsoleSession();
   const identity = useIdentitySession();
   // The API rebinds created_by to the verified OIDC principal and rejects

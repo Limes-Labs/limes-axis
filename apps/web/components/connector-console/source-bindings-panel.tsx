@@ -5,7 +5,7 @@ import { DatabaseZap } from "lucide-react";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { parseSourceBindingsView } from "@/lib/runtime-contracts/connectors";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { OPERATIONS_API_PREFIX, buildTenantScopedPath } from "@/lib/tenant-scope";
 
 /*
@@ -22,6 +22,7 @@ export function ConnectorSourceBindingsSection({
   connectorId: string;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const copy = strings.connectors.sourceBindings;
   const path = buildTenantScopedPath(
     `${OPERATIONS_API_PREFIX}/connectors/external-db/source-bindings`,
@@ -107,6 +108,7 @@ export function ConnectorSourceBindingsSection({
 }
 
 function BindingsHeader() {
+  const strings = useStrings();
   const copy = strings.connectors.sourceBindings;
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">

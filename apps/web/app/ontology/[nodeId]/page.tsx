@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { strings } from "@/lib/strings";
+import { getServerStrings } from "@/lib/locale-server";
 import { ConsolePage } from "@/components/console-page";
 import { OntologyEntityDetail } from "@/components/ontology-entity-detail";
 
@@ -16,6 +16,7 @@ export async function generateMetadata({ params }: OntologyEntityPageProps): Pro
 }
 
 export default async function OntologyEntityPage({ params }: OntologyEntityPageProps) {
+  const strings = await getServerStrings();
   const { nodeId } = await params;
 
   return (

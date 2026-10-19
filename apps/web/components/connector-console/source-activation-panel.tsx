@@ -26,7 +26,8 @@ import {
   parseSourceActivationOutcome,
   type SourceBindingView,
 } from "@/lib/runtime-contracts/connectors";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import { OPERATIONS_API_PREFIX, buildTenantScopedPath } from "@/lib/tenant-scope";
 import { useConsole } from "@/providers/console-provider";
 import { deriveGovernedActor } from "@/lib/governed-action";
@@ -48,7 +49,7 @@ export type ActivationSelection = {
   schemaFingerprint: string;
 };
 
-function activationErrorCopy(error: AxisOperatorError): string | null {
+function activationErrorCopy(error: AxisOperatorError, strings: ConsoleStrings): string | null {
   const copy = strings.connectors.sourceActivation;
   if (error.status === 403) {
     return error.reason === `missing_scope:${SOURCE_ACTIVATION_SCOPE}`
@@ -88,6 +89,7 @@ export function ConnectorSourceActivationPanel({
   };
   onActivated: () => void;
 }) {
+  const strings = useStrings();
   const copy = strings.connectors.sourceActivation;
   const { triggerRefresh } = useConsole();
   const { push } = useToast();
@@ -155,7 +157,7 @@ export function ConnectorSourceActivationPanel({
         || caught instanceof AxisApiDecodeError
       ) {
         const operatorError = toAxisOperatorError(caught, copy.genericError);
-        setError({ ...operatorError, message: activationErrorCopy(operatorError) ?? copy.genericError });
+        setError({ ...operatorError, message: activationErrorCopy(operatorError, strings) ?? copy.genericError });
       } else {
         setError({ code: null, reason: null, message: copy.genericError, requestId: null, status: null });
       }

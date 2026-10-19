@@ -25,7 +25,8 @@ import {
 import { formatContextPath, formatNumber } from "@/lib/format";
 import { platformStatusClass, platformStatusLabel } from "@/lib/platform-overview";
 import { deriveSourceState } from "@/lib/source-state";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import {
   IDENTITY_SESSION_ENDPOINT,
   useConsoleTenantScope,
@@ -53,12 +54,12 @@ import { ManifestImportPanel } from "./manifest-import-panel";
  * A failing counter or detail degrades its own section.
  */
 
-function countOrPlaceholder(count: number | null | undefined): string | number {
+function countOrPlaceholder(count: number | null | undefined, strings: ConsoleStrings): string | number {
   return count == null ? strings.connectors.metrics.unavailable : formatNumber(count);
 }
 
 function buildMetrics(
-  registries: ConnectorRegistries,
+  registries: ConnectorRegistries, strings: ConsoleStrings,
 ): Metric[] {
   const copy = strings.connectors.metrics;
   const counts = registries.registry.data?.counts;
@@ -67,29 +68,29 @@ function buildMetrics(
   return [
     {
       label: copy.connectors.label,
-      value: countOrPlaceholder(registries.registry.data?.total_connectors),
+      value: countOrPlaceholder(registries.registry.data?.total_connectors, strings),
       detail: copy.connectors.detail,
     },
     {
       label: copy.runs.label,
-      value: countOrPlaceholder(counts?.runs),
+      value: countOrPlaceholder(counts?.runs, strings),
       detail: copy.runs.detail,
     },
     {
       label: copy.pendingProposals.label,
       value: countOrPlaceholder(
-        counts?.pending_proposals,
+        counts?.pending_proposals, strings,
       ),
       detail: copy.pendingProposals.detail,
     },
     {
       label: copy.egressPolicies.label,
-      value: countOrPlaceholder(counts?.egress_policies),
+      value: countOrPlaceholder(counts?.egress_policies, strings),
       detail: copy.egressPolicies.detail,
     },
     {
       label: copy.evidenceIssues.label,
-      value: countOrPlaceholder(invariantCount),
+      value: countOrPlaceholder(invariantCount, strings),
       detail: copy.evidenceIssues.detail,
       ...(invariantCount != null
         ? { tone: invariantCount > 0 ? ("action" as const) : ("ready" as const) }
@@ -114,6 +115,7 @@ const connectorUrlSchema = {
 };
 
 function SnapshotPanel({ snapshot }: { snapshot: ConnectorEvidenceInvariantSnapshotRecord }) {
+  const strings = useStrings();
   const copy = strings.connectors.snapshot;
 
   return (
@@ -154,6 +156,7 @@ export function ConnectorConsole() {
 }
 
 function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTenantScope> }) {
+  const strings = useStrings();
   const { identity, tenantId, tenantQueriesEnabled } = scope;
   const [urlState, setUrlState] = useConsoleUrlState(connectorUrlSchema);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -323,7 +326,7 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
       </div>
 
       <MetricStrip
-        metrics={buildMetrics(registries)}
+        metrics={buildMetrics(registries, strings)}
         label={strings.connectors.metrics.stripLabel}
       />
 

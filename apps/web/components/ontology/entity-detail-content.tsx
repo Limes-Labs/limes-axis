@@ -8,7 +8,7 @@ import { Reveal } from "@/components/reveal";
 import { Card } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { formatNodeType, type ManufacturingOntologyEntityDetail } from "@/lib/ontology-demo";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { buildOntologyEntityRoute } from "@/lib/ontology-routes";
 
 /*
@@ -94,6 +94,7 @@ export function EntityDetailContent({
   onNavigateToNode,
   summaryAction,
 }: EntityDetailContentProps) {
+  const strings = useStrings();
   const isPage = layout === "page";
   const MaybeReveal = isPage ? Reveal : "div";
 

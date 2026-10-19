@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import type { ManufacturingAuditExplorer } from "@/lib/audit-demo";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { deriveSourceState } from "@/lib/source-state";
 
 import { normalizeLabel, type OverviewQuery } from "./overview-shared";
@@ -25,6 +25,7 @@ export function SideRail({
   hiddenReadCount?: number;
   windowLimit?: number;
 }) {
+  const strings = useStrings();
   const copy = strings.clarity.activity;
   const [view, setView] = useState("category");
   if (!auditEvents.data) {

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { strings } from "@/lib/strings";
+import { getServerStrings } from "@/lib/locale-server";
 import { ConsolePage } from "@/components/console-page";
 import { PolicyDetail } from "@/components/policy-detail";
 
@@ -16,6 +16,7 @@ export async function generateMetadata({ params }: PolicyDetailPageProps): Promi
 }
 
 export default async function PolicyDetailPage({ params }: PolicyDetailPageProps) {
+  const strings = await getServerStrings();
   const { policyId } = await params;
 
   return (

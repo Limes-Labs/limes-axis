@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getApiBaseUrl, isDefaultApiBaseUrl } from "@/lib/api-status";
 import { cn } from "@/lib/cn";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 /*
  * Unified state system: LoadingPanel / ErrorPanel / EmptyPanel are the only
@@ -70,6 +70,7 @@ type ErrorPanelProps = {
 };
 
 export function ErrorPanel({ title, detail, endpoint, reference, onRetry }: ErrorPanelProps) {
+  const strings = useStrings();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const DetailsChevron = detailsOpen ? ChevronDown : ChevronRight;
 
@@ -179,6 +180,7 @@ type TenantEmptyPanelProps = {
  * tenant is the guided-setup story, so it must never render as an API error.
  */
 export function TenantEmptyPanel({ icon, title }: TenantEmptyPanelProps) {
+  const strings = useStrings();
   const copy = strings.states.tenantEmpty;
   return (
     <EmptyPanel

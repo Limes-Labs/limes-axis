@@ -15,7 +15,7 @@ import {
 } from "@/lib/platform-tenants";
 import { toAxisOperatorError, type AxisOperatorError } from "@/lib/axis-api";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { useConsole } from "@/providers/console-provider";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -34,9 +34,8 @@ function forbiddenMessage(message: string, requiredPermission?: string): string 
     : message;
 }
 
-const suspendCopy = strings.tenantLifecycle.suspend;
-
 export function TenantLifecycleActions({ tenant }: { tenant: TenantRecord }) {
+  const suspendCopy = useStrings().tenantLifecycle.suspend;
   const suspendImpactId = useId();
   const { session } = useOidcConsoleSession();
   const { triggerRefresh } = useConsole();

@@ -29,7 +29,7 @@ import {
   useConsoleUrlState,
 } from "@/lib/console-url-state";
 import { deriveSourceState } from "@/lib/source-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { parseManufacturingOntology } from "@/lib/runtime-contracts/ontology";
 import {
   buildTenantScopedPath,
@@ -68,6 +68,7 @@ function OntologyExplorerSkeleton() {
 }
 
 export function OntologyExplorer() {
+  const strings = useStrings();
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const ontologyPath = buildTenantScopedPath(
     `${OPERATIONS_API_PREFIX}/ontology`,

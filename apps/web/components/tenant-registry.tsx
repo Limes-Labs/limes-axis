@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Building2, RotateCcw, ShieldCheck } from "lucide-react";
 
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { dataTableClassName } from "@/components/ui/data-table";
 import { cn } from "@/lib/cn";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -169,6 +169,7 @@ function useTenantRegistryPages(filters: TenantRegistryFilters) {
 }
 
 export function TenantRegistry() {
+  const strings = useStrings();
   const [filters, setFilters] = useConsoleUrlState(tenantUrlSchema);
   const { registry, source, loadError, loadMore, loadingMore, loadMoreError } =
     useTenantRegistryPages(filters);

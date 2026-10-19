@@ -29,7 +29,7 @@ import {
   parseModelInvocation,
   type LiveModelInvocation,
 } from "@/lib/model-routing-live";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
@@ -167,6 +167,7 @@ function useLinkedModelInvocations(invocationIds: string[]): LinkedInvocationsSt
 }
 
 function AgentRunDetail({ agentId, run }: { agentId: string; run: AgentRunRecord }) {
+  const strings = useStrings();
   const linked = useLinkedModelInvocations(run.model_invocation_ids);
   // The run LIST endpoint returns runs without their step records; only the
   // run DETAIL endpoint carries the persisted context_read → model call →
@@ -294,6 +295,7 @@ export function AgentRuns({
   onSelect?: (runId: string) => void;
   selectedRunId?: string;
 }) {
+  const strings = useStrings();
   const [internalSelectedRunId, setInternalSelectedRunId] = useState("");
   const resolvedSelectedRunId = selectedRunId ?? internalSelectedRunId;
   const runsQuery = useAxisQuery(agentRunsPath(agentId), { parse: parseAgentRunList });

@@ -37,7 +37,7 @@ import { enumUrlField, opaqueStringUrlField, stringUrlField, useConsoleUrlState 
 import { formatContextPath, formatNumber, formatTimestamp } from "@/lib/format";
 import { type IdentitySessionReadModel } from "@/lib/platform-overview";
 import { deriveSourceState } from "@/lib/source-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { parseActionRunList } from "@/lib/runtime-contracts/actions";
 import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import {
@@ -185,6 +185,7 @@ function DecisionHistory({
 }: {
   entries: readonly ApprovalDecisionHistoryEntry[];
 }) {
+  const strings = useStrings();
   return (
     <Card className="grid content-start gap-3" as="section">
       <div aria-label="Decision history" className="grid content-start gap-3">
@@ -283,6 +284,7 @@ function ApprovalDetail({
   onErrorChange: (approvalId: string, error: AxisOperatorError | null) => void;
   tenantId: string;
 }) {
+  const strings = useStrings();
   return (
     <Card className="grid min-w-0 content-start gap-5">
       <div className="grid min-w-0 gap-3">
@@ -381,6 +383,7 @@ function ApprovalDetail({
 }
 
 export function ApprovalInbox() {
+  const strings = useStrings();
   const { labelDomain } = useTenantVocabulary();
   const { triggerRefresh } = useConsole();
   const identity = useIdentitySession();

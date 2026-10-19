@@ -15,8 +15,9 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/cn";
-import { isNavActive, navGroups, resolveNavItem } from "@/lib/nav";
-import { strings } from "@/lib/strings";
+import { isNavActive, resolveNavItem } from "@/lib/nav";
+import { useNavGroups } from "@/lib/use-nav-groups";
+import { useStrings } from "@/providers/locale-provider";
 
 const drawerLinkClass =
   "flex min-h-[44px] items-center gap-2.5 rounded-xl px-3 text-[13px] font-medium text-muted transition-colors hover:bg-signal/8 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal";
@@ -37,8 +38,13 @@ export function MobileNavigation({
   badge: ReactNode;
   pathname: string;
 }) {
+  const strings = useStrings();
   const [open, setOpen] = useState(false);
-  const currentItem = resolveNavItem(pathname);
+  const navGroups = useNavGroups();
+  const currentItem = resolveNavItem(
+    pathname,
+    navGroups.flatMap((group) => group.items),
+  );
   const currentGroup = currentItem
     ? navGroups.find((group) => group.items.some((item) => item.href === currentItem.href))
     : null;

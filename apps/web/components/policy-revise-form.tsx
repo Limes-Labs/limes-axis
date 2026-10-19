@@ -27,7 +27,7 @@ import {
 } from "@/lib/platform-policies";
 import { safeRandomUuid } from "@/lib/ids";
 import { opaqueStringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useIdentitySession } from "@/lib/use-identity-session";
 import { useConsole } from "@/providers/console-provider";
@@ -47,6 +47,7 @@ export function PolicyReviseForm({
   tenantId: string;
   current: PlatformPolicyRecord;
 }) {
+  const strings = useStrings();
   const { session } = useOidcConsoleSession();
   const identity = useIdentitySession();
   // The API rebinds updated_by to the verified OIDC principal and rejects

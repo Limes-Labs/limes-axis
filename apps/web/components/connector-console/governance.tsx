@@ -8,7 +8,7 @@ import { InspectDrawer } from "@/components/ui/inspect-drawer";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import { formatConnectorLabel } from "@/lib/connectors-demo";
 import { formatDateTime } from "@/lib/format";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import type { AxisQuerySource } from "@/lib/use-axis-query";
 import type { ConnectorRegistries } from "@/lib/use-connector-registries";
 
@@ -121,6 +121,7 @@ export function ConnectorGovernance({
   connectorId: string;
   registries: ConnectorRegistries;
 }) {
+  const strings = useStrings();
   const copy = strings.connectors.governance;
   const handles = (registries.credentialHandles.data?.handles ?? []).filter(
     (handle) => handle.connector_id === connectorId,

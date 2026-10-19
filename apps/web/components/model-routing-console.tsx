@@ -46,7 +46,7 @@ import {
 } from "@/lib/platform-overview";
 import { Disclosure } from "@/components/ui/disclosure";
 import { ModelRoutingFlow } from "@/components/model-routing-flow";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { parseManufacturingModelRouting } from "@/lib/runtime-contracts/model-routing";
 import { buildTenantScopedPath, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
@@ -61,8 +61,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-const routeDetail = strings.models.reference.routeDetail;
 
 const defaultFilters: ModelRoutingFilters = {
   domain: allModelRoutingFilter,
@@ -87,6 +85,7 @@ function routeDecisionClass(route: ModelRouteTelemetry): string {
 }
 
 export function ModelRoutingConsole() {
+  const strings = useStrings();
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const [urlState, setUrlState] = useConsoleUrlState(modelRoutingUrlSchema);
 
@@ -176,6 +175,8 @@ function ReferenceModelRouting({
   selectedRouteId: string;
   tenantId: string;
 }) {
+  const strings = useStrings();
+  const routeDetail = strings.models.reference.routeDetail;
   const routingPath = buildTenantScopedPath(`${OPERATIONS_API_PREFIX}/model-routing`, tenantId);
   const {
     data: routing,
@@ -602,6 +603,7 @@ function endpointChip(label: string): string {
  * registry. Nothing here is seeded — every row is a recorded invocation.
  */
 function LiveModelRouterSection({ enabled, tenantId }: { enabled: boolean; tenantId: string }) {
+  const strings = useStrings();
   const telemetryPath = buildTenantScopedPath(
     "/platform/models/routing/telemetry",
     tenantId,

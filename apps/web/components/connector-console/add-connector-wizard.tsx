@@ -50,7 +50,7 @@ import {
   parseConnectorCsvPreviewResult,
   parseConnectorExternalDbPreviewResult,
 } from "@/lib/runtime-contracts/connectors";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
@@ -142,6 +142,7 @@ export function AddConnectorWizard({
   returnFocusRef?: RefObject<HTMLElement | null>;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const copy = strings.connectors.wizard;
   const { push } = useToast();
   const { session } = useOidcConsoleSession();

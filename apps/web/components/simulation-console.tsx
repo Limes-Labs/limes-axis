@@ -14,7 +14,7 @@ import {
 import { stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
 import { parseManufacturingReplaySimulation } from "@/lib/runtime-contracts/simulation";
 import { deriveSourceState } from "@/lib/source-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import {
   buildReplaySimulationPath,
   countChangedPolicySetDiffs,
@@ -42,6 +42,7 @@ const simulationUrlSchema = {
 };
 
 export function SimulationConsole() {
+  const strings = useStrings();
   const [urlState, setUrlState] = useConsoleUrlState(simulationUrlSchema);
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const replayPath = buildReplaySimulationPath({

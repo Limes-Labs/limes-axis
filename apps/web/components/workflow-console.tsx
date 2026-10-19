@@ -36,7 +36,8 @@ import {
   type PlatformStatus,
 } from "@/lib/platform-overview";
 import { deriveSourceState } from "@/lib/source-state";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import { parseManufacturingWorkflowConsole } from "@/lib/runtime-contracts/workflows";
 import {
   buildTenantScopedPath,
@@ -97,7 +98,7 @@ function runStatusToneClass(status: PlatformStatus): string {
 
 function buildFilterDefs(
   workflowData: ManufacturingWorkflowConsole,
-  labelDomain: (domain: string) => string,
+  labelDomain: (domain: string) => string, strings: ConsoleStrings,
 ): FilterDef[] {
   const options = workflowFilterOptions(workflowData);
   const copy = strings.workflows.filters;
@@ -130,6 +131,7 @@ function buildFilterDefs(
  * blocking approval when the record's pending signals carry its id.
  */
 function BlockerBanner({ workflow }: { workflow: WorkflowRun }) {
+  const strings = useStrings();
   const approvalId = workflowBlockingApprovalId(workflow);
   const copy = strings.workflows.blocker;
 
@@ -164,6 +166,7 @@ function BlockerBanner({ workflow }: { workflow: WorkflowRun }) {
 
 /** The visual centerpiece: the recorded runtime history with tone dots. */
 function RuntimeTimeline({ workflow }: { workflow: WorkflowRun }) {
+  const strings = useStrings();
   const copy = strings.workflows.timeline;
   const waitingSignals = workflow.pending_signals.filter(
     (signal) => signal.status === "waiting",
@@ -273,6 +276,7 @@ function ChipList({ items }: { items: string[] }) {
 }
 
 function PendingSignals({ workflow }: { workflow: WorkflowRun }) {
+  const strings = useStrings();
   const copy = strings.workflows.detail;
 
   if (workflow.pending_signals.length === 0) {
@@ -309,6 +313,7 @@ function WorkflowDetail({
   workflow: WorkflowRun;
   domainLabel: string;
 }) {
+  const strings = useStrings();
   const copy = strings.workflows;
 
   return (
@@ -388,6 +393,7 @@ function WorkflowDetail({
 }
 
 export function WorkflowConsole() {
+  const strings = useStrings();
   const { labelDomain } = useTenantVocabulary();
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const runsPath = buildTenantScopedPath(
@@ -518,7 +524,7 @@ export function WorkflowConsole() {
       {metrics.length > 0 ? <MetricStrip metrics={metrics} /> : null}
 
       <FilterBar
-        filters={buildFilterDefs(workflowData, labelDomain)}
+        filters={buildFilterDefs(workflowData, labelDomain, strings)}
         values={{ state: filters.state, domain: filters.domain }}
         onChange={(id, value) => {
           if (id === "state" || id === "domain") {

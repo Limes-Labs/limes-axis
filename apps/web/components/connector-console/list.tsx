@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { formatConnectorLabel } from "@/lib/connectors-demo";
 import { formatDateTime, pluralize } from "@/lib/format";
 import type { ConnectorWorkspaceItem } from "@/lib/runtime-contracts/connector-workspace";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 function manifestLifecycleClass(status: string): string {
   if (status === "active_live") {
@@ -43,6 +43,7 @@ export function ConnectorList({
   selectedConnectorId: string;
   onSelect: (connectorId: string) => void;
 }) {
+  const strings = useStrings();
   return (
     <Card className="grid content-start gap-4">
       <div className="grid gap-1">

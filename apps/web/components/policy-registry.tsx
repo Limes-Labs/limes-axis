@@ -30,7 +30,7 @@ import {
 } from "@/lib/platform-policies";
 import { formatNumber, formatTimestamp } from "@/lib/format";
 import { deriveSourceState, PROVENANCE_NOT_APPLICABLE } from "@/lib/source-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { parsePlatformPolicyRegistry } from "@/lib/runtime-contracts/policies";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { Field } from "@/components/ui/field";
@@ -72,6 +72,7 @@ function isPlatformPolicyScope(value: string): value is PlatformPolicyScope {
 }
 
 export function PolicyRegistry() {
+  const strings = useStrings();
   const [filters, setFilters] = useConsoleUrlState(policyUrlSchema);
   const authoredPolicyId = filters.authored;
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();

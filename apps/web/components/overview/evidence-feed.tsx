@@ -9,7 +9,7 @@ import {
   buildAuditEventHref,
   type ManufacturingAuditExplorer,
 } from "@/lib/audit-demo";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 import {
   normalizeLabel,
@@ -53,6 +53,7 @@ export function EvidenceFeed({
   auditEvents: OverviewQuery<ManufacturingAuditExplorer>;
   reads?: AuditReadsControl;
 }) {
+  const strings = useStrings();
   const copy = strings.overview.evidenceFeed;
 
   if (!auditEvents.data) {

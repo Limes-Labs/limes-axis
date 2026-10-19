@@ -15,7 +15,7 @@ import {
   type ConnectorRegistryItem,
 } from "@/lib/connectors-demo";
 import { connectorWithCurrentManifest } from "@/lib/connectors-console";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { formatNumber, formatTimestamp } from "@/lib/format";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import { parseConnectorManifestDetail } from "@/lib/runtime-contracts/connectors";
@@ -80,6 +80,7 @@ function OverviewTab({
   registries: ConnectorRegistries;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const copy = strings.connectors.overview;
   const { manifest, runtime_policy: runtimePolicy } = connector;
   const persistedManifest = connector.persisted_manifest;
@@ -226,6 +227,7 @@ function OverviewTab({
 }
 
 function DataSchemaTab({ connector }: { connector: ConnectorRegistryItem }) {
+  const strings = useStrings();
   const copy = strings.connectors.schema;
   const { schema_fields: schemaFields } = connector.manifest;
   const sample = connector.preview_sample;
@@ -319,6 +321,7 @@ export function ConnectorDetail({
   registries: ConnectorRegistries;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const tabs = strings.connectors.tabs;
   const { manifest } = connector;
   const { triggerRefresh } = useConsole();

@@ -25,7 +25,7 @@ import {
   type ManufacturingAuditExplorer,
 } from "@/lib/audit-demo";
 import { enumUrlField, stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import {
   buildTenantScopedPath,
   DEMO_TENANT_ID,
@@ -99,6 +99,7 @@ function downloadAuditExportBundle(bundle: AuditExportBundle) {
  * a real client-side download of the fetched export bundle.
  */
 function AuditIntegrityExportPanel({ exportBundle }: { exportBundle: AuditExportBundle }) {
+  const strings = useStrings();
   const copy = strings.audit.integrity;
   const summary = buildAuditExportSummary(exportBundle);
   const inspectRecord: Record<string, unknown> = {
@@ -165,6 +166,7 @@ function AuditIntegrityExportPanel({ exportBundle }: { exportBundle: AuditExport
 }
 
 export function AuditExplorer() {
+  const strings = useStrings();
   const [auditExport, setAuditExport] = useState<AuditExportBundle | null>(null);
   const [auditExportError, setAuditExportError] = useState<AxisOperatorError | null>(null);
   const [timeSelection, setTimeSelection] = useState<{
@@ -266,7 +268,7 @@ export function AuditExplorer() {
     void loadAuditExport();
 
     return () => controller.abort();
-  }, [auditExportPath, refreshNonce, session, tenantId, tenantQueriesEnabled]);
+  }, [auditExportPath, refreshNonce, session, strings, tenantId, tenantQueriesEnabled]);
 
   const matchingEvents = auditData ? filterAuditEvents(auditData, filters) : [];
   // The list and the heatmap default to state-changing events. Choosing a read

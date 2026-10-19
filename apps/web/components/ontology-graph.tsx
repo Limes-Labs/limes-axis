@@ -24,7 +24,7 @@ import {
 } from "@/lib/ontology-graph-layout";
 import { buildOntologyEntityRoute } from "@/lib/ontology-routes";
 import { platformStatusLabel } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 const NODE_HALF = 9; // half-diagonal of the diamond marker
 const WHEEL_ZOOM_SENSITIVITY = 0.0022;
@@ -84,6 +84,7 @@ export function OntologyGraph({
   selectedNodeId,
   onNodeActivate,
 }: OntologyGraphProps) {
+  const strings = useStrings();
   const router = useRouter();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [drawn, setDrawn] = useState(false);

@@ -12,7 +12,7 @@ import {
   parseSourceIngestionOverview,
 } from "@/lib/runtime-contracts/connectors";
 import { fillTemplate } from "@/lib/format";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { buildTenantScopedPath, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { useAxisQuery } from "@/lib/use-axis-query";
 
@@ -64,6 +64,7 @@ export function SourceJourneySpine({
   connectorId: string;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const copy = strings.connectors.sourceJourney;
   const { loading, unavailable, bindings, summary } = useJourneyData(
     connectorId,

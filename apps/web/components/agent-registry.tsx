@@ -28,7 +28,7 @@ import {
   type PlatformStatus,
 } from "@/lib/platform-overview";
 import { deriveSourceState } from "@/lib/source-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { parseManufacturingAgentRegistry } from "@/lib/runtime-contracts/agents";
 import {
   buildTenantScopedPath,
@@ -124,6 +124,7 @@ const filterIdToKey: Record<string, keyof AgentFilters> = {
 };
 
 export function AgentRegistry() {
+  const strings = useStrings();
   const { labelDomain } = useTenantVocabulary();
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const agentsPath = buildTenantScopedPath(AGENTS_ENDPOINT, tenantId ?? DEMO_TENANT_ID);

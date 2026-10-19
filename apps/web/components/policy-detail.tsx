@@ -39,7 +39,7 @@ import {
   useConsoleUrlState,
 } from "@/lib/console-url-state";
 import { deriveSourceState, PROVENANCE_NOT_APPLICABLE } from "@/lib/source-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 import { Field } from "@/components/ui/field";
@@ -143,6 +143,7 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
 }
 
 export function PolicyDetail({ policyId }: { policyId: string }) {
+  const strings = useStrings();
   const [result, setResult] = useState<DetailResult | null>(null);
   const [urlState, setUrlState] = useConsoleUrlState(policyDetailUrlSchema);
   const { session } = useOidcConsoleSession();
@@ -207,7 +208,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
     void fetchPolicy();
 
     return () => controller.abort();
-  }, [policyId, session, refreshNonce, tenantId, tenantQueriesEnabled]);
+  }, [policyId, session, refreshNonce, strings, tenantId, tenantQueriesEnabled]);
 
   useEffect(() => {
     const detail = result?.tenantId === tenantId ? result.detail : null;

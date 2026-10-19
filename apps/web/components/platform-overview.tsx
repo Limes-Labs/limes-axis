@@ -33,7 +33,7 @@ import {
   type ManufacturingOperationsSnapshot,
   type ManufacturingOverview,
 } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import { parseManufacturingAuditExplorer } from "@/lib/runtime-contracts/audit";
 import { parseManufacturingModelRouting } from "@/lib/runtime-contracts/model-routing";
@@ -79,6 +79,7 @@ function OverviewHero({
   approvals: OverviewQuery<ManufacturingApprovalInbox>;
   auditEvents: OverviewQuery<ManufacturingAuditExplorer>;
 }) {
+  const strings = useStrings();
   if (!overview.data) {
     if (overview.source === "loading") {
       return <LoadingPanel layout="detail" />;
@@ -168,6 +169,7 @@ function OverviewHero({
 }
 
 export function PlatformOverview() {
+  const strings = useStrings();
   const { apiStatus, triggerRefresh } = useConsole();
   const demoBootstrap = useDemoBootstrap();
   const identityQuery = useIdentitySession();

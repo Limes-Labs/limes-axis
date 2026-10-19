@@ -4,7 +4,9 @@ import { GeistSans } from "geist/font/sans";
 import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { getRequestLocale } from "@/lib/locale-server";
 import { THEME_STORAGE_KEY } from "@/lib/theme";
+import { LocaleProvider } from "@/providers/locale-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 
 import "./globals.css";
@@ -51,16 +53,22 @@ const themeInitScript = `(function () {
   }
 })();`;
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  // Cookie, then Accept-Language, then English: the same resolution the
+  // pages use, so `<html lang>` always names the language on screen.
+  const locale = await getRequestLocale();
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className={`${GeistSans.variable} ${GeistMono.variable}`}>
-        <ThemeProvider>
-          <AppShell>{children}</AppShell>
-        </ThemeProvider>
+        <LocaleProvider locale={locale}>
+          <ThemeProvider>
+            <AppShell>{children}</AppShell>
+          </ThemeProvider>
+        </LocaleProvider>
       </body>
     </html>
   );

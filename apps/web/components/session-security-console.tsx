@@ -25,7 +25,7 @@ import {
 import { buildOidcAuthorizeUrl, buildOidcLogoutUrl } from "@/lib/oidc-session";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import { parseIdentityBrowserSessionList } from "@/lib/runtime-contracts/identity";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import {
   deriveSourceState,
   PROVENANCE_NOT_APPLICABLE,
@@ -142,6 +142,7 @@ function SessionRow({
 }
 
 function SignedOutPanel({ signInUrl }: { signInUrl: string }) {
+  const strings = useStrings();
   return (
     <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
       <div>

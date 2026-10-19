@@ -13,7 +13,7 @@ import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel } from "@/components/ui/states";
 import { formatContextPath, formatTimestamp } from "@/lib/format";
 import { deriveSourceState } from "@/lib/source-state";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import {
   IDENTITY_SESSION_ENDPOINT,
@@ -21,6 +21,7 @@ import {
 } from "@/lib/use-console-tenant-scope";
 
 export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
+  const strings = useStrings();
   const { identity, tenantId, tenantQueriesEnabled } = useConsoleTenantScope();
   const { detail, endpoint, errorRequestId, source } = useOntologyEntity(
     nodeId,

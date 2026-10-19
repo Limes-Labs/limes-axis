@@ -18,7 +18,7 @@ import {
   type AgentRegistryEntry,
 } from "@/lib/agent-demo";
 import { buildAuditEventHref } from "@/lib/audit-demo";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 function ChipList({ items }: { items: string[] }) {
   return (
@@ -62,6 +62,7 @@ function BulletList({ items }: { items: string[] }) {
 }
 
 function OverviewTab({ agent }: { agent: AgentRegistryEntry }) {
+  const strings = useStrings();
   return (
     <div className="grid min-w-0 gap-5">
       <div className="grid min-w-0 gap-1.5">
@@ -95,6 +96,7 @@ function OverviewTab({ agent }: { agent: AgentRegistryEntry }) {
 }
 
 function PermissionsTab({ agent }: { agent: AgentRegistryEntry }) {
+  const strings = useStrings();
   return (
     <div className="grid min-w-0 gap-5">
       <section>
@@ -129,6 +131,7 @@ function PermissionsTab({ agent }: { agent: AgentRegistryEntry }) {
 }
 
 function EvidenceTab({ agent }: { agent: AgentRegistryEntry }) {
+  const strings = useStrings();
   const hasEvidence =
     agent.proposals.length > 0
     || agent.active_workflows.length > 0
@@ -241,6 +244,7 @@ export function AgentDetail({
   onTabChange?: (tab: AgentDetailTab) => void;
   selectedRunId?: string;
 }) {
+  const strings = useStrings();
   const [internalTab, setInternalTab] = useState<AgentDetailTab>("overview");
   const resolvedTab = activeTab ?? internalTab;
 

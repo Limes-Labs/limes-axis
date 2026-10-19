@@ -17,6 +17,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { LocaleSwitch } from "@/components/locale-switch";
 import { SsoSignInLink } from "@/components/sso-sign-in-link";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
@@ -33,7 +34,7 @@ import {
   currentReturnPath,
 } from "@/lib/oidc-session";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 
@@ -46,6 +47,7 @@ export function AccountPanel({
   identitySession: IdentitySessionReadModel | null;
   identitySessionUnavailable: boolean;
 }) {
+  const strings = useStrings();
   const { session, saveAccessToken, clearSession } = useOidcConsoleSession();
   const { apiBaseUrl, apiStatus } = useConsole();
   const [accessToken, setAccessToken] = useState("");
@@ -259,6 +261,8 @@ export function AccountPanel({
           </Collapsible>
         </div>
       )}
+
+      <LocaleSwitch />
     </section>
   );
 }

@@ -248,6 +248,11 @@ const shell = {
     triggerLabel: (current: string) => `Color theme: ${current}`,
     options: { system: "System", light: "Light", dark: "Dark" },
   },
+  /* Option names come from `LOCALE_NAMES`: each language in its own words. */
+  locale: {
+    label: "Language",
+    detail: "Changing the language reloads the console.",
+  },
 } as const;
 
 /*

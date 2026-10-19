@@ -9,7 +9,7 @@ import { controlClassName } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { approvalRiskClass, type ApprovalInboxItem } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 
 export type ApprovalQueueFilters = {
   search: string;
@@ -58,6 +58,7 @@ export function ApprovalQueue({
   onReset: () => void;
   onSelect: (approvalId: string, pushHistory: boolean) => void;
 }) {
+  const strings = useStrings();
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
   const searchRef = useRef<HTMLInputElement>(null);
 

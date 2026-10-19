@@ -27,7 +27,7 @@ import {
   platformStatusClass,
   type ManufacturingOperationsSnapshot,
 } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import {
   parseOperationsArtifactResponse,
 } from "@/lib/runtime-contracts/overview";
@@ -60,6 +60,7 @@ export function ArtifactPanel({
   snapshot: OverviewQuery<ManufacturingOperationsSnapshot>;
   onArtifactCommitted: () => void;
 }) {
+  const strings = useStrings();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { apiBaseUrl } = useConsole();

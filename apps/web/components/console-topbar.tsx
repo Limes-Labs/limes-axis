@@ -11,7 +11,7 @@ import { DemoBadge } from "@/components/demo-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationPanel } from "@/components/topbar/notification-panel";
 import { apiStatusClass } from "@/lib/identity-format";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { isNavActive } from "@/lib/nav";
 import type {
   ManufacturingNotificationCenter,
@@ -44,6 +44,7 @@ export function ConsoleTopbar({
    */
   sourceLabel?: string;
 }) {
+  const strings = useStrings();
   const pathname = usePathname();
   const { apiStatus, triggerRefresh } = useConsole();
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);

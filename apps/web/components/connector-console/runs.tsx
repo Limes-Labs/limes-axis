@@ -39,7 +39,7 @@ import {
   parseConnectorRunRecord,
 } from "@/lib/runtime-contracts/connectors";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import type { ConnectorRegistries } from "@/lib/use-connector-registries";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
@@ -105,6 +105,7 @@ export function ConnectorRuns({
   registries: ConnectorRegistries;
   tenantId: string;
 }) {
+  const strings = useStrings();
   const copy = strings.connectors.runs;
   const connectorId = connector.manifest.connector_id;
   const { session } = useOidcConsoleSession();

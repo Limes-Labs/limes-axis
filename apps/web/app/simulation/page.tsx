@@ -2,12 +2,15 @@ import type { Metadata } from "next";
 
 import { ConsolePage } from "@/components/console-page";
 import { SimulationConsole } from "@/components/simulation-console";
-import { strings } from "@/lib/strings";
+import { getServerStrings } from "@/lib/locale-server";
 
-export const metadata: Metadata = {
-  title: strings.pages.simulation.title,
-  description: strings.pages.simulation.description,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = await getServerStrings();
+  return {
+    title: strings.pages.simulation.title,
+    description: strings.pages.simulation.description,
+  };
+}
 
 export default function SimulationPage() {
   return (

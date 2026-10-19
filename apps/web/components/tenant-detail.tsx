@@ -22,7 +22,7 @@ import {
   type TenantRecord,
 } from "@/lib/platform-tenants";
 import { formatTimestamp } from "@/lib/format";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { deriveSourceState, PROVENANCE_NOT_APPLICABLE } from "@/lib/source-state";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
@@ -83,6 +83,7 @@ function buildTimeline(tenant: TenantRecord): TimelineEntry[] {
 }
 
 export function TenantDetail({ tenantId }: { tenantId: string }) {
+  const strings = useStrings();
   const [tenant, setTenant] = useState<TenantRecord | null>(null);
   const [source, setSource] = useState<DetailSource>("loading");
   const [loadError, setLoadError] = useState<AxisOperatorError | null>(null);

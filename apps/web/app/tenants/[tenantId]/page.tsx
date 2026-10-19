@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { strings } from "@/lib/strings";
+import { getServerStrings } from "@/lib/locale-server";
 import { ConsolePage } from "@/components/console-page";
 import { TenantDetail } from "@/components/tenant-detail";
 
@@ -16,6 +16,7 @@ export async function generateMetadata({ params }: TenantDetailPageProps): Promi
 }
 
 export default async function TenantDetailPage({ params }: TenantDetailPageProps) {
+  const strings = await getServerStrings();
   const { tenantId } = await params;
 
   return (

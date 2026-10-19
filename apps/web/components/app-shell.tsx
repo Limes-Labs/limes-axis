@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { AxisMark } from "@/components/axis-mark";
 import { MobileNavigation } from "@/components/mobile-navigation";
@@ -11,9 +11,10 @@ import { SidebarAccount } from "@/components/sidebar-account";
 import { SignInGate } from "@/components/sign-in-gate";
 import { countAwaitingDecision, type ManufacturingApprovalInbox } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { ToastProvider } from "@/components/ui/toast";
-import { desktopNavGroups, isNavActive, type NavItem } from "@/lib/nav";
+import { isNavActive, toDesktopNavGroups, type NavItem } from "@/lib/nav";
+import { useNavGroups } from "@/lib/use-nav-groups";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
 import {
@@ -163,6 +164,8 @@ function Navigation({
   pathname: string;
 }) {
   const { overflow, ref } = useNavOverflow();
+  const navGroups = useNavGroups();
+  const desktopNavGroups = useMemo(() => toDesktopNavGroups(navGroups), [navGroups]);
 
   // On a short viewport the current section can sit below the fold (Tenants
   // at 900px tall); bring it into the rail's view on every route change.
@@ -243,6 +246,7 @@ function Navigation({
  * creating.
  */
 function ConsoleShell({ children }: { children: ReactNode }) {
+  const strings = useStrings();
   const pathname = usePathname();
   const identity = useIdentitySession();
   const tenantScope = resolveConsoleTenantScope(identity.data);

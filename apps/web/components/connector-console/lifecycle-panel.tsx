@@ -31,7 +31,8 @@ import { formatDateTime } from "@/lib/format";
 import { deriveGovernedActor } from "@/lib/governed-action";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import { parseConnectorManifestRecord } from "@/lib/runtime-contracts/connectors";
-import { strings } from "@/lib/strings";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { useStrings } from "@/providers/locale-provider";
 import { OPERATIONS_API_PREFIX, buildTenantScopedPath } from "@/lib/tenant-scope";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
@@ -53,7 +54,7 @@ const TARGET_BY_KIND: Record<TransitionKind, string> = {
   deprecate: "deprecated",
 };
 
-function transitionReason(kind: TransitionKind): string {
+function transitionReason(kind: TransitionKind, strings: ConsoleStrings): string {
   const copy = strings.connectors.lifecycle;
   if (kind === "activate") {
     return copy.activateReason;
@@ -80,7 +81,7 @@ function lifecycleStatusClass(status: string): string {
  * denial falls back to status-class copy, and unknown reasons land on the
  * same generic 403 line instead of inventing a claim about the session.
  */
-function lifecycleErrorCopy(error: AxisOperatorError): string {
+function lifecycleErrorCopy(error: AxisOperatorError, strings: ConsoleStrings): string {
   const copy = strings.connectors.lifecycle;
   if (error.reason === "missing_manifest_lifecycle_scope") {
     return copy.deniedLifecycleScope;
@@ -108,6 +109,7 @@ function parseEvidenceRefs(text: string): string[] {
 }
 
 function RequirementRow({ met, label }: { met: boolean; label: string }) {
+  const strings = useStrings();
   const copy = strings.connectors.lifecycle;
   return (
     <li className="flex min-w-0 flex-wrap items-center justify-between gap-2">
@@ -122,7 +124,7 @@ function RequirementRow({ met, label }: { met: boolean; label: string }) {
 const MANIFEST_AUDIT_EVENT_PREFIX = "connector.manifest.";
 
 /** Calm operator label for a revision's content event; unknown types stay honest. */
-function revisionEventLabel(auditEventType: string): string | null {
+function revisionEventLabel(auditEventType: string, strings: ConsoleStrings): string | null {
   const copy = strings.connectors.lifecycle.history;
   if (!auditEventType.startsWith(MANIFEST_AUDIT_EVENT_PREFIX)) {
     return copy.unknownEvent;
@@ -137,7 +139,7 @@ function revisionEventLabel(auditEventType: string): string | null {
 }
 
 /** Operator label for one recorded lifecycle transition. */
-function transitionEventLabel(auditEventType: string, targetStatus: string): string {
+function transitionEventLabel(auditEventType: string, targetStatus: string, strings: ConsoleStrings): string {
   const copy = strings.connectors.lifecycle.transitions;
   if (auditEventType !== "connector.manifest.live_enabled"
     && auditEventType !== "connector.manifest.lifecycle_transitioned") {
@@ -147,7 +149,8 @@ function transitionEventLabel(auditEventType: string, targetStatus: string): str
 }
 
 function HistoryRow({ revision }: { revision: ConnectorManifestRecord }) {
-  const contentLabel = revisionEventLabel(revision.audit_event_type);
+  const strings = useStrings();
+  const contentLabel = revisionEventLabel(revision.audit_event_type, strings);
   return (
     <li className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
       <span className={`status-pill ${lifecycleStatusClass(revision.status)}`}>
@@ -165,6 +168,7 @@ function HistoryRow({ revision }: { revision: ConnectorManifestRecord }) {
 }
 
 function TransitionRow({ transition }: { transition: ConnectorManifestTransition }) {
+  const strings = useStrings();
   return (
     <li className="grid min-w-0 gap-1">
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -172,7 +176,7 @@ function TransitionRow({ transition }: { transition: ConnectorManifestTransition
           {formatConnectorLabel(transition.target_status)}
         </span>
         <span className="min-w-0 break-words text-sm text-muted">
-          {transitionEventLabel(transition.audit_event_type, transition.target_status)}
+          {transitionEventLabel(transition.audit_event_type, transition.target_status, strings)}
         </span>
         <span className="min-w-0 break-words font-mono text-xs text-muted">
           {transition.transitioned_by}
@@ -205,6 +209,7 @@ export function ConnectorLifecyclePanel({
   transitions?: ConnectorManifestTransition[];
   tenantId: string;
 }) {
+  const strings = useStrings();
   const copy = strings.connectors.lifecycle;
   const { push } = useToast();
   const { session } = useOidcConsoleSession();
@@ -250,7 +255,7 @@ export function ConnectorLifecyclePanel({
           tenantId,
           actorId,
           targetStatus: TARGET_BY_KIND[kind],
-          reason: transitionReason(kind),
+          reason: transitionReason(kind, strings),
           evidenceRefs: kind === "enable_live" ? evidenceRefs : [],
         }),
       });
@@ -278,7 +283,7 @@ export function ConnectorLifecyclePanel({
       onTransitioned();
     } catch (caught) {
       const operatorError = toAxisOperatorError(caught, copy.genericError);
-      setError({ ...operatorError, message: lifecycleErrorCopy(operatorError) });
+      setError({ ...operatorError, message: lifecycleErrorCopy(operatorError, strings) });
     } finally {
       setPendingKind(null);
     }

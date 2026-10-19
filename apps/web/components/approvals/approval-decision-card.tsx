@@ -33,7 +33,7 @@ import {
 import { cn } from "@/lib/cn";
 import { deriveGovernedActor } from "@/lib/governed-action";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
-import { strings } from "@/lib/strings";
+import { useStrings } from "@/providers/locale-provider";
 import { parseApprovalDecisionPersistenceResult } from "@/lib/runtime-contracts/approvals";
 import { buildTenantScopedPath, DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
@@ -145,6 +145,7 @@ export function ApprovalDecisionCard({
   onErrorChange,
   tenantId = DEMO_TENANT_ID,
 }: ApprovalDecisionCardProps) {
+  const strings = useStrings();
   const [pendingOption, setPendingOption] = useState<ApprovalDecisionOption | null>(null);
   const [note, setNote] = useState("");
   // Focus returns to the option that opened the confirmation; once a decision
