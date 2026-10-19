@@ -77,6 +77,7 @@
     {"id": "connector-authoring-contracts", "owner": "data", "dependencies": ["trust"], "kind": "module", "path": "packages/sdk-python/src/axis_sdk/connector_authoring"},
     {"id": "operational-persistence", "owner": "operational-model", "dependencies": ["trust", "data", "workflow", "intelligence"], "kind": "module", "path": "services/api/src/axis_api/persistence.py"},
     {"id": "portability-manifest", "owner": "deployment", "dependencies": ["trust"], "kind": "module", "path": "services/api/src/axis_api/portability_manifest.py"},
+    {"id": "portability-validator", "owner": "deployment", "dependencies": ["trust"], "kind": "module", "path": "services/api/src/axis_api/portability_validator.py"},
     {"id": "ontology-ports", "owner": "operational-model", "dependencies": ["trust", "data", "experience"], "kind": "module", "path": "services/api/src/axis_api/ontology"},
     {"id": "action-definitions", "owner": "operational-model", "dependencies": ["trust", "workflow"], "kind": "module", "path": "services/api/src/axis_api/actions.py"},
     {"id": "workflow-api-port", "owner": "workflow", "dependencies": ["trust", "experience"], "kind": "module", "path": "services/api/src/axis_api/workflow_runtime.py"},

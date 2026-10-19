@@ -15,6 +15,16 @@ release-bound behavior, not the complete commit history.
   installation remains unverified
   ([#930](https://github.com/Limes-Labs/limes-axis/issues/930)).
 
+- Offline portability bundle validator and dry-run restore plan: bounded
+  archive-safety checks without opening members, Ed25519 manifest signature
+  verification against operator-supplied public keys, per-component payload
+  digest verification, deterministic
+  identity mapping with explicit consent (two-to-one merges refused, unknown
+  principals disabled without default roles), suspension of operational
+  schedules, and exclusion acknowledgment gating the later write runner.
+  Zero network, admission, credential or destination-write behavior
+  ([#877](https://github.com/Limes-Labs/limes-axis/issues/877)).
+
 - A provider-neutral writeback contract that maps an existing typed action onto
   one registered external mutation: adapter capability/readiness and conformance
   declarations, a schema-bound REST operation mapping with allowlisted methods,
