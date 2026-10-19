@@ -374,6 +374,64 @@ def test_unindexable_input_is_rejected_without_a_row(repository):
     ]
 
 
+def test_racing_first_writer_reclassifies_against_the_winner(repository, monkeypatch):
+    """Two writers can both read "no row"; the loser must not fail or lie."""
+
+    winner = index_ontology_promotion(
+        repository,
+        tenant_id="tenant-search",
+        promotion_id="promo-race-winner",
+        proposal_id="proposal-race",
+        node_id="tenant-search::asset-race",
+        ontology_type="axis_asset",
+        graph_mutation_status=COMMITTED_MUTATION_STATUS,
+        ontology_mutation_ref=None,
+        field_summary={"asset_name": "Winner"},
+        content_revision="rev-winner",
+        policy_revision_ref="policy-rev-1",
+    )
+    assert (winner.decision, winner.reason) == ("applied", "new_record")
+
+    # The loser's locked read happened before the winner's insert was
+    # visible: replay that interleaving by hiding the row exactly once.
+    original = repository.get_search_index_record_for_update
+    hidden = {"remaining": 1}
+
+    def stale_read(tenant_id, source_object_id):
+        if hidden["remaining"]:
+            hidden["remaining"] -= 1
+            return None
+        return original(tenant_id, source_object_id)
+
+    monkeypatch.setattr(repository, "get_search_index_record_for_update", stale_read)
+    loser = index_ontology_promotion(
+        repository,
+        tenant_id="tenant-search",
+        promotion_id="promo-race-loser",
+        proposal_id="proposal-race",
+        node_id="tenant-search::asset-race",
+        ontology_type="axis_asset",
+        graph_mutation_status=COMMITTED_MUTATION_STATUS,
+        ontology_mutation_ref=None,
+        field_summary={"asset_name": "Loser"},
+        content_revision="rev-loser",
+        policy_revision_ref="policy-rev-1",
+    )
+    assert (loser.decision, loser.reason) == ("superseded", "missing_ordering_evidence")
+    record = original("tenant-search", "tenant-search::asset-race")
+    assert record.content_revision == "rev-winner"
+    assert "Winner" in record.searchable_text
+    reasons = [
+        event.payload.get("reason")
+        for event in repository.list_audit_events(
+            "tenant-search", event_type="search.index.record_projected", limit=100
+        )
+        if event.payload.get("source_object_id") == "tenant-search::asset-race"
+    ]
+    # The loser's savepoint discarded its new_record evidence.
+    assert sorted(reasons) == ["missing_ordering_evidence", "new_record"]
+
+
 def test_replay_with_same_revision_is_idempotent(repository):
     for _ in range(2):
         projection = index_ontology_promotion(
