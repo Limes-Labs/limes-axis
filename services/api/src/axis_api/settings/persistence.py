@@ -23,6 +23,26 @@ class PersistenceSettings(BaseModel):
         le=30.0,
         alias="AXIS_POSTGRES_POOL_TIMEOUT_SECONDS",
     )
+    postgres_pool_size: int = Field(
+        default=5,
+        ge=1,
+        le=100,
+        alias="AXIS_POSTGRES_POOL_SIZE",
+    )
+    postgres_max_overflow: int = Field(
+        default=10,
+        ge=0,
+        le=100,
+        alias="AXIS_POSTGRES_MAX_OVERFLOW",
+    )
+    # 0 keeps the server default (no limit). Applies to the application
+    # engine only; Alembic migrations build their own engine.
+    postgres_statement_timeout_ms: int = Field(
+        default=0,
+        ge=0,
+        le=3_600_000,
+        alias="AXIS_POSTGRES_STATEMENT_TIMEOUT_MS",
+    )
     postgres_dsn: str = Field(
         default="postgresql+psycopg://axis:axis@localhost:5432/axis",
         alias="AXIS_POSTGRES_DSN",

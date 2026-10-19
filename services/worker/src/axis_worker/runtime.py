@@ -38,6 +38,7 @@ from axis_api.workflow_runtime import (
     TemporalWorkflowSignalConfig,
     TemporalWorkflowSignalRuntime,
 )
+from sqlalchemy.orm import Session, sessionmaker
 from temporalio.client import Client
 from temporalio.worker import Worker
 
@@ -89,6 +90,7 @@ def adapter_config_from_settings(settings: Settings) -> TemporalAdapterConfig:
 
 def build_approval_decision_outbox_dispatcher(
     settings: Settings,
+    session_factory: sessionmaker[Session] | None = None,
 ) -> ApprovalDecisionOutboxDispatcher:
     """Build the DB and Temporal dependencies owned by the delivery loop."""
 
@@ -101,19 +103,20 @@ def build_approval_decision_outbox_dispatcher(
     )
     return ApprovalDecisionOutboxDispatcher(
         settings=settings,
-        session_factory=create_session_factory(settings),
+        session_factory=session_factory or create_session_factory(settings),
         workflow_runtime=workflow_runtime,
     )
 
 
 def optional_approval_decision_outbox_dispatcher(
     settings: Settings,
+    session_factory: sessionmaker[Session] | None = None,
 ) -> ApprovalDecisionOutboxDispatcher | None:
     """Return a dispatcher only when the dedicated worker switch is enabled."""
 
     if not settings.approval_decision_outbox_dispatch_enabled:
         return None
-    return build_approval_decision_outbox_dispatcher(settings)
+    return build_approval_decision_outbox_dispatcher(settings, session_factory)
 
 
 class _InstrumentedIngestionDispatcher:
@@ -142,6 +145,7 @@ class _InstrumentedIngestionDispatcher:
 def optional_source_ingestion_dispatcher(
     settings: Settings,
     telemetry: WorkerTelemetryRuntime | None = None,
+    session_factory: sessionmaker[Session] | None = None,
 ) -> Dispatcher | None:
     """Return the governed source ingestion dispatcher when enabled.
 
@@ -169,7 +173,7 @@ def optional_source_ingestion_dispatcher(
             rest_runtime = RestIngestionRuntime(settings, object_store=object_store)
     dispatcher = SourceIngestionOutboxDispatcher(
         settings=settings,
-        session_factory=create_session_factory(settings),
+        session_factory=session_factory or create_session_factory(settings),
         runtime=ObservationFreshnessIngestionRuntime(),
         extraction_runtime=extraction_runtime,
         s3_runtime=s3_runtime,
@@ -247,8 +251,16 @@ async def run_worker(settings: Settings | None = None) -> None:
         outcomes,
     )
 
-    activities = MaintenanceActivities(settings, telemetry=telemetry)
-    live_sync_activities = ConnectorLiveSyncActivities(settings, telemetry=telemetry)
+    # One engine (and pool) for every DB consumer in this process, so the
+    # worker opens at most AXIS_POSTGRES_POOL_SIZE + AXIS_POSTGRES_MAX_OVERFLOW
+    # Axis connections instead of that bound per consumer.
+    session_factory = create_session_factory(settings)
+    activities = MaintenanceActivities(
+        settings, session_factory=session_factory, telemetry=telemetry
+    )
+    live_sync_activities = ConnectorLiveSyncActivities(
+        settings, session_factory=session_factory, telemetry=telemetry
+    )
     worker = Worker(
         client,
         task_queue=config.task_queue,
@@ -263,7 +275,7 @@ async def run_worker(settings: Settings | None = None) -> None:
             live_sync_activities.release_scheduled_live_sync_claim,
         ],
     )
-    dispatcher = optional_approval_decision_outbox_dispatcher(settings)
+    dispatcher = optional_approval_decision_outbox_dispatcher(settings, session_factory)
     if dispatcher is not None:
         logger.info(
             "approval-decision outbox dispatcher enabled interval_seconds=%s",
@@ -272,7 +284,7 @@ async def run_worker(settings: Settings | None = None) -> None:
     else:
         logger.info("approval-decision outbox dispatcher disabled")
     ingestion_dispatcher = optional_source_ingestion_dispatcher(
-        settings, telemetry=telemetry
+        settings, telemetry=telemetry, session_factory=session_factory
     )
     if ingestion_dispatcher is not None:
         logger.info(

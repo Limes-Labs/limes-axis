@@ -11,11 +11,19 @@ from axis_api.config import Settings
 def create_session_factory(settings: Settings) -> sessionmaker[Session]:
     engine_options: dict[str, object] = {"pool_pre_ping": True}
     if make_url(settings.postgres_dsn).get_backend_name() == "postgresql":
+        connect_args: dict[str, object] = {
+            "connect_timeout": settings.postgres_connect_timeout_seconds,
+        }
+        if settings.postgres_statement_timeout_ms:
+            # A session default; SET LOCAL statement_timeout still narrows it.
+            connect_args["options"] = (
+                f"-c statement_timeout={settings.postgres_statement_timeout_ms}"
+            )
         engine_options.update(
+            pool_size=settings.postgres_pool_size,
+            max_overflow=settings.postgres_max_overflow,
             pool_timeout=settings.postgres_pool_timeout_seconds,
-            connect_args={
-                "connect_timeout": settings.postgres_connect_timeout_seconds,
-            },
+            connect_args=connect_args,
         )
     engine = create_engine(settings.postgres_dsn, **engine_options)
     return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)

@@ -154,3 +154,65 @@ def test_enabled_setting_constructs_dispatcher_with_runtime_dependencies(
     assert dispatcher_kwargs["settings"] is settings
     assert dispatcher_kwargs["session_factory"] is session_factory
     assert isinstance(dispatcher_kwargs["workflow_runtime"], FakeWorkflowRuntime)
+
+
+async def test_run_worker_shares_one_session_factory_across_db_consumers(
+    monkeypatch,
+) -> None:
+    factories: list[object] = []
+    received: dict[str, object] = {}
+
+    def fake_factory(settings: Settings) -> object:
+        factories.append(object())
+        return factories[-1]
+
+    class FakeClient:
+        @staticmethod
+        async def connect(address: str, namespace: str) -> object:
+            return object()
+
+    async def no_schedules(client: object, settings: Settings, task_queue: str) -> list:
+        return []
+
+    def capture(name: str):
+        class Activities:
+            def __init__(self, settings: Settings, session_factory=None, telemetry=None) -> None:
+                received[name] = session_factory
+
+            def __getattr__(self, attribute: str):
+                return lambda *args: None
+
+        return Activities
+
+    def approval_dispatcher(settings: Settings, session_factory=None) -> None:
+        received["approval_outbox"] = session_factory
+
+    def ingestion_dispatcher(settings: Settings, telemetry=None, session_factory=None) -> None:
+        received["source_ingestion"] = session_factory
+
+    async def no_loop(worker: object, **kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(runtime_module, "create_session_factory", fake_factory)
+    monkeypatch.setattr(runtime_module, "Client", FakeClient)
+    monkeypatch.setattr(runtime_module, "register_maintenance_schedules", no_schedules)
+    monkeypatch.setattr(runtime_module, "Worker", lambda *args, **kwargs: object())
+    monkeypatch.setattr(runtime_module, "MaintenanceActivities", capture("maintenance"))
+    monkeypatch.setattr(runtime_module, "ConnectorLiveSyncActivities", capture("live_sync"))
+    monkeypatch.setattr(
+        runtime_module, "optional_approval_decision_outbox_dispatcher", approval_dispatcher
+    )
+    monkeypatch.setattr(
+        runtime_module, "optional_source_ingestion_dispatcher", ingestion_dispatcher
+    )
+    monkeypatch.setattr(runtime_module, "run_worker_with_optional_outbox", no_loop)
+
+    await runtime_module.run_worker(Settings())
+
+    assert len(factories) == 1
+    assert received == {
+        "maintenance": factories[0],
+        "live_sync": factories[0],
+        "approval_outbox": factories[0],
+        "source_ingestion": factories[0],
+    }

@@ -373,6 +373,14 @@ release-bound behavior, not the complete commit history.
 
 ### Changed
 
+- The worker builds one SQLAlchemy engine and shares it across maintenance
+  activities, scheduled live sync and both outbox dispatchers, so it opens at
+  most `AXIS_POSTGRES_POOL_SIZE` + `AXIS_POSTGRES_MAX_OVERFLOW` Axis
+  connections (default 5 + 10) instead of up to four times that. Both bounds
+  are now configurable. `AXIS_POSTGRES_STATEMENT_TIMEOUT_MS` (default `0`,
+  server default) sets a session `statement_timeout` on the API and worker
+  engine; the Helm chart sets it to 60 s. Alembic migrations are unaffected.
+
 - A concurrent duplicate action run (same tenant, action and idempotency key)
   now returns the idempotent replay of the run that won the unique constraint
   instead of a 500, without a second audit event or workflow signal. A

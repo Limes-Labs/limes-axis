@@ -464,7 +464,7 @@ Git blob digests bind the review baseline to packaging, not live traffic.
 | `infra/helm/limes-axis/templates/_helpers.tpl` | `2359b38547b282ca38968f9951e603a4e18d0080` |
 | `infra/helm/limes-axis/templates/api-deployment.yaml` | `3385ce302e45d7fc3f3368b9a1bbf17cea4e9fe7` |
 | `infra/helm/limes-axis/templates/api-service.yaml` | `70c5fb300f8b1489c51afb96e56c8cdb9dd9e0b3` |
-| `infra/helm/limes-axis/templates/configmap.yaml` | `461cf56ed1d56729b2a1045b73f4e2912da24ef7` |
+| `infra/helm/limes-axis/templates/configmap.yaml` | `95a627c74ef853ef282061de5d14667eb3cb9419` |
 | `infra/helm/limes-axis/templates/externalsecret.yaml` | `09c60ad1cbd9fcc0afdfcac4912d0bcd90cb5136` |
 | `infra/helm/limes-axis/templates/hpa.yaml` | `3ffd02e33cbc0111d592d37075ddf117972dd4a2` |
 | `infra/helm/limes-axis/templates/ingress.yaml` | `e032e6ad4103f39e3ca09ef42d19472159168953` |
