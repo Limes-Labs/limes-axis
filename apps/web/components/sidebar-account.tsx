@@ -135,7 +135,7 @@ export function SidebarAccount({
 
   return (
     <div
-      className="relative mt-2 grid gap-1 border-t border-line pt-2 dark:border-white/10"
+      className="relative mt-2 grid shrink-0 gap-1 border-t border-line pt-2 dark:border-white/10"
       ref={containerRef}
     >
       <Link
