@@ -1,14 +1,14 @@
 """Bounded full-text search index projection table.
 
-Revision ID: 0067_search_index_records
-Revises: 0066_s3_source_checkpoint
+Revision ID: 0068_search_index_records
+Revises: 0067_portability_restore_runs
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0067_search_index_records"
-down_revision = "0066_s3_source_checkpoint"
+revision = "0068_search_index_records"
+down_revision = "0067_portability_restore_runs"
 branch_labels = None
 depends_on = None
 
