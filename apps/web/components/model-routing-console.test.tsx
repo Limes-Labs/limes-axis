@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import type { ManufacturingModelRouting } from "@/lib/model-routing-demo";
+import { strings } from "@/lib/strings";
 import { DEMO_TENANT_ID, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
 
 const mocks = vi.hoisted(() => ({
@@ -341,6 +342,33 @@ describe("ModelRoutingConsole no-match filter state", () => {
     expect(
       screen.queryByRole("heading", { name: "No routes match the current filters" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("contains long evidence and audit identifiers inside their column", () => {
+    const longEvidence = "audit_20260621_154000_ontology_read_with_a_very_long_suffix";
+    const fixture = structuredClone(routingFixture);
+    for (const route of fixture.routes) {
+      route.evidence_refs = [longEvidence];
+      route.observability_events = ["model.route.selected"];
+    }
+    const base = mocks.useAxisQuery.getMockImplementation()!;
+    mocks.useAxisQuery.mockImplementation((path: string, ...rest: unknown[]) =>
+      path.startsWith(`${OPERATIONS_API_PREFIX}/model-routing`)
+        ? { ...base(path, ...rest), data: fixture }
+        : base(path, ...rest),
+    );
+    render(<ModelRoutingConsole />);
+
+    const detail = strings.models.reference.routeDetail;
+    const block = document.querySelector<HTMLElement>("[data-route-evidence]")!;
+    expect(within(block).getByText(detail.evidence)).toBeInTheDocument();
+    expect(within(block).getByText(detail.observabilityEvents)).toBeInTheDocument();
+    const evidence = within(block).getByText(longEvidence);
+    expect(evidence).toHaveClass("break-all", "line-clamp-2");
+    expect(evidence.closest("li")).toHaveAttribute("title", longEvidence);
+    const audit = within(block).getByTitle(/^audit_(quality|ops)_fixture$/);
+    expect(audit).toHaveClass("break-all");
+    expect(within(block).getByText(/^Input [\d,]+ \/ output [\d,]+$/)).toBeInTheDocument();
   });
 
   it("counts blocked routes within the visible filter result and restores the count on reset", async () => {

@@ -1421,6 +1421,27 @@ const models = {
       detail: "Adjust or reset the domain, provider and decision filters to see routing telemetry.",
       reset: "Reset filters",
     },
+    /* Selected-route detail panel. Values are API identifiers rendered as-is;
+       only the labels and connective copy live here. */
+    routeDetail: {
+      provider: "Provider",
+      model: "Model",
+      estimatedCost: "Estimated cost",
+      latency: "Latency",
+      latencyValue: (milliseconds: string) => `${milliseconds} ms`,
+      totalTokens: (tokens: string) => `${tokens} tokens`,
+      policy: "Policy",
+      egressRequested: (requested: boolean) =>
+        `Requested external egress: ${requested ? "yes" : "no"}`,
+      egressAllowed: (allowed: boolean) =>
+        `Allowed external egress: ${allowed ? "yes" : "no"}`,
+      boundary: (boundary: string) => `Boundary: ${boundary}`,
+      requiredPermissions: "Required permissions",
+      observabilityEvents: "Observability events",
+      evidence: "Evidence",
+      audit: "Audit",
+      tokenSplit: (input: string, output: string) => `Input ${input} / output ${output}`,
+    },
   },
   live: {
     invocationsError: {
