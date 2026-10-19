@@ -2280,6 +2280,24 @@ def _authorize_tenant_read(
         )
 
 
+def _resolve_read_actor(
+    principal: OidcPrincipal | None,
+    actor_id: str,
+    actor_scopes: list[str] | None = None,
+) -> tuple[str, list[str]]:
+    """Resolve the actor (and scopes) a read evaluates and audits.
+
+    A verified principal always wins: query-supplied ``actor_id`` and
+    ``actor_scopes`` only stand for unauthenticated demo traffic, so a caller
+    can neither self-assert read scopes nor write another actor's identity
+    into append-only read-audit evidence.
+    """
+
+    if principal is not None:
+        return principal.actor_id, list(principal.scopes)
+    return actor_id, list(actor_scopes or [])
+
+
 def _bind_connector_run_actor(
     request_model,
     principal: OidcPrincipal | None,
@@ -5384,7 +5402,7 @@ def create_app(
                 status=status,
                 limit=limit,
             ),
-            actor_id=actor_id,
+            actor_id=_resolve_read_actor(principal, actor_id)[0],
         )
 
     @operations_router.post(
@@ -5587,7 +5605,7 @@ def create_app(
                 status=status,
                 limit=limit,
             ),
-            actor_id=actor_id,
+            actor_id=_resolve_read_actor(principal, actor_id)[0],
         )
 
     @operations_router.post(
@@ -5652,7 +5670,7 @@ def create_app(
                 connector_id=connector_id,
                 limit=limit,
             ),
-            actor_id=actor_id,
+            actor_id=_resolve_read_actor(principal, actor_id)[0],
         )
 
     @operations_router.post(
@@ -5724,8 +5742,9 @@ def create_app(
         format: str = Query(default="json", pattern="^json$"),
     ) -> ConnectorEvidenceInvariantSnapshotExportBundle:
         _authorize_tenant_read(tenant_id, principal)
-        resolved_actor_id = principal.actor_id if principal is not None else actor_id
-        resolved_actor_scopes = principal.scopes if principal is not None else actor_scopes
+        resolved_actor_id, resolved_actor_scopes = _resolve_read_actor(
+            principal, actor_id, actor_scopes
+        )
         try:
             return export_connector_evidence_invariant_snapshots(
                 repository,
@@ -5936,6 +5955,9 @@ def create_app(
         limit: int = Query(default=100, ge=1, le=200),
     ) -> ConnectorEvidenceInvariantSnapshotHistory:
         _authorize_tenant_read(tenant_id, principal)
+        resolved_actor_id, resolved_actor_scopes = _resolve_read_actor(
+            principal, actor_id, actor_scopes
+        )
         try:
             return read_connector_evidence_invariant_snapshot_history(
                 repository,
@@ -5946,8 +5968,8 @@ def create_app(
                     idempotency_key=idempotency_key,
                     limit=limit,
                 ),
-                actor_id=actor_id,
-                actor_scopes=actor_scopes,
+                actor_id=resolved_actor_id,
+                actor_scopes=resolved_actor_scopes,
             )
         except ConnectorEvidenceInvariantSnapshotPermissionDenied as exc:
             raise HTTPException(

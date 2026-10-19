@@ -26,6 +26,11 @@ release-bound behavior, not the complete commit history.
   `data:asset:stewardship:write` and `data:asset:contract:write`. Operators
   must grant these realm roles (declared by the IdP bootstrap and the local
   demo realm) to connector and data stewards before upgrading.
+- Connector evidence-invariant snapshot history, credential-lease,
+  egress-policy and evidence-invariant reads use the verified principal's actor
+  and scopes; query `actor_id`/`actor_scopes` only apply to unauthenticated
+  demo traffic, so callers can no longer self-assert read scopes or attribute
+  append-only read-audit evidence to another actor.
 
 ### Added
 
