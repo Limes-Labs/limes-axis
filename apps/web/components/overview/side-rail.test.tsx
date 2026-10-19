@@ -14,7 +14,7 @@ describe("Activity breakdown", () => {
     expect(screen.getByRole("tab", { name: "By date" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("region", { name: "Activity by date" })).toBeInTheDocument();
     expect(screen.getByText("4 returned events · latest window, up to 100.")).toBeInTheDocument();
-    expect(screen.getByText("audit window: live")).toBeInTheDocument();
+    expect(screen.getByTitle("audit window: live")).toBeInTheDocument();
     expect(screen.getByLabelText("Daily activity values")).toBeInTheDocument();
     await user.keyboard("{ArrowLeft}");
     expect(screen.getByRole("tab", { name: "Category" })).toHaveAttribute("aria-selected", "true");
@@ -28,7 +28,7 @@ describe("Activity breakdown", () => {
     expect(within(chart).getByText("Share of 4 events in the latest window (up to 100).")).toBeInTheDocument();
     expect(within(chart).getByText("3 · 75%")).toBeInTheDocument();
     expect(within(chart).getByText("1 · 25%")).toBeInTheDocument();
-    expect(within(chart).getByText("audit window: live")).toBeInTheDocument();
+    expect(within(chart).getByTitle("audit window: live")).toBeInTheDocument();
     expect(within(chart).getAllByRole("term").map((term) => term.textContent)).toEqual(["Connector", "Approval"]);
   });
 
@@ -44,8 +44,15 @@ describe("Activity breakdown", () => {
 
   it("preserves reference provenance instead of calling example records live", () => {
     render(<SideRail auditEvents={{ source: "api", data: { ...auditEventsFixture, provenance: "reference_scenario" } }} />);
-    expect(screen.getByText("audit window: reference scenario")).toBeInTheDocument();
-    expect(screen.queryByText("audit window: live")).not.toBeInTheDocument();
+    expect(screen.getByTitle("audit window: reference scenario")).toBeInTheDocument();
+    expect(screen.queryByTitle("audit window: live")).not.toBeInTheDocument();
+    // The page-level banner names example data; the panel carries no chip.
+    expect(screen.queryByText("audit window: reference scenario")).not.toBeInTheDocument();
+  });
+
+  it("keeps a visible warning when the shown window is no longer current", () => {
+    render(<SideRail auditEvents={{ source: "unavailable", data: auditEventsFixture }} />);
+    expect(screen.getByText("audit window: stale")).toBeInTheDocument();
   });
 
   it("does not draw a zero-denominator chart for an empty window", () => {

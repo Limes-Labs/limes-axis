@@ -1295,6 +1295,16 @@ const connectors = {
 
 /** Overview control-room copy: hero, needs-attention strip, posture, feed. */
 const overview = {
+  /* One page-level notice replaces a provenance chip on every panel. Each
+     panel still names its own source in its tooltip. */
+  scenarioBanner: {
+    title: "Example scenario",
+    detail:
+      "Parts of this overview come from a reference scenario, not from records in your tenant.",
+    demoDetail:
+      "This tenant runs the demo scenario, so its records are sample data rather than your operations.",
+    sections: (subjects: string[]) => `Example data: ${subjects.join(", ")}.`,
+  },
   hero: {
     /* Used when the tenant has recorded no scenario name. Must stay
        vertical-neutral: this console is not manufacturing-only. */

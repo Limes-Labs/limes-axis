@@ -11,8 +11,9 @@ import {
 import { APPROVALS_ENDPOINT, NeedsAttention } from "@/components/overview/needs-attention";
 import { type OverviewQuery } from "@/components/overview/overview-shared";
 import { PostureCards } from "@/components/overview/posture-cards";
+import { ScenarioBanner, type OverviewSource } from "@/components/overview/scenario-banner";
 import { SideRail } from "@/components/overview/side-rail";
-import { SourcePill } from "@/components/ui/source-pill";
+import { SourcePill, sourceStateLabel } from "@/components/ui/source-pill";
 import { StatCard } from "@/components/ui/stat-card";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import {
@@ -69,16 +70,45 @@ const SNAPSHOT_ENDPOINT = `${OPERATIONS_API_PREFIX}/operations/snapshot`;
 const MODEL_ROUTING_ENDPOINT = `${OPERATIONS_API_PREFIX}/model-routing`;
 const AUDIT_EVENTS_ENDPOINT = `${OPERATIONS_API_PREFIX}/audit/events`;
 
+type OverviewSources = Record<"context" | "operations" | "approvals" | "audit" | "models", OverviewSource>;
+
+/** One provenance reading per overview endpoint, shared by the banner and the tooltips. */
+function overviewSources(queries: {
+  overview: OverviewQuery<ManufacturingOverview>;
+  snapshot: OverviewQuery<ManufacturingOperationsSnapshot>;
+  approvals: OverviewQuery<ManufacturingApprovalInbox>;
+  auditEvents: OverviewQuery<ManufacturingAuditExplorer>;
+  routing: OverviewQuery<ManufacturingModelRouting>;
+}): OverviewSources {
+  const read = <T extends { provenance: ManufacturingOverview["provenance"] }>(
+    subject: string,
+    query: OverviewQuery<T>,
+  ): OverviewSource => ({
+    subject,
+    state: deriveSourceState(query.source, Boolean(query.data), query.data?.provenance),
+  });
+
+  return {
+    context: read("Context", queries.overview),
+    operations: read("Operations", queries.snapshot),
+    approvals: read("Approvals", queries.approvals),
+    audit: read("Audit", queries.auditEvents),
+    models: read("Models", queries.routing),
+  };
+}
+
 function OverviewHero({
   overview,
   snapshot,
   approvals,
   auditEvents,
+  sources,
 }: {
   overview: OverviewQuery<ManufacturingOverview>;
   snapshot: OverviewQuery<ManufacturingOperationsSnapshot>;
   approvals: OverviewQuery<ManufacturingApprovalInbox>;
   auditEvents: OverviewQuery<ManufacturingAuditExplorer>;
+  sources: OverviewSources;
 }) {
   if (!overview.data) {
     if (overview.source === "loading") {
@@ -128,19 +158,27 @@ function OverviewHero({
       label: strings.overview.hero.facts.openWorkflows,
       value: persistedFact(OPEN_WORKFLOWS_METRIC),
       testId: "hero-open-workflows",
+      source: sources.operations,
     },
     {
       label: strings.overview.hero.facts.pendingApprovals,
       value: pendingApprovals,
       testId: "hero-pending-approvals",
+      source: sources.approvals,
     },
-    { label: strings.overview.hero.facts.operationRecords, value: persistedFact("Operation Records") },
+    {
+      label: strings.overview.hero.facts.operationRecords,
+      value: persistedFact("Operation Records"),
+      source: sources.operations,
+    },
     {
       label: strings.overview.hero.facts.recentAudit,
       value: auditEventCount,
       testId: "hero-audit-count",
+      source: sources.audit,
     },
   ];
+  const staleSources = Object.values(sources).filter((source) => source.state === "stale");
 
   return (
     <section aria-label={strings.clarity.recordedActivity} className="grid gap-3">
@@ -150,15 +188,25 @@ function OverviewHero({
       </div>
       <div className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4" role="list">
         {facts.map((fact) => (
-          <StatCard key={fact.label} label={fact.label} value={fact.value} valueTestId={fact.testId} />
+          <StatCard
+            data-source-state={fact.source.state}
+            key={fact.label}
+            label={fact.label}
+            title={sourceStateLabel(fact.source.state, fact.source.subject)}
+            value={fact.value}
+            valueTestId={fact.testId}
+          />
         ))}
       </div>
-      <div aria-label="Overview data sources" className="flex min-w-0 flex-wrap gap-1.5">
-        <SourcePill compact state={deriveSourceState(overview.source, true, data.provenance)} subject="Context" />
-        <SourcePill compact state={deriveSourceState(snapshot.source, Boolean(snapshot.data), snapshot.data?.provenance)} subject="Operations" />
-        <SourcePill compact state={deriveSourceState(approvals.source, Boolean(approvals.data), approvals.data?.provenance)} subject="Approvals" />
-        <SourcePill compact state={deriveSourceState(auditEvents.source, Boolean(auditEvents.data), auditEvents.data?.provenance)} subject="Audit" />
-      </div>
+      {/* Provenance lives in each card's tooltip and the page banner; only
+          numbers that are no longer current keep a visible warning. */}
+      {staleSources.length > 0 ? (
+        <div aria-label="Overview data sources" className="flex min-w-0 flex-wrap gap-1.5">
+          {staleSources.map((source) => (
+            <SourcePill compact key={source.subject} state={source.state} subject={source.subject} />
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -285,13 +333,26 @@ export function PlatformOverview() {
     );
   }
 
+  const sources = overviewSources({
+    overview: overviewQuery,
+    snapshot: snapshotQuery,
+    approvals: approvalsQuery,
+    auditEvents: activityQuery,
+    routing: routingQuery,
+  });
+
   return (
     <div className="grid gap-4">
+      <ScenarioBanner
+        demoScenario={Boolean(overviewQuery.data?.scenario)}
+        sources={Object.values(sources)}
+      />
       <OverviewHero
         approvals={approvalsQuery}
         auditEvents={activityQuery}
         overview={overviewQuery}
         snapshot={snapshotQuery}
+        sources={sources}
       />
 
       <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">

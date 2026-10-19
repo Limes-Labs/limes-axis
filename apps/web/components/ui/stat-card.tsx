@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn";
 
 export type StatCardValueVariant = "display" | "mono";
 
-export interface StatCardProps extends Omit<HTMLAttributes<HTMLElement>, "title"> {
+export interface StatCardProps extends HTMLAttributes<HTMLElement> {
   label: ReactNode;
   /** `null` while the number is loading; the card keeps its shape with a skeleton. */
   value: ReactNode | null;

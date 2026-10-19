@@ -1,6 +1,6 @@
 "use client";
 
-import { SourcePill } from "@/components/ui/source-pill";
+import { SourcePill, sourceStateLabel } from "@/components/ui/source-pill";
 import { StatCard } from "@/components/ui/stat-card";
 import { isReadAuditEvent } from "@/lib/audit-demo";
 import { formatNumber, pluralize } from "@/lib/format";
@@ -197,15 +197,21 @@ export function PostureCards({
           aside={card.value === null ? null : <StatusDot status={card.status} />}
           data-kpi-card
           detail={card.detail}
+          data-source-state={card.sourceState}
           key={card.key}
           label={card.label}
+          title={sourceStateLabel(card.sourceState, card.label.toLowerCase())}
           value={card.value}
         >
-          <SourcePill
-            className="w-fit max-w-full"
-            state={card.sourceState}
-            subject={card.label.toLowerCase()}
-          />
+          {/* Provenance is in the tooltip and the page banner; stale numbers
+              keep a visible warning because they are no longer current. */}
+          {card.sourceState === "stale" ? (
+            <SourcePill
+              className="w-fit max-w-full"
+              state={card.sourceState}
+              subject={card.label.toLowerCase()}
+            />
+          ) : null}
           <PanelLink href={card.href}>{card.linkLabel}</PanelLink>
         </StatCard>
       ))}

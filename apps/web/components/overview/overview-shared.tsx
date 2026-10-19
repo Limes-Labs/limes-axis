@@ -85,15 +85,18 @@ export function PanelHeader({
   eyebrow,
   title,
   aside,
+  sourceHint,
 }: {
   eyebrow: string;
   title?: string;
   aside?: ReactNode;
+  /** Provenance tooltip on the heading, e.g. "Risks: live · Approvals: live". */
+  sourceHint?: string;
 }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="grid gap-1">
-        <h2 className="font-display m-0 text-lg text-ink">{title ?? eyebrow}</h2>
+        <h2 className="font-display m-0 text-lg text-ink" title={sourceHint}>{title ?? eyebrow}</h2>
       </div>
       {aside}
     </div>
