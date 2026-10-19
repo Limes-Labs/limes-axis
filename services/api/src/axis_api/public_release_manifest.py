@@ -54,10 +54,13 @@ _MAX_ROW_COUNT = 5_000_000_000
 # RFC3339 UTC timestamps at whole-second precision. Comparisons in this
 # module are lexicographic, which is order-correct only for this fixed
 # normalized form (no fractional seconds, always Z).
-_TIMESTAMP = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
-_DATE = r"^\d{4}-\d{2}-\d{2}$"
+# ASCII digits only: the default pattern engine treats ``\d`` as any Unicode
+# digit, which would break the lexicographic ordering checks below.
+_TIMESTAMP = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+_DATE = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
 _PUBLIC_ID = r"^ds-[a-z0-9]{12,32}$"
-_RELEASE_VERSION = re.compile(r"^\d+\.\d+$")
+_RELEASE_VERSION_PATTERN = r"^[0-9]{1,6}\.[0-9]{1,6}$"
+_RELEASE_VERSION = re.compile(_RELEASE_VERSION_PATTERN)
 
 SourceMode = Literal[
     "governed_snapshot", "materialized_view", "frozen_publication", "external_artifact"
@@ -82,6 +85,10 @@ ChangeKind = Literal[
 #: Post-issue states: a release in one of these was sealed, so it must carry
 #: the content digest of what was actually published.
 _SEALED_STATES = frozenset({"issued", "superseded", "deprecated", "withdrawn", "archived"})
+#: States that assert the release was authorized for publication: they must
+#: carry approved disclosure and license review evidence.
+_AUTHORIZED_STATES = _SEALED_STATES | {"approved"}
+_REQUIRED_APPROVALS = ("disclosure", "license")
 
 
 class PublicReleaseError(ValueError):
@@ -201,7 +208,7 @@ class SupersedesRecord(ContractModel):
     """Binding to the exact prior release manifest this version replaces."""
 
     release_public_id: str = Field(pattern=_PUBLIC_ID)
-    release_version: str = Field(pattern=r"^\d+\.\d+$")
+    release_version: str = Field(pattern=_RELEASE_VERSION_PATTERN)
     manifest_digest: Digest
 
 
@@ -238,7 +245,7 @@ class PublicReleaseManifest(ContractModel):
     format: Literal["axis.public-dataset-release"] = RELEASE_MANIFEST_FORMAT
     schema_version: ManifestVersion
     identity: PublicDatasetIdentity
-    release_version: str = Field(pattern=r"^\d+\.\d+$")
+    release_version: str = Field(pattern=_RELEASE_VERSION_PATTERN)
     state: LifecycleState
     source: SourceBinding
     fields: tuple[PublicSchemaField, ...] = Field(min_length=1, max_length=_MAX_FIELDS)
@@ -268,6 +275,12 @@ class PublicReleaseManifest(ContractModel):
         ]
         if stale:
             raise ValueError("Source authorization predates the frozen source capture")
+        if self.state in _AUTHORIZED_STATES:
+            approved = {review.kind for review in self.reviews if review.status == "approved"}
+            if not all(kind in approved for kind in _REQUIRED_APPROVALS):
+                raise ValueError(
+                    "Approved and sealed releases require approved disclosure and license reviews"
+                )
         if self.state in _SEALED_STATES:
             if self.issued_at is None:
                 raise ValueError("A sealed release must carry its issuance timestamp")
@@ -294,6 +307,10 @@ class PublicReleaseManifest(ContractModel):
             and self.supersedes.release_public_id != self.identity.public_id
         ):
             raise ValueError("Supersession records must reference the same public dataset")
+        if self.supersedes is not None and _version_key(
+            self.supersedes.release_version
+        ) >= _version_key(self.release_version):
+            raise ValueError("A release can only supersede an earlier release version")
         if self.coverage_end is not None and self.coverage_end < self.coverage_start:
             raise ValueError("Coverage end cannot precede coverage start")
         _EXPECTED_POPULATION = {
@@ -453,8 +470,11 @@ class _PublicIdCheck(ContractModel):
 def public_release_uri_path(public_id: str, release_version: str) -> str:
     """Stable public URI path; rejects internal-ID shapes and traversal payloads."""
 
-    checked = _PublicIdCheck(public_id=public_id).public_id
-    if not _RELEASE_VERSION.match(release_version):
+    try:
+        checked = _PublicIdCheck(public_id=public_id).public_id
+    except ValidationError:
+        raise PublicReleaseError(PublicReleaseError.INVALID_MANIFEST) from None
+    if not isinstance(release_version, str) or not _RELEASE_VERSION.fullmatch(release_version):
         raise PublicReleaseError(PublicReleaseError.INVALID_MANIFEST)
     return f"/public/datasets/{checked}/releases/{release_version}"
 

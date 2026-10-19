@@ -222,8 +222,9 @@ def test_public_ids_are_disjoint_from_internal_id_shapes(bad_id: str) -> None:
             description="d",
             publisher="p",
         )
-    with pytest.raises(ValidationError):
+    with pytest.raises(PublicReleaseError) as rejected:
         public_release_uri_path(bad_id, "1.0")
+    assert rejected.value.code == PublicReleaseError.INVALID_MANIFEST
 
 
 def test_public_uri_path_is_stable_and_versioned() -> None:
@@ -233,7 +234,9 @@ def test_public_uri_path_is_stable_and_versioned() -> None:
     )
 
 
-@pytest.mark.parametrize("bad_version", ["../..", "1.0/drop", "", "v1"])
+@pytest.mark.parametrize(
+    "bad_version", ["../..", "1.0/drop", "", "v1", "1.0\n", "\u0661.\u0660"]
+)
 def test_public_uri_path_rejects_traversal_payloads(bad_version: str) -> None:
     with pytest.raises(PublicReleaseError) as rejected:
         public_release_uri_path("ds-airquality0001", bad_version)
@@ -373,6 +376,45 @@ def test_supersedes_must_reference_same_public_dataset() -> None:
         )
 
 
+def test_supersedes_must_reference_an_earlier_version() -> None:
+    with pytest.raises(ValidationError, match="earlier release version"):
+        _manifest(
+            supersedes=SupersedesRecord(
+                release_public_id="ds-airquality0001",
+                release_version="1.0",
+                manifest_digest="a" * 64,
+            ),
+        )
+
+
+@pytest.mark.parametrize("state", ["approved", "issued", "withdrawn", "archived"])
+@pytest.mark.parametrize(
+    "reviews",
+    [
+        pytest.param(lambda: (_reviews()[1],), id="no-disclosure"),
+        pytest.param(lambda: (_reviews()[0],), id="no-license"),
+        pytest.param(
+            lambda: (ReviewEvidence(kind="disclosure", status="pending"), _reviews()[1]),
+            id="disclosure-pending",
+        ),
+    ],
+)
+def test_authorized_states_require_approved_reviews(state: str, reviews: object) -> None:
+    issued_at = None if state == "approved" else "2026-09-05T08:00:00Z"
+    with pytest.raises(ValidationError, match="approved disclosure and license"):
+        _manifest(state=state, reviews=reviews(), issued_at=issued_at)  # type: ignore[operator]
+
+
+def test_review_timestamps_reject_non_ascii_digits() -> None:
+    with pytest.raises(ValidationError):
+        ReviewEvidence(
+            kind="disclosure",
+            status="approved",
+            authority_ref="privacy/board",
+            decided_at="\u0662\u0660\u0662\u0666-09-05T08:00:00Z",
+        )
+
+
 # --- readiness classification -------------------------------------------------
 
 
@@ -416,7 +458,7 @@ def test_ready_manifest_blocks_on_nothing() -> None:
 def test_unauthorized_manifests_report_deterministic_blocks(
     overrides: dict[str, object], expected_block: str
 ) -> None:
-    verdict = release_readiness(_manifest(**overrides))
+    verdict = release_readiness(_manifest(**{"state": "draft", "issued_at": None, **overrides}))
     assert not verdict.ready
     assert expected_block in verdict.blocking
 
