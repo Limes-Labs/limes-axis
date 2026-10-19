@@ -73,6 +73,9 @@ operational profiles and secret injection.
 | `AXIS_CONNECTOR_EXPORT_OBJECT_STORE_ADAPTER` | `connector_export_object_store_adapter` | string | `"local_filesystem"` |  |
 | `AXIS_CONNECTOR_EXPORT_S3_ENDPOINT` | `connector_export_s3_endpoint` | string / null | `null` |  |
 | `AXIS_CONNECTOR_EXPORT_S3_REGION` | `connector_export_s3_region` | string / null | `null` |  |
+| `AXIS_CONNECTOR_EXPORT_S3_CONNECT_TIMEOUT_SECONDS` | `connector_export_s3_connect_timeout_seconds` | number | `5.0` | exclusiveMinimum: 0; maximum: 120 |
+| `AXIS_CONNECTOR_EXPORT_S3_READ_TIMEOUT_SECONDS` | `connector_export_s3_read_timeout_seconds` | number | `30.0` | exclusiveMinimum: 0; maximum: 600 |
+| `AXIS_CONNECTOR_EXPORT_S3_MAX_RETRIES` | `connector_export_s3_max_retries` | integer | `2` | maximum: 10; minimum: 0 |
 | `AXIS_CONNECTOR_EXPORT_S3_BUCKET` | `connector_export_s3_bucket` | string / null | `null` |  |
 | `AXIS_CONNECTOR_EXPORT_S3_ACCESS_KEY` | `connector_export_s3_access_key` | string / null | `null` |  |
 | `AXIS_CONNECTOR_EXPORT_S3_SECRET_KEY` | `connector_export_s3_secret_key` | string / null | `null` |  |

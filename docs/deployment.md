@@ -836,6 +836,14 @@ For S3-compatible evaluation or production-style deployments, configure:
 - `AXIS_CONNECTOR_EXPORT_S3_RETENTION_DAYS=<positive integer>`
 - `AXIS_CONNECTOR_EXPORT_S3_LEGAL_HOLD_ENABLED=true` when legal hold should be
   applied to written objects.
+- Optionally `AXIS_CONNECTOR_EXPORT_S3_CONNECT_TIMEOUT_SECONDS` (default `5`),
+  `AXIS_CONNECTOR_EXPORT_S3_READ_TIMEOUT_SECONDS` (default `30`) and
+  `AXIS_CONNECTOR_EXPORT_S3_MAX_RETRIES` (default `2`). They bound the export
+  store's client, which otherwise inherits the MinIO defaults of 300 s and five
+  retries. The COMPLIANCE startup object-lock probe runs in a worker thread and
+  startup waits at most one connect plus one read timeout for it; past that the
+  API starts and COMPLIANCE exports keep failing closed until a probe verifies
+  the bucket.
 
 **The bucket must be created with S3 object-lock enabled.** Object-lock can only
 be turned on at bucket creation (`make_bucket(..., object_lock=True)` /

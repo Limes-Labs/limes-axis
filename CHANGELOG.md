@@ -373,6 +373,14 @@ release-bound behavior, not the complete commit history.
 
 ### Changed
 
+- The S3-compatible export store's MinIO client now uses a bounded transport
+  (new `AXIS_CONNECTOR_EXPORT_S3_CONNECT_TIMEOUT_SECONDS` default `5`,
+  `AXIS_CONNECTOR_EXPORT_S3_READ_TIMEOUT_SECONDS` default `30`,
+  `AXIS_CONNECTOR_EXPORT_S3_MAX_RETRIES` default `2`) instead of the library's
+  300 s timeouts and five retries, with certificate verification unchanged. The
+  COMPLIANCE object-lock warm-up no longer blocks the event loop or holds
+  startup: it runs in a thread and startup waits at most one connect plus one
+  read timeout.
 - Request-path TypeDB calls (ontology graph reads and connector promotions) are
   bounded by the new `AXIS_TYPEDB_REQUEST_TIMEOUT_SECONDS` (default `10`)
   instead of the driver's two-hour default. The lazy driver dial is serialized

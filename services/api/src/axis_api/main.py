@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import logging
 from collections.abc import AsyncIterator, Generator
@@ -864,6 +865,38 @@ def _audit_export_worm_settings(settings: Settings) -> bool:
     return settings.connector_export_s3_retention_mode.strip().upper() == (
         COMPLIANCE_RETENTION_MODE
     )
+
+
+async def _warm_audit_export_object_lock_capability_off_loop(app: FastAPI) -> None:
+    """Run the startup object-lock warm-up in a thread under a deadline.
+
+    The probe is synchronous network I/O. Running it inline blocked the event
+    loop and held startup for as long as the object store took to answer. The
+    deadline is one bounded connect plus read; past it, startup continues and
+    the export gate keeps failing closed per request until a probe verifies
+    the bucket (the background probe may still cache a positive result).
+    """
+
+    if not _audit_export_worm_settings(app.state.settings):
+        return
+    settings = app.state.settings
+    deadline = (
+        settings.connector_export_s3_connect_timeout_seconds
+        + settings.connector_export_s3_read_timeout_seconds
+    )
+    try:
+        await asyncio.wait_for(
+            asyncio.shield(
+                asyncio.to_thread(_warm_audit_export_object_lock_capability, app)
+            ),
+            timeout=deadline,
+        )
+    except TimeoutError:
+        _LOGGER.warning(
+            "Audit-export object-lock capability probe exceeded its %.1f s startup "
+            "deadline; COMPLIANCE exports will fail closed until the bucket is verified.",
+            deadline,
+        )
 
 
 def _warm_audit_export_object_lock_capability(app: FastAPI) -> None:
@@ -2346,7 +2379,7 @@ def _usage_metering_projection_loop(
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    _warm_audit_export_object_lock_capability(app)
+    await _warm_audit_export_object_lock_capability_off_loop(app)
     projection_thread: Thread | None = None
     projection_stop = Event()
     if app.state.settings.usage_metering_enabled:

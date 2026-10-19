@@ -61,6 +61,24 @@ class PersistenceSettings(BaseModel):
         default=None,
         alias="AXIS_CONNECTOR_EXPORT_S3_REGION",
     )
+    connector_export_s3_connect_timeout_seconds: float = Field(
+        default=5.0,
+        gt=0,
+        le=120,
+        alias="AXIS_CONNECTOR_EXPORT_S3_CONNECT_TIMEOUT_SECONDS",
+    )
+    connector_export_s3_read_timeout_seconds: float = Field(
+        default=30.0,
+        gt=0,
+        le=600,
+        alias="AXIS_CONNECTOR_EXPORT_S3_READ_TIMEOUT_SECONDS",
+    )
+    connector_export_s3_max_retries: int = Field(
+        default=2,
+        ge=0,
+        le=10,
+        alias="AXIS_CONNECTOR_EXPORT_S3_MAX_RETRIES",
+    )
     connector_export_s3_bucket: str | None = Field(
         default=None,
         alias="AXIS_CONNECTOR_EXPORT_S3_BUCKET",

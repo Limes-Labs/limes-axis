@@ -205,6 +205,8 @@ def test_build_connector_export_object_store_uses_configured_s3_client_factory()
     store = build_connector_export_object_store(settings, s3_client_factory=client_factory)
 
     assert isinstance(store, S3CompatibleObjectStore)
+    http_client = captured.pop("http_client")
+    assert http_client.connection_pool_kw["timeout"].connect_timeout == 5.0
     assert captured == {
         "endpoint": "minio.internal:9443",
         "access_key": "axis-service-account",
