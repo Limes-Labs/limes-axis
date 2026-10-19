@@ -267,6 +267,7 @@ const approvals = {
     select: "Selezioni un'approvazione da esaminare",
     selectDetail:
       "Scelga un'azione corrispondente nella coda per visualizzarne le evidenze e le opzioni di decisione.",
+    cost: "Costo",
   },
   history: {
     eyebrow: "Cronologia",
@@ -282,9 +283,28 @@ const approvals = {
     pending: "In attesa di esame",
     confirmTitle: "Conferma della decisione",
     rationaleLabel: "Motivazione (facoltativa)",
+    rationaleRequiredLabel: "Motivazione (obbligatoria)",
     rationalePlaceholder:
       "Perché ha preso questa decisione: verrà registrato insieme alle evidenze di audit.",
+    rationaleRequiredReject:
+      "Un rifiuto richiede una motivazione, così il richiedente sa che cosa modificare. Viene registrata insieme alle evidenze di audit.",
+    rationaleRequiredHighRisk:
+      "Le decisioni ad alto rischio richiedono una motivazione, che viene registrata insieme alle evidenze di audit.",
+    rationaleMissing: "Inserisca una motivazione prima di registrare questa decisione.",
     confirm: "Confermare la decisione",
+    confirmAction: (decision: string, action: string) => `${decision} «${action}»`,
+    summaryLabel: "Oggetto della decisione",
+    risk: "Rischio",
+    riskLevel: (level: string) =>
+      level === "high"
+        ? "Rischio alto"
+        : level === "medium"
+          ? "Rischio medio"
+          : level === "low"
+            ? "Rischio basso"
+            : `Rischio ${level}`,
+    cost: "Esposizione ai costi",
+    due: "Scadenza",
     cancel: "Annullare",
     persisting: "Registrazione della decisione…",
     persisted: "Registrata come evidenza",
@@ -695,10 +715,10 @@ const connectors = {
     conflict:
       "Il connettore è stato modificato mentre stava lavorando. Esamini lo stato corrente e riprovi.",
     deniedLifecycleScope:
-      "Alla Sua sessione manca l'ambito del ciclo di vita dei connettori (connectors:manifest:lifecycle) per questo tenant. Può concederlo un amministratore del tenant.",
+      "Non dispone dell'autorizzazione a modificare lo stato dei connettori in questo tenant. Un amministratore del tenant può concedere l'accesso al ciclo di vita dei connettori.",
     deniedLiveScope:
-      "L'abilitazione dell'operatività live richiede inoltre l'ambito enable-live (connectors:manifest:enable_live), di cui la Sua sessione non dispone per questo tenant. Può concederlo un amministratore del tenant.",
-    forbidden: "La Sua sessione non dispone dell'ambito del ciclo di vita dei connettori per questo tenant.",
+      "L'attivazione dell'operatività live richiede un'autorizzazione aggiuntiva di cui non dispone in questo tenant. Un amministratore del tenant può concedere l'accesso all'operatività live.",
+    forbidden: "Non dispone dell'autorizzazione a modificare lo stato dei connettori in questo tenant.",
     validationFailed: "L'API ha rifiutato questa transizione. Completi prima i requisiti mancanti.",
     genericError: "Impossibile registrare la transizione del ciclo di vita.",
     successToast: {
@@ -716,7 +736,7 @@ const connectors = {
       title: "Prerequisiti",
       lease: "Un lease delle credenziali attivo per questo connettore",
       policy: "Una policy di egress attiva che approvi l'endpoint della fonte",
-      scope: "L'ambito di rilevamento delle fonti (connectors:source:discover) per questo tenant",
+      scope: "Autorizzazione a rilevare fonti in questo tenant",
     },
     prerequisiteMet: "Pronto",
     prerequisiteMissing: "Mancante",
@@ -769,7 +789,7 @@ const connectors = {
         "Axis ha bloccato questa operazione al perimetro di runtime. Esamini le evidenze nel registro di audit.",
     },
     deniedScope:
-      "Alla Sua sessione manca l'ambito di rilevamento delle fonti (connectors:source:discover) per questo tenant. Può concederlo un amministratore del tenant.",
+      "Non dispone dell'autorizzazione a rilevare fonti in questo tenant. Un amministratore del tenant può concedere l'accesso al rilevamento delle fonti.",
     forbidden: "La Sua sessione non può operare sulla fonte di questo connettore per questo tenant.",
     validationFailed:
       "Uno dei record indicati non corrisponde a questo connettore. Verifichi gli ID inseriti.",
@@ -820,7 +840,7 @@ const connectors = {
     },
     reasonRequired: "Per la traccia di audit è necessario indicare il motivo dell'attivazione.",
     deniedScope:
-      "Alla Sua sessione manca l'ambito di attivazione delle fonti (connectors:source:activate) per questo tenant. Può concederlo un amministratore del tenant.",
+      "Non dispone dell'autorizzazione ad attivare fonti in questo tenant. Un amministratore del tenant può concedere l'accesso all'attivazione delle fonti.",
     forbidden: "La Sua sessione non può attivare fonti per questo tenant.",
     notFound: "Un lease o una policy di egress indicati non esistono per questo tenant.",
     genericError: "Impossibile registrare l'attivazione.",
@@ -835,12 +855,12 @@ const connectors = {
         done: "Fonte verificata e schema osservato.",
         todo: "Verifichi la connessione e rilevi lo schema nella sezione Verifica e rilevamento qui sotto. Il rilevamento è in sola lettura: Axis registra ciò che osserva senza toccare i dati.",
         consequence:
-          "Senza rilevamento non esiste un fingerprint, quindi nulla può essere attivato o acquisito.",
+          "Finché il rilevamento non ha registrato le colonne di ogni tabella, nulla può essere attivato o acquisito.",
       },
       activate: {
         label: "Attivazione delle tabelle",
         done: "Tabelle associate pronte per l'acquisizione: {count}.",
-        todo: "Attivi le tabelle rilevate che desidera governare. L'attivazione fissa il fingerprint dello schema osservato come riferimento per la convalida.",
+        todo: "Attivi le tabelle rilevate che desidera governare. L'attivazione salva le colonne attuali di ogni tabella, così le modifiche successive possono essere rilevate.",
         consequence:
           "Solo le tabelle attivate possono essere incluse in una richiesta di acquisizione governata.",
       },
@@ -855,8 +875,8 @@ const connectors = {
         label: "Convalida ed esame delle evidenze",
         done: "{completed} completate · {failed} richiedono attenzione.",
         doneClean:
-          "{completed} completate: fingerprint ricontrollati rispetto a osservazioni aggiornate.",
-        todo: "Attenda che lo smistamento convalidi i fingerprint fissati, quindi apra una richiesta per esaminarne le evidenze dei lotti e lo stato di archiviazione.",
+          "{completed} completate: colonne delle tabelle ricontrollate rispetto all'ultimo rilevamento.",
+        todo: "Attenda che Axis ricontrolli le colonne salvate, quindi apra una richiesta per esaminare che cosa è stato estratto e dove è archiviato.",
         remediation:
           "Le richieste in dead letter restano non riuscite finché non interviene: esegua di nuovo rilevamento e attivazione, quindi usi «Smistare di nuovo dopo l'intervento» all'interno della richiesta.",
         consequence:
@@ -879,7 +899,7 @@ const connectors = {
     emptyDetail:
       "Nessuna tabella rilevata è ancora associata per l'acquisizione. Verifichi la fonte, ne rilevi le tabelle e attivi quelle necessarie.",
     tableColumn: "Tabella",
-    fingerprintColumn: "Fingerprint dello schema",
+    fingerprintColumn: "Controllo delle colonne",
     stateColumn: "Stato",
     ingestionPendingPill: "In attesa di acquisizione",
     activePill: "Attivo",
@@ -892,7 +912,7 @@ const connectors = {
     eyebrow: "Richieste di acquisizione",
     title: "Richieste di acquisizione governate",
     validationOnlyNote:
-      "Solo fase di convalida. Axis ricontrolla il fingerprint dello schema di ogni tabella associata rispetto alle proprie osservazioni. Nessuna fonte viene contattata e nessuna riga viene letta o archiviata.",
+      "Solo fase di convalida. Axis verifica che ogni tabella abbia ancora le colonne salvate al momento dell'attivazione. Non si connette alla fonte e non legge né archivia alcuna riga.",
     overviewTitle: "Riepilogo operativo",
     overviewUnavailable: "Riepilogo non disponibile: riprovi dopo aver verificato lo stato dell'API.",
     overviewNeedsAttention: "Richieste in dead letter che richiedono una decisione: {count}",
@@ -917,7 +937,7 @@ const connectors = {
     eligibilityTitle: "Idoneità all'acquisizione",
     selectColumn: "Selezionare",
     tableColumn: "Tabella",
-    fingerprintColumn: "Fingerprint",
+    fingerprintColumn: "Controllo delle colonne",
     stateColumn: "Stato",
     requestColumn: "Richiesta",
     attemptsColumn: "Tentativi",
@@ -928,7 +948,7 @@ const connectors = {
     eligiblePill: "Idonea",
     blockedPill: "Bloccata",
     blockedReasons: {
-      stale_fingerprint: "Fingerprint non aggiornato",
+      stale_fingerprint: "Colonne modificate",
       binding_not_pending_ingestion: "Non in attesa di acquisizione",
     },
     requestIdLabel: "ID richiesta",
@@ -936,7 +956,7 @@ const connectors = {
     reasonPlaceholder:
       "Perché viene inoltrata questa richiesta di acquisizione (archiviato come evidenza).",
     formHint:
-      "I fingerprint dello schema vengono fissati da Axis a partire dai binding attivi; non deve mai fornirli. Inviando di nuovo lo stesso ID richiesta viene riproposta la richiesta esistente.",
+      "Axis confronta ogni tabella con le colonne salvate al momento dell'attivazione: non deve fornire nulla. Inviando di nuovo la stessa richiesta si ottiene quella esistente, senza creare duplicati.",
     createAction: "Richiedere l'acquisizione",
     creatingAction: "Richiesta di acquisizione in corso…",
     createdStatus: {
@@ -965,7 +985,7 @@ const connectors = {
     redispatchReasonLabel: "Motivo dell'intervento",
     requeuedStatus: "Richiesta rimessa in coda per lo smistamento.",
     redispatchHint:
-      "Possono essere smistate di nuovo solo le richieste in dead letter. Intervenga prima (nuovo rilevamento e nuova attivazione); l'esecuzione riconvalida comunque i fingerprint.",
+      "Possono essere inviate di nuovo solo le richieste non riuscite in modo definitivo. Risolva prima la causa (esegua di nuovo il rilevamento e l'attivazione); Axis ricontrolla le colonne delle tabelle prima dell'esecuzione.",
     cancellingAction: "Annullamento in corso…",
     cancelledStatus: "Richiesta annullata prima dello smistamento.",
     conflictMessage:
@@ -1004,12 +1024,12 @@ const connectors = {
     preflightReasonReady: "Ogni richiesta richiede un motivo di governance",
     deadLetteredPill: "In dead letter",
     deniedScope:
-      "Al Suo attore manca l'ambito connectors:source:ingest necessario per inoltrare richieste di acquisizione governate.",
+      "Non dispone dell'autorizzazione a richiedere acquisizioni in questo tenant. Un amministratore del tenant può concedere l'accesso all'acquisizione delle fonti.",
     forbidden: "Axis ha rifiutato questa azione per il Suo attore.",
     conflict:
       "Questo ID richiesta identifica già un'altra richiesta di acquisizione. Scelga un nuovo ID anziché sovrascrivere evidenze durevoli.",
     validationFailed:
-      "Axis ha rifiutato la richiesta: ogni binding selezionato deve esistere, essere attivo, essere in attesa di acquisizione e avere un fingerprint dello schema ancora valido.",
+      "Axis ha rifiutato la richiesta. Ogni tabella selezionata deve essere attiva, in attesa di acquisizione e avere ancora le colonne salvate al momento dell'attivazione.",
     notFound: "Questa richiesta di acquisizione non esiste.",
     genericError:
       "Axis non è riuscito a registrare questa richiesta di acquisizione. Nulla è stato inventato; riprovi dopo aver verificato lo stato dell'API.",
@@ -1487,6 +1507,21 @@ const models = {
 } as const;
 
 const policyDetail = {
+  precedence: {
+    eyebrow: "Come decidono le policy",
+    title: "Quale policy prevale",
+    steps: [
+      "Una policy che blocca un'azione prevale su una che richiede l'approvazione, e la richiesta di approvazione prevale sul consentire l'azione con evidenze registrate.",
+      "Se due policy corrispondenti hanno lo stesso esito, si applica quella il cui ID viene prima in ordine alfabetico.",
+    ],
+    defaultAllowTitle: "Se nessuna policy corrisponde, le azioni sono consentite per impostazione predefinita.",
+    defaultAllowDetail:
+      "Aggiunga una policy che blocchi o richieda l'approvazione per qualsiasi azione che non deve mai essere eseguita senza revisione.",
+    noMatch:
+      "Nessuna policy attiva corrisponde, quindi l'azione è consentita per impostazione predefinita.",
+    evaluated: (value: number) =>
+      value === 1 ? "1 policy attiva verificata" : `${count(value)} policy attive verificate`,
+  },
   tabs: {
     conditions: "Condizioni",
     revisions: "Revisioni",
@@ -1619,6 +1654,8 @@ const onboarding = {
 const settingsPanelUnavailable = "I record di impostazione locali di riserva sono disattivati.";
 
 const settings = {
+  revokeDenied:
+    "Non dispone dell'autorizzazione a disconnettere le sessioni di altre persone. Un amministratore delle identità può concedere l'accesso di amministrazione delle sessioni.",
   source: {
     live: "Stato del sistema in tempo reale",
     loading: "Caricamento dello stato del sistema",
@@ -1866,6 +1903,25 @@ const ontology = {
         "Non esiste alcuna entità dell'ontologia con questo ID. Potrebbe essere stata rinominata o rimossa dal grafo.",
     },
   },
+  entity: {
+    type: "Tipo",
+    domain: "Dominio",
+    source: "Origine",
+    attention: {
+      action_required: "Perché richiede un intervento",
+      watch: "Perché è sotto osservazione",
+      connected: "Record collegati che richiedono attenzione",
+      reviewApprovals: "Esaminare le approvazioni",
+      openWorkflows: "Aprire i workflow",
+    },
+    direction: {
+      inbound: "In entrata",
+      outbound: "In uscita",
+    },
+    ownerVerification: (owner: string, verification: string) =>
+      `Responsabile: ${owner} · ${verification}`,
+    evidenceIds: "Riferimenti delle evidenze",
+  },
 } as const;
 
 const demoBadge = {
@@ -1882,6 +1938,8 @@ const tenantLifecycle = {
     impact:
       "Ogni accesso e ogni richiesta API effettuati per questo tenant vengono rifiutati fino alla riattivazione, quindi operatori, agenti e integrazioni restano esclusi. Le sessioni del browser residue vengono revocate dalla successiva riconciliazione. I dati del tenant e le evidenze di audit vengono conservati.",
   },
+  permissionNote:
+    "Solo gli operatori autorizzati a sospendere i tenant possono modificarne lo stato. Ogni modifica viene registrata nel registro di audit; chi non dispone dell'autorizzazione riceve una spiegazione.",
 } as const;
 
 const tenantVocabulary = {
@@ -2956,7 +3014,7 @@ export const stringsIt: ConsoleStrings = {
       },
       fields: {
         expectedResource: "Risorsa attesa",
-        expectedFingerprint: "Fingerprint dello schema atteso",
+        expectedFingerprint: "Codice delle colonne atteso",
         warnHours: "Soglia di avviso per l'aggiornamento (ore)",
         failHours: "Soglia di non conformità per l'aggiornamento (ore)",
         revision: "Revisione",
@@ -2966,14 +3024,14 @@ export const stringsIt: ConsoleStrings = {
       form: {
         title: "Dichiarazione di un contratto dati",
         description:
-          "Indichi la risorsa che questo asset deve continuare a osservare e, facoltativamente, il fingerprint esatto dell'intestazione e il grado di aggiornamento richiesto per l'ultima osservazione.",
+          "Indichi la risorsa che questo asset deve continuare a osservare, facoltativamente il codice delle colonne esatte che deve mantenere e il grado di aggiornamento richiesto per l'ultima osservazione.",
         submit: "Dichiarare il contratto",
         submitting: "Dichiarazione in corso…",
         success: "Contratto dichiarato. La valutazione avviene ora su osservazioni reali.",
         errors: {
           resourceRequired: "Il nome della risorsa attesa è obbligatorio.",
           fingerprintInvalid: (limit: number) =>
-            `Il fingerprint dello schema deve essere composto da ${limit} caratteri esadecimali.`,
+            `Il codice delle colonne deve essere composto da ${limit} caratteri, usando solo 0–9 e a–f.`,
           hoursInvalid: "Le soglie devono essere numeri interi pari ad almeno 1 ora.",
           orderingInvalid:
             "La soglia di avviso non può superare la soglia di non conformità.",
@@ -2993,7 +3051,7 @@ export const stringsIt: ConsoleStrings = {
     resources: {
       title: "Risorse osservate",
       description:
-        "File sorgente effettivamente osservati da Axis attraverso perimetri di anteprima governati. Solo metadati: nomi delle intestazioni e fingerprint, mai i valori delle righe.",
+        "File sorgente effettivamente osservati da Axis attraverso anteprime governate. Solo nomi delle colonne, mai i valori delle righe.",
       countSummary: (value: number) =>
         value === 1 ? "1 risorsa osservata" : `${value} risorse osservate`,
       empty: {
@@ -3051,6 +3109,16 @@ export const stringsIt: ConsoleStrings = {
   tenantLifecycle,
   tenantVocabulary,
   workflows,
+  identifiers: {
+    notRecorded: "Non registrato",
+    inspect: "Esaminare",
+    inspectIdentifiers: "Esaminare gli identificativi",
+    permissions: (value: number) =>
+      value === 1 ? "1 autorizzazione" : `${count(value)} autorizzazioni`,
+    thisTenant: "questo tenant",
+    tenantDetailTitle: "Tenant",
+    approvalRole: (role: string) => `Ruolo di approvazione: ${role}`,
+  },
   states: {
     loading: "Caricamento…",
     retry: "Riprovare",

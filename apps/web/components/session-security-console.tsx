@@ -25,6 +25,7 @@ import {
 import { buildOidcAuthorizeUrl, buildOidcLogoutUrl } from "@/lib/oidc-session";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import { parseIdentityBrowserSessionList } from "@/lib/runtime-contracts/identity";
+import type { ConsoleStrings } from "@/lib/i18n";
 import { useStrings } from "@/providers/locale-provider";
 import {
   deriveSourceState,
@@ -39,12 +40,12 @@ import { useConsole } from "@/providers/console-provider";
 const SESSIONS_ROUTE = "/settings/sessions";
 const SESSION_ENDPOINTS = "/identity/session /identity/sessions";
 
-function revokeOperatorError(caught: unknown): AxisOperatorError {
+function revokeOperatorError(caught: unknown, strings: ConsoleStrings): AxisOperatorError {
   const failure = toAxisOperatorError(caught, "Axis could not revoke the session.");
   if (failure.status === 403) {
     return {
       ...failure,
-      message: "Axis denied the revocation. Managing other actors' sessions requires identity:sessions:admin.",
+      message: strings.settings.revokeDenied,
     };
   }
   if (failure.status === 404) {
@@ -194,7 +195,7 @@ function SessionListPanel({
       await revokeIdentitySession(record.session_ref, { session });
       triggerRefresh();
     } catch (caught) {
-      setRevokeError(revokeOperatorError(caught));
+      setRevokeError(revokeOperatorError(caught, strings));
     } finally {
       setPendingSessionRefs((current) => {
         const next = new Set(current);

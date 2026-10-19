@@ -14,6 +14,7 @@ import { EmptyPanel, ErrorPanel } from "@/components/ui/states";
 import { formatContextPath, formatTimestamp } from "@/lib/format";
 import { deriveSourceState } from "@/lib/source-state";
 import { useStrings } from "@/providers/locale-provider";
+import { humanizeIdentifier } from "@/lib/display-names";
 import { DEMO_TENANT_ID } from "@/lib/tenant-scope";
 import {
   IDENTITY_SESSION_ENDPOINT,
@@ -93,8 +94,11 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
         <div className="grid gap-1">
           <Eyebrow>{strings.ui.ontologyEntityDetail.ontologyEntity}</Eyebrow>
           <h2 className="font-display m-0 text-2xl text-ink">{detail.node.label}</h2>
-          <p className="m-0 text-sm text-muted">
-            {formatContextPath(detail.scenario, detail.tenant_id)}
+          <p className="m-0 text-sm text-muted" title={detail.tenant_id}>
+            {formatContextPath(
+              detail.plant_name ?? humanizeIdentifier(detail.tenant_id),
+              detail.scenario,
+            )}
           </p>
         </div>
         <div

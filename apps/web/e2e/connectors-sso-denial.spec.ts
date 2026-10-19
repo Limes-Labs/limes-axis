@@ -166,7 +166,7 @@ test.describe("Axis live story: SSO-gated connector lifecycle", () => {
     // b) ...and the console renders the distinct actionable copy...
     const alert = page.getByRole("tabpanel").getByRole("alert");
     await expect(alert).toContainText(
-      "Enabling live operation additionally requires the enable-live scope",
+      "Turning on live operation needs an extra permission",
     );
     // c) ...with the API request reference displayed.
     await expect(alert).toContainText(/Request reference: req_[0-9a-f]+/);

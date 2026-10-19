@@ -162,7 +162,7 @@ describe("ConsoleTopbar notification badge", () => {
 });
 
 describe("ConsoleTopbar demo badge", () => {
-  it("pins the Demo pill first and sticky in the mobile status scroller", () => {
+  it("pins the Demo pill first and sticky in the mobile status row", () => {
     mocks.useAxisQuery.mockImplementation((path: string) => {
       if (path === "/identity/session") {
         return queryResult(identitySession);
@@ -183,6 +183,20 @@ describe("ConsoleTopbar demo badge", () => {
       "max-sm:left-0",
       "max-sm:bg-surface",
     );
+  });
+
+  it("wraps the mobile status row instead of clipping the API pill in a scroller", () => {
+    mockNotifications(0);
+    const { container } = render(<ConsoleTopbar />);
+
+    const row = container.querySelector("[data-status-row]");
+    expect(row).toHaveClass("flex-wrap", "max-sm:[&_.status-pill]:max-w-full");
+    expect(row?.className).not.toMatch(/max-sm:flex-nowrap|max-sm:overflow-x-auto/);
+    const apiPill = container.querySelector("[data-api-status-pill]");
+    expect(apiPill?.parentElement).toBe(row);
+    expect(apiPill?.textContent).toMatch(/^API /);
+    // On phones the row gets its own full-width line below the icons.
+    expect(row).toHaveClass("max-sm:col-span-2", "max-sm:order-last");
   });
 
   it("collapses the slot when the tenant has no demo scenario", () => {

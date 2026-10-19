@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { approvalRiskClass, type ApprovalInboxItem } from "@/lib/approval-demo";
 import { cn } from "@/lib/cn";
 import { useStrings } from "@/providers/locale-provider";
+import { humanizeIdentifier } from "@/lib/display-names";
 
 export type ApprovalQueueFilters = {
   search: string;
@@ -173,10 +174,15 @@ export function ApprovalQueue({
                 <span className="min-w-0 text-sm leading-snug font-medium break-words text-ink">{approval.action}</span>
                 <ChevronRight aria-hidden="true" className="mt-0.5 shrink-0 text-muted" size={16} />
               </span>
-              <span className="text-xs break-words text-muted">{labelDomain(approval.domain)} · {approval.owner_role}</span>
+              <span className="text-xs break-words text-muted">{labelDomain(approval.domain)} · <span title={approval.owner_role}>{humanizeIdentifier(approval.owner_role) ?? strings.identifiers.notRecorded}</span></span>
               <span className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs text-muted">Due {approval.due}</span>
-                <span className={`status-pill ${approvalRiskClass(approval.risk_level)}`}>{approval.risk_level} risk</span>
+                <span className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1">
+                  <span className={`status-pill ${approvalRiskClass(approval.risk_level)}`}>{approval.risk_level} risk</span>
+                  <span className="min-w-0 text-xs break-words text-muted" data-approval-cost>
+                    {copy.cost}: {approval.estimated_cost}
+                  </span>
+                </span>
               </span>
             </button>
           );

@@ -47,6 +47,7 @@ import { Select } from "@/components/ui/select";
 import { SourcePill } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel, TenantEmptyPanel } from "@/components/ui/states";
 import { useStrings } from "@/providers/locale-provider";
+import { humanizeIdentifier } from "@/lib/display-names";
 
 type ActionRunSource = "api";
 
@@ -427,7 +428,10 @@ export function ActionRegistry() {
                   <span>
                     <span className="m-0 font-medium text-ink break-words">{action.definition.display_name}</span>
                     <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                      {action.definition.domain} / {action.owner_role}
+                      {action.definition.domain} /{" "}
+                      <span title={action.owner_role}>
+                        {humanizeIdentifier(action.owner_role) ?? strings.identifiers.notRecorded}
+                      </span>
                     </span>
                     <span className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{formatActionLabel(action.status)}</span>
                   </span>
@@ -465,8 +469,14 @@ export function ActionRegistry() {
             </div>
             <div>
               <p className="eyebrow m-0">{strings.ui.common.owner}</p>
-              <p className="m-0 font-medium text-ink break-words">{selectedAction.owner_role}</p>
-              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Approval role {selectedAction.policy.approval_role}</p>
+              <p className="m-0 font-medium text-ink break-words" title={selectedAction.owner_role}>
+                {humanizeIdentifier(selectedAction.owner_role) ?? strings.identifiers.notRecorded}
+              </p>
+              <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" title={selectedAction.policy.approval_role}>
+                {strings.identifiers.approvalRole(
+                  humanizeIdentifier(selectedAction.policy.approval_role) ?? strings.identifiers.notRecorded,
+                )}
+              </p>
             </div>
             <div>
               <p className="eyebrow m-0">{strings.ui.actionRegistry.runtime}</p>

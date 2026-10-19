@@ -62,11 +62,13 @@ function DecisionResult({ decision }: { decision: PlatformPolicyDecision }) {
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             {decision.matched && decision.matched_policy_id
               ? `Matched ${decision.matched_policy_id} r${decision.matched_revision_number} / ${decision.matched_policy_version}`
-              : strings.ui.policyEvaluationPanel.noActivePolicyMatchedThis}
+              : strings.policyDetail.precedence.noMatch}
           </p>
-          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            {decision.evaluated_policy_count} active policies evaluated
-            {decision.precedence_rule ? ` / ${decision.precedence_rule}` : ""}
+          <p
+            className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words"
+            title={decision.precedence_rule ?? undefined}
+          >
+            {strings.policyDetail.precedence.evaluated(decision.evaluated_policy_count)}
           </p>
         </div>
         <span className={`status-pill ${policyEffectClass(decision.effect)}`}>

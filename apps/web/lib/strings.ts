@@ -302,6 +302,7 @@ const approvals = {
     back: "Back to approval inbox",
     select: "Select an approval to review",
     selectDetail: "Choose a matching action from the queue to see its evidence and decision options.",
+    cost: "Cost",
   },
   history: {
     eyebrow: "History",
@@ -317,8 +318,22 @@ const approvals = {
     pending: "Pending review",
     confirmTitle: "Confirm decision",
     rationaleLabel: "Rationale (optional)",
+    rationaleRequiredLabel: "Rationale (required)",
     rationalePlaceholder: "Why you are deciding this way — recorded with the audit evidence.",
+    rationaleRequiredReject:
+      "Rejections need a rationale so the requester knows what to change. It is recorded with the audit evidence.",
+    rationaleRequiredHighRisk:
+      "High-risk decisions need a rationale. It is recorded with the audit evidence.",
+    rationaleMissing: "Enter a rationale before recording this decision.",
     confirm: "Confirm decision",
+    /** Confirm button: names the decision and the action it applies to. */
+    confirmAction: (decision: string, action: string) => `${decision} “${action}”`,
+    summaryLabel: "What you are deciding",
+    risk: "Risk",
+    riskLevel: (level: string) =>
+      `${String(level).charAt(0).toUpperCase()}${String(level).slice(1)} risk`,
+    cost: "Cost exposure",
+    due: "Due",
     cancel: "Cancel",
     persisting: "Recording decision…",
     persisted: "Recorded as evidence",
@@ -732,10 +747,10 @@ const connectors = {
     /* Scope denials name exactly which grant is absent and who can fix it, so
        an operator never has to guess which of the two lifecycle scopes failed. */
     deniedLifecycleScope:
-      "Your session is missing the connector lifecycle scope (connectors:manifest:lifecycle) for this tenant. A tenant admin can grant it.",
+      "You don't have permission to change connector status in this tenant. A tenant admin can grant connector lifecycle access.",
     deniedLiveScope:
-      "Enabling live operation additionally requires the enable-live scope (connectors:manifest:enable_live), which your session does not have for this tenant. A tenant admin can grant it.",
-    forbidden: "Your session does not carry the connector lifecycle scope for this tenant.",
+      "Turning on live operation needs an extra permission you don't have in this tenant. A tenant admin can grant live-operation access.",
+    forbidden: "You don't have permission to change connector status in this tenant.",
     validationFailed: "The API rejected this transition. Complete the missing requirements first.",
     genericError: "The lifecycle transition could not be recorded.",
     successToast: { title: "Lifecycle updated", detail: "The transition was recorded with audit evidence." },
@@ -751,7 +766,7 @@ const connectors = {
       title: "What you need before starting",
       lease: "An active credential lease for this connector",
       policy: "An active egress policy approving the source endpoint",
-      scope: "The source discovery scope (connectors:source:discover) for this tenant",
+      scope: "Permission to discover sources in this tenant",
     },
     prerequisiteMet: "Ready",
     prerequisiteMissing: "Missing",
@@ -805,7 +820,7 @@ const connectors = {
         "Axis blocked this operation at the runtime boundary. Review the evidence in the audit ledger.",
     },
     deniedScope:
-      "Your session is missing the source discovery scope (connectors:source:discover) for this tenant. A tenant admin can grant it.",
+      "You don't have permission to discover sources in this tenant. A tenant admin can grant source discovery access.",
     forbidden: "Your session cannot operate this connector's source for this tenant.",
     validationFailed: "One of the referenced records does not match this connector. Check the IDs above.",
     notFound: "A referenced lease or egress policy does not exist for this tenant.",
@@ -856,7 +871,7 @@ const connectors = {
     },
     reasonRequired: "An activation reason is required for the audit trail.",
     deniedScope:
-      "Your session is missing the source activation scope (connectors:source:activate) for this tenant. A tenant admin can grant it.",
+      "You don't have permission to activate sources in this tenant. A tenant admin can grant source activation access.",
     forbidden: "Your session cannot activate sources for this tenant.",
     notFound: "A referenced lease or egress policy does not exist for this tenant.",
     genericError: "The activation could not be recorded.",
@@ -871,12 +886,12 @@ const connectors = {
         done: "Source verified and schema observed.",
         todo: "Verify the connection and discover the schema in Verify & discover below. Discovery is read-only: Axis records what it sees without touching your data.",
         consequence:
-          "Without discovery there is no fingerprint, so nothing can be activated or ingested.",
+          "Until discovery has recorded each table's columns, nothing can be activated or ingested.",
       },
       activate: {
         label: "Activate tables",
         done: "{count} bound table(s) ready for ingestion.",
-        todo: "Activate the discovered tables you want governed. Activation pins the observed schema fingerprint as the baseline for validation.",
+        todo: "Activate the discovered tables you want governed. Activation saves each table's current columns so later changes can be detected.",
         consequence:
           "Only activated tables can enter a governed ingestion request.",
       },
@@ -890,8 +905,8 @@ const connectors = {
       validate: {
         label: "Validate & review evidence",
         done: "{completed} completed · {failed} need attention.",
-        doneClean: "{completed} completed — fingerprints re-checked against fresh observations.",
-        todo: "Wait for dispatch to validate pinned fingerprints, then open a request to review its batch evidence and storage state.",
+        doneClean: "{completed} completed — table columns re-checked against the latest discovery.",
+        todo: "Wait for Axis to re-check the saved table columns, then open a request to review what was extracted and where it is stored.",
         remediation:
           "Dead-lettered requests stay failed until you remediate: re-discover, re-activate, then use Re-dispatch after remediation inside the request.",
         consequence:
@@ -914,7 +929,7 @@ const connectors = {
     emptyDetail:
       "No discovered table is bound for ingestion yet. Verify the source, discover its tables, then activate the ones you need.",
     tableColumn: "Table",
-    fingerprintColumn: "Schema fingerprint",
+    fingerprintColumn: "Columns check",
     stateColumn: "State",
     ingestionPendingPill: "Pending ingestion",
     activePill: "Active",
@@ -927,7 +942,7 @@ const connectors = {
     eyebrow: "Ingestion requests",
     title: "Governed ingestion requests",
     validationOnlyNote:
-      "Validation stage only. Axis re-checks each bound table's schema fingerprint against its own observations. No source is dialed and no rows are read or stored.",
+      "Validation stage only. Axis checks that each table still has the columns saved at activation. It does not connect to the source and reads or stores no rows.",
     overviewTitle: "Operations at a glance",
     overviewUnavailable: "Overview unavailable — retry after checking the API status.",
     overviewNeedsAttention: "{count} dead-lettered request(s) need a decision",
@@ -951,7 +966,7 @@ const connectors = {
     eligibilityTitle: "Ingestion eligibility",
     selectColumn: "Select",
     tableColumn: "Table",
-    fingerprintColumn: "Fingerprint",
+    fingerprintColumn: "Columns check",
     stateColumn: "State",
     requestColumn: "Request",
     attemptsColumn: "Attempts",
@@ -962,7 +977,7 @@ const connectors = {
     eligiblePill: "Eligible",
     blockedPill: "Blocked",
     blockedReasons: {
-      stale_fingerprint: "Stale fingerprint",
+      stale_fingerprint: "Columns changed",
       binding_not_pending_ingestion: "Not awaiting ingestion",
     } as Record<string, string>,
     requestIdLabel: "Request ID",
@@ -970,7 +985,7 @@ const connectors = {
     reasonPlaceholder:
       "Why this ingestion request is being raised (stored as evidence).",
     formHint:
-      "Schema fingerprints are pinned by Axis from the active bindings; you never supply one. Re-submitting the same request ID replays the existing request.",
+      "Axis checks each table against the columns saved at activation; there is nothing for you to supply. Submitting the same request again returns the existing request instead of creating a duplicate.",
     createAction: "Request ingestion",
     creatingAction: "Requesting ingestion…",
     createdStatus: {
@@ -999,7 +1014,7 @@ const connectors = {
     redispatchReasonLabel: "Remediation reason",
     requeuedStatus: "Request requeued for dispatch.",
     redispatchHint:
-      "Only dead-lettered requests can be re-dispatched. Remediate first (fresh discovery + activation); execution still revalidates fingerprints.",
+      "Only requests that failed permanently can be sent again. Fix the cause first (run discovery and activate again); Axis re-checks the table columns before it runs.",
     cancellingAction: "Cancelling…",
     cancelledStatus: "Request cancelled before dispatch.",
     conflictMessage:
@@ -1037,12 +1052,12 @@ const connectors = {
     preflightReasonReady: "A governance reason is required for every request",
     deadLetteredPill: "Dead-lettered",
     deniedScope:
-      "Your actor lacks the connectors:source:ingest scope required to raise governed ingestion requests.",
+      "You don't have permission to request ingestion in this tenant. A tenant admin can grant source ingestion access.",
     forbidden: "Axis refused this action for your actor.",
     conflict:
       "That request ID already names a different ingestion request. Pick a new ID instead of overriding durable evidence.",
     validationFailed:
-      "Axis rejected the request: a selected binding must exist, be active, await ingestion, and carry a still-current schema fingerprint.",
+      "Axis rejected the request. Each selected table must be active, waiting for ingestion, and still have the columns saved at activation.",
     notFound: "That ingestion request does not exist.",
     genericError: "Axis could not record this ingestion request. Nothing was invented; try again after checking the API status.",
     unavailableTitle: "Ingestion requests unavailable",
@@ -1516,6 +1531,22 @@ const models = {
 
 /** Policy pages copy: detail tabs and plain-first authoring-scope lines. */
 const policyDetail = {
+  /* How the platform picks a decision when several policies match. Plain
+     operator wording; the API's rule names stay in the Inspect payloads. */
+  precedence: {
+    eyebrow: "How policies decide",
+    title: "Which policy wins",
+    steps: [
+      "A policy that blocks an action wins over one that asks for approval, and asking for approval wins over allowing the action with recorded evidence.",
+      "If two matching policies have the same outcome, the one whose ID comes first alphabetically is applied.",
+    ],
+    defaultAllowTitle: "If no policy matches, actions are allowed by default.",
+    defaultAllowDetail:
+      "Add a policy that blocks or requires approval for any action that must never run unreviewed.",
+    noMatch: "No active policy matched, so the action is allowed by default.",
+    evaluated: (count: number) =>
+      count === 1 ? "1 active policy checked" : `${count} active policies checked`,
+  },
   tabs: {
     conditions: "Conditions",
     revisions: "Revisions",
@@ -1654,6 +1685,8 @@ const settingsPanelUnavailable = "Local fallback settings records are disabled."
 const settings = {
   // No page-title override: the h1 is `pages.settings.title`, matching the
   // "Settings" nav label (#945).
+  revokeDenied:
+    "You don't have permission to sign out other people's sessions. An identity administrator can grant session admin access.",
   source: {
     live: "Live system status",
     loading: "Loading system status",
@@ -1911,6 +1944,25 @@ const ontology = {
         "No ontology entity exists with this id. It may have been renamed or removed from the graph.",
     },
   },
+  entity: {
+    type: "Type",
+    domain: "Domain",
+    source: "Source",
+    attention: {
+      action_required: "Why this needs action",
+      watch: "Why this is on watch",
+      connected: "Connected records that need attention",
+      reviewApprovals: "Review approvals",
+      openWorkflows: "Open workflows",
+    },
+    direction: {
+      inbound: "Incoming",
+      outbound: "Outgoing",
+    },
+    ownerVerification: (owner: string, verification: string) =>
+      `Owner: ${owner} · ${verification}`,
+    evidenceIds: "Evidence references",
+  },
 } as const;
 
 /** Topbar pill marking a tenant that runs the bootstrapped demo scenario. */
@@ -1932,6 +1984,9 @@ const tenantLifecycle = {
     impact:
       "Every sign-in and API request made as this tenant is denied until it is reactivated, so its operators, agents and integrations are locked out. Remaining browser sessions are revoked by the next reconciliation sweep. Tenant data and audit evidence are kept.",
   },
+  /* Shown above the lifecycle actions; the raw permission stays in a title. */
+  permissionNote:
+    "Only operators allowed to suspend tenants can change a tenant's status. Every change is recorded in the audit log; anyone without that permission sees an explanation instead.",
 } as const;
 
 const tenantVocabulary = {
@@ -2990,7 +3045,7 @@ export const strings = {
       },
       fields: {
         expectedResource: "Expected resource",
-        expectedFingerprint: "Expected schema fingerprint",
+        expectedFingerprint: "Expected columns code",
         warnHours: "Freshness warn threshold (hours)",
         failHours: "Freshness fail threshold (hours)",
         revision: "Revision",
@@ -3000,14 +3055,14 @@ export const strings = {
       form: {
         title: "Declare a data contract",
         description:
-          "State the resource this asset must keep observing, optionally the exact header fingerprint it must carry and how fresh the last observation must be.",
+          "State the resource this asset must keep observing, optionally the code for the exact columns it must keep, and how fresh the last observation must be.",
         submit: "Declare contract",
         submitting: "Declaring…",
         success: "Contract declared. Evaluation now runs against real observations.",
         errors: {
           resourceRequired: "The expected resource name is required.",
           fingerprintInvalid: (limit: number) =>
-            `The schema fingerprint must be ${limit} hexadecimal characters.`,
+            `The columns code must be ${limit} characters, using only 0–9 and a–f.`,
           hoursInvalid: "Thresholds must be whole numbers of at least 1 hour.",
           orderingInvalid: "The warn threshold cannot exceed the fail threshold.",
           declareFailed: "The data contract declaration was not applied.",
@@ -3026,7 +3081,7 @@ export const strings = {
     resources: {
       title: "Observed resources",
       description:
-        "Source files Axis actually observed through governed preview boundaries. Metadata only — header names and fingerprints, never row values.",
+        "Source files Axis actually observed through governed previews. Column names only, never row values.",
       countSummary: (count: number) =>
         count === 1 ? "1 resource observed" : `${count} resources observed`,
       empty: {
@@ -3083,6 +3138,17 @@ export const strings = {
   tenantLifecycle,
   tenantVocabulary,
   workflows,
+  /* Raw identifiers stay secondary: display names first, ids in a title,
+     a mono line or an Inspect disclosure. */
+  identifiers: {
+    notRecorded: "Not recorded",
+    inspect: "Inspect",
+    inspectIdentifiers: "Inspect identifiers",
+    permissions: (count: number) => (count === 1 ? "1 permission" : `${count} permissions`),
+    thisTenant: "this tenant",
+    tenantDetailTitle: "Tenant",
+    approvalRole: (role: string) => `Approval role: ${role}`,
+  },
   states: {
     loading: "Loading…",
     retry: "Try again",

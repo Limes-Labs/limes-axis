@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DetailGrid, KeyValueRow } from "@/components/ui/detail-grid";
 import { Eyebrow } from "@/components/ui/eyebrow";
+import { IdentifiedName } from "@/components/ui/identified-name";
 import { InspectDrawer } from "@/components/ui/inspect-drawer";
 import { MasterDetail } from "@/components/ui/master-detail";
 import type { Metric } from "@/components/ui/metric-strip";
@@ -34,9 +35,11 @@ import {
 import { cn } from "@/lib/cn";
 import type { AxisOperatorError } from "@/lib/axis-api";
 import { enumUrlField, opaqueStringUrlField, stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
+import { humanizeIdentifier, humanizeScope } from "@/lib/display-names";
 import { formatContextPath, formatNumber, formatTimestamp } from "@/lib/format";
 import { type IdentitySessionReadModel } from "@/lib/platform-overview";
 import { deriveSourceState } from "@/lib/source-state";
+import type { ConsoleStrings } from "@/lib/i18n";
 import { useStrings } from "@/providers/locale-provider";
 import { parseActionRunList } from "@/lib/runtime-contracts/actions";
 import { parseManufacturingApprovalInbox } from "@/lib/runtime-contracts/approvals";
@@ -82,6 +85,7 @@ type RailStage = {
 function buildDecisionRail(
   approval: ApprovalInboxItem,
   decision: ApprovalDecisionRecord | undefined,
+  strings: ConsoleStrings,
 ): RailStage[] {
   const decided = Boolean(decision);
   const recorded = decision?.storage === "persisted";
@@ -89,19 +93,19 @@ function buildDecisionRail(
   return [
     {
       label: "Submitted",
-      detail: `${approval.requested_by} / due ${approval.due}`,
+      detail: `${humanizeIdentifier(approval.requested_by) ?? strings.identifiers.notRecorded} / due ${approval.due}`,
       state: "done",
     },
     {
       label: "Required controls",
-      detail: `${approval.required_permission} / ${approval.model_policy}`,
+      detail: `${humanizeScope(approval.required_permission) ?? strings.identifiers.notRecorded} / ${humanizeIdentifier(approval.model_policy) ?? strings.identifiers.notRecorded}`,
       state: "required",
     },
     {
       label: "Approval",
       detail: decision
         ? approvalDecisionLabel(decision.decision)
-        : `${approval.owner_role} decision pending`,
+        : `${humanizeIdentifier(approval.owner_role) ?? strings.identifiers.notRecorded} decision pending`,
       state: decided ? "done" : "current",
     },
     {
@@ -123,7 +127,7 @@ function DecisionRail({ approval, decision }: {
   const strings = useStrings();
   return (
     <ol aria-label={strings.ui.approvalInbox.decisionStageRail} className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 2xl:grid-cols-4">
-      {buildDecisionRail(approval, decision).map((stage, index) => (
+      {buildDecisionRail(approval, decision, strings).map((stage, index) => (
         <li className="flex min-w-0 items-start gap-2" key={stage.label}>
           <span aria-hidden="true" className={cn(
             "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs tabular-nums",
@@ -298,21 +302,19 @@ function ApprovalDetail({
           <span className={`status-pill ${approvalRiskClass(approval.risk_level)}`}>
             {approval.risk_level} risk
           </span>
+          <span className="min-w-0 [overflow-wrap:anywhere]" data-approval-cost>
+            {strings.approvals.decision.cost}: {approval.estimated_cost}
+          </span>
           <span>Due {approval.due}</span>
-          <span className="min-w-0 [overflow-wrap:anywhere]">Owner: {approval.owner_role}</span>
+          <span className="min-w-0 [overflow-wrap:anywhere]">
+            {strings.ui.common.owner}:{" "}
+            <IdentifiedName
+              id={approval.owner_role}
+              name={humanizeIdentifier(approval.owner_role) ?? strings.identifiers.notRecorded}
+            />
+          </span>
         </div>
       </div>
-
-      <ApprovalDecisionCard
-        actor={actor}
-        approval={approval}
-        decision={decision}
-        error={error}
-        identitySession={identitySession}
-        onDecisionChange={onDecisionChange}
-        onErrorChange={onErrorChange}
-        tenantId={tenantId}
-      />
 
       <div aria-hidden="true" className="rule-hairline" />
 
@@ -350,6 +352,18 @@ function ApprovalDetail({
         </div>
       </CollapsibleSection>
 
+      {/* The decision follows the evidence and risks it is based on. */}
+      <ApprovalDecisionCard
+        actor={actor}
+        approval={approval}
+        decision={decision}
+        error={error}
+        identitySession={identitySession}
+        onDecisionChange={onDecisionChange}
+        onErrorChange={onErrorChange}
+        tenantId={tenantId}
+      />
+
       <div aria-hidden="true" className="rule-hairline" />
 
       <CollapsibleSection label={strings.ui.approvalInbox.decisionTrail}>
@@ -358,12 +372,19 @@ function ApprovalDetail({
 
       <div className="grid gap-3">
         <DetailGrid>
-          <KeyValueRow label={strings.ui.common.workflow} mono>
-            <span className="block max-w-full truncate" title={approval.workflow_id}>
-              {approval.workflow_id}
-            </span>
+          <KeyValueRow label={strings.ui.common.workflow}>
+            <IdentifiedName
+              id={approval.workflow_id}
+              name={humanizeIdentifier(approval.workflow_id) ?? strings.identifiers.notRecorded}
+              showId
+            />
           </KeyValueRow>
-          <KeyValueRow label={strings.ui.approvalInbox.requestedBy}>{approval.requested_by}</KeyValueRow>
+          <KeyValueRow label={strings.ui.approvalInbox.requestedBy}>
+            <IdentifiedName
+              id={approval.requested_by}
+              name={humanizeIdentifier(approval.requested_by) ?? strings.identifiers.notRecorded}
+            />
+          </KeyValueRow>
           <KeyValueRow label={strings.ui.approvalInbox.costExposure}>{approval.estimated_cost}</KeyValueRow>
         </DetailGrid>
         <InspectDrawer

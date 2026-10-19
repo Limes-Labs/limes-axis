@@ -30,6 +30,7 @@ import {
 } from "@/lib/console-url-state";
 import { deriveSourceState } from "@/lib/source-state";
 import { useStrings } from "@/providers/locale-provider";
+import { humanizeIdentifier } from "@/lib/display-names";
 import { parseManufacturingOntology } from "@/lib/runtime-contracts/ontology";
 import {
   buildTenantScopedPath,
@@ -182,8 +183,8 @@ export function OntologyExplorer() {
         aria-label={strings.ui.ontologyExplorer.ontologySource}
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
-        <p className="m-0 min-w-0 text-sm break-words text-muted">
-          {formatContextPath(ontology.plant_name, ontology.scenario, ontology.tenant_id)}
+        <p className="m-0 min-w-0 text-sm break-words text-muted" title={ontology.tenant_id}>
+          {formatContextPath(ontology.plant_name ?? humanizeIdentifier(ontology.tenant_id), ontology.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
@@ -331,7 +332,10 @@ export function OntologyExplorer() {
                       </p>
                     </td>
                     <td>
-                      {relationship.metadata.owner_role}
+                      <span title={relationship.metadata.owner_role}>
+                        {humanizeIdentifier(relationship.metadata.owner_role)
+                          ?? strings.identifiers.notRecorded}
+                      </span>
                       <p className="m-0 mt-1 font-mono text-xs text-muted">
                         {relationship.metadata.verification_status} /{" "}
                         {relationship.metadata.last_verified_at}

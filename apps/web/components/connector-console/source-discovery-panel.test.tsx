@@ -288,7 +288,7 @@ describe("ConnectorSourceDiscoveryPanel", () => {
 
     await waitFor(() =>
       expect(
-        screen.getAllByText(/connectors:source:discover/).length,
+        screen.getAllByText(/permission to discover sources/).length,
       ).toBeGreaterThan(0),
     );
   });
@@ -417,7 +417,7 @@ describe("ConnectorSourceDiscoveryPanel", () => {
 
     await waitFor(() =>
       expect(
-        screen.getAllByText(/missing the source activation scope/).length,
+        screen.getAllByText(/permission to activate sources/).length,
       ).toBeGreaterThan(0),
     );
     expect(screen.queryByText(/Activated 1 binding/)).not.toBeInTheDocument();

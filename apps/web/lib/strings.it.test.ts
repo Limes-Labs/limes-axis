@@ -21,7 +21,6 @@ const ENGLISH_ALLOWLIST = new Set([
   "Digest",
   "Egress",
   "Endpoint",
-  "Fingerprint",
   "Governance",
   "Hosting",
   "Lease",
