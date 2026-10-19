@@ -662,16 +662,22 @@ describe("ApprovalInbox decision flow", () => {
     ).toHaveAttribute("href", "/audit?event_id=22222222-2222-4222-8222-222222222222");
   });
 
-  it("truncates the workflow id and exposes the full value in a tooltip", () => {
+  it("shows the workflow and owner by name and keeps the raw ids secondary", () => {
     renderInbox();
 
-    const workflowValue = screen.getByText(
-      "wf_supply_fixture_with_a_very_long_identifier_suffix",
+    const workflowName = screen.getByText(
+      "Supply fixture with a very long identifier suffix",
     );
-    expect(workflowValue).toHaveClass("truncate");
-    expect(workflowValue).toHaveAttribute(
+    expect(workflowName).toHaveAttribute(
       "title",
       "wf_supply_fixture_with_a_very_long_identifier_suffix",
     );
+    // The raw id survives only as the secondary mono line.
+    const workflowId = screen.getByText("wf_supply_fixture_with_a_very_long_identifier_suffix");
+    expect(workflowId).toHaveClass("font-mono", "text-xs");
+    expect(screen.getAllByTitle("plant-operations-owner")[0]).toHaveTextContent(
+      "Plant operations owner",
+    );
+    expect(document.body.textContent).not.toMatch(/\b(None|null|undefined)\b/);
   });
 });

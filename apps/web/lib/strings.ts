@@ -2250,6 +2250,16 @@ export const strings = {
   tenantLifecycle,
   tenantVocabulary,
   workflows,
+  /* Raw identifiers stay secondary: display names first, ids in a title,
+     a mono line or an Inspect disclosure. */
+  identifiers: {
+    notRecorded: "Not recorded",
+    inspect: "Inspect",
+    inspectIdentifiers: "Inspect identifiers",
+    permissions: (count: number) => (count === 1 ? "1 permission" : `${count} permissions`),
+    thisTenant: "this tenant",
+    tenantDetailTitle: "Tenant",
+  },
   states: {
     loading: "Loading…",
     retry: "Try again",

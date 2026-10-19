@@ -14,6 +14,7 @@ import {
 import { stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
 import { parseManufacturingReplaySimulation } from "@/lib/runtime-contracts/simulation";
 import { deriveSourceState } from "@/lib/source-state";
+import { humanizeIdentifier } from "@/lib/display-names";
 import { strings } from "@/lib/strings";
 import {
   buildReplaySimulationPath,
@@ -140,12 +141,8 @@ export function SimulationConsole() {
         aria-label="Simulation source and status"
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
-        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
-          {formatContextPath(
-            simulationData.plant_name,
-            simulationData.scenario,
-            simulationData.tenant_id,
-          )}
+        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted" title={simulationData.tenant_id}>
+          {formatContextPath(simulationData.plant_name ?? humanizeIdentifier(simulationData.tenant_id), simulationData.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill state={source} subject="replay artifacts" />
@@ -458,7 +455,10 @@ export function SimulationConsole() {
           <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0" key={`${output.simulation_output_id}-detail`}>
             <div>
               <p className="eyebrow m-0">Workflow</p>
-              <p className="m-0 font-medium text-ink break-words">{output.workflow_id}</p>
+              <p className="m-0 font-medium text-ink break-words" title={output.workflow_id}>
+                {simulationData.artifacts.find((artifact) => artifact.workflow_id === output.workflow_id)
+                  ?.workflow_name ?? humanizeIdentifier(output.workflow_id) ?? strings.identifiers.notRecorded}
+              </p>
               <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{output.artifact_id}</p>
             </div>
             <div>

@@ -33,6 +33,7 @@ import {
   currentReturnPath,
 } from "@/lib/oidc-session";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
+import { humanizeIdentifier, humanizeScope } from "@/lib/display-names";
 import { strings } from "@/lib/strings";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
@@ -107,7 +108,11 @@ export function AccountPanel({
           </p>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug break-words text-muted">
             {identitySession?.authenticated && identitySession.tenant_id
-              ? identitySession.tenant_id
+              ? (
+                  <span title={identitySession.tenant_id}>
+                    {humanizeIdentifier(identitySession.tenant_id)}
+                  </span>
+                )
               : identitySession?.session_boundary ?? "Identity session requires `/identity/session`."}
           </p>
         </div>
@@ -170,11 +175,22 @@ export function AccountPanel({
         <>
           <div className="flex max-h-[86px] min-w-0 flex-wrap gap-2 overflow-y-auto overscroll-contain">
             {visibleScopes.length > 0 ? (
-              visibleScopes.slice(0, 6).map((scope) => (
-                <span className={tagClass} key={scope}>
-                  {scope}
-                </span>
-              ))
+              // Scopes read as plain words; the raw scope strings stay behind
+              // the Inspect disclosure.
+              <details className="min-w-0 text-xs text-muted" data-account-scopes>
+                <summary className="min-h-6 w-fit cursor-pointer">
+                  {strings.identifiers.permissions(visibleScopes.length)} ·{" "}
+                  {strings.identifiers.inspect}
+                </summary>
+                <ul className="mx-0 mt-1 mb-0 grid list-none gap-1 p-0">
+                  {visibleScopes.map((scope) => (
+                    <li key={scope}>
+                      {humanizeScope(scope)}{" "}
+                      <span className="font-mono text-[11px] text-muted">{scope}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             ) : (
               <span className={tagClass}>
                 {identitySession?.authenticated ? "No scopes in token" : "Awaiting API validation"}

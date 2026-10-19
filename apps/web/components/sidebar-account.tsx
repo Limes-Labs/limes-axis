@@ -19,6 +19,7 @@ import { cn } from "@/lib/cn";
 import { announcePopoverOpened, useExclusivePopover } from "@/lib/console-popovers";
 import { operatorInitials } from "@/lib/identity-format";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
+import { humanizeIdentifier } from "@/lib/display-names";
 import { strings } from "@/lib/strings";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 
@@ -204,7 +205,7 @@ export function SidebarAccount({
       <button
         aria-expanded={activePanel === "account"}
         aria-label={strings.shell.accountLabel(
-          `${actorId ?? strings.nav.signedOut}, ${identitySession?.tenant_id ?? strings.nav.noTenant}`,
+          `${actorId ?? strings.nav.signedOut}, ${humanizeIdentifier(identitySession?.tenant_id) ?? strings.nav.noTenant}`,
         )}
         className={cn(
           "mt-0.5 flex min-h-[46px] w-full cursor-pointer items-center gap-2.5 rounded-xl border border-line px-2 text-left transition-colors hover:border-signal/40 hover:bg-signal/8 dark:border-white/15",
@@ -225,8 +226,11 @@ export function SidebarAccount({
           <span className="truncate text-[12px] font-semibold text-ink">
             {actorId ?? strings.nav.signedOut}
           </span>
-          <span className="truncate text-[10.5px] text-muted">
-            {identitySession?.tenant_id ?? strings.nav.noTenant}
+          <span
+            className="truncate text-[10.5px] text-muted"
+            title={identitySession?.tenant_id ?? undefined}
+          >
+            {humanizeIdentifier(identitySession?.tenant_id) ?? strings.nav.noTenant}
           </span>
         </span>
       </button>

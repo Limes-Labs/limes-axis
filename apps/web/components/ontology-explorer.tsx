@@ -29,6 +29,7 @@ import {
   useConsoleUrlState,
 } from "@/lib/console-url-state";
 import { deriveSourceState } from "@/lib/source-state";
+import { humanizeIdentifier } from "@/lib/display-names";
 import { strings } from "@/lib/strings";
 import { parseManufacturingOntology } from "@/lib/runtime-contracts/ontology";
 import {
@@ -180,8 +181,8 @@ export function OntologyExplorer() {
         aria-label="Ontology source"
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
-        <p className="m-0 min-w-0 text-sm break-words text-muted">
-          {formatContextPath(ontology.plant_name, ontology.scenario, ontology.tenant_id)}
+        <p className="m-0 min-w-0 text-sm break-words text-muted" title={ontology.tenant_id}>
+          {formatContextPath(ontology.plant_name ?? humanizeIdentifier(ontology.tenant_id), ontology.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill

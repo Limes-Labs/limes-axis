@@ -1609,11 +1609,15 @@ test.describe("Axis console smoke", () => {
     ]);
     expect(typeof provisionBody.idempotency_key).toBe("string");
     await expect(page.getByText("Tenant provisioned.")).toBeVisible();
+    // The confirmation names the tenant by display name, not its id.
+    await expect(page.getByRole("link", { name: "Open Acme Manufacturing" })).toBeVisible();
     // The provision success triggers a console refresh that reloads the tenant
     // registry. The registry must stay mounted (stale-while-revalidate) rather
     // than flashing to the API-unavailable state, otherwise the provision form
     // and this confirmation would be torn down mid-refresh.
-    await expect(page.getByRole("link", { name: "Acme Manufacturing" })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Acme Manufacturing", exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Tenant API unavailable" })).toHaveCount(0);
 
     // Suspend the tenant from the detail view; the action posts the reason.

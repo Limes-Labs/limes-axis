@@ -46,6 +46,7 @@ import {
 } from "@/lib/platform-overview";
 import { Disclosure } from "@/components/ui/disclosure";
 import { ModelRoutingFlow } from "@/components/model-routing-flow";
+import { humanizeIdentifier } from "@/lib/display-names";
 import { strings } from "@/lib/strings";
 import { parseManufacturingModelRouting } from "@/lib/runtime-contracts/model-routing";
 import { buildTenantScopedPath, OPERATIONS_API_PREFIX } from "@/lib/tenant-scope";
@@ -287,8 +288,8 @@ function ReferenceModelRouting({
         aria-label="Model routing source and status"
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
-        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
-          {formatContextPath(routing.plant_name, routing.scenario, routing.tenant_id)}
+        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted" title={routing.tenant_id}>
+          {formatContextPath(routing.plant_name ?? humanizeIdentifier(routing.tenant_id), routing.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className={`status-pill ${platformStatusClass(routing.routing_status)}`}>

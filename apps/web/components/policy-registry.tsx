@@ -208,7 +208,8 @@ export function PolicyRegistry() {
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
-          Versioned governance rules for {registry.tenant_id}
+          Versioned governance rules for{" "}
+          <span title={registry.tenant_id}>{strings.identifiers.thisTenant}</span>
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill

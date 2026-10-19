@@ -22,6 +22,7 @@ import {
   type TenantRecord,
 } from "@/lib/platform-tenants";
 import { formatTimestamp } from "@/lib/format";
+import { presentText } from "@/lib/display-names";
 import { strings } from "@/lib/strings";
 import { deriveSourceState, PROVENANCE_NOT_APPLICABLE } from "@/lib/source-state";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
@@ -176,7 +177,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
           <p className="eyebrow m-0">Platform Tenant</p>
           <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{tenant.display_name}</h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{tenant.description || "No description recorded."}</p>
-          <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{tenant.tenant_id}</p>
+          <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]" title={tenant.tenant_id}>{tenant.tenant_id}</p>
         </div>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Tenant source and status">
           <SourcePill
@@ -211,7 +212,11 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
           <p className="eyebrow m-0">Bootstrap Admin</p>
-          <p className="mx-0 mt-2 mb-0 font-mono text-[13px] break-words text-ink">{tenant.bootstrap_admin_actor_id ?? "None"}</p>
+          {presentText(tenant.bootstrap_admin_actor_id) ? (
+            <p className="mx-0 mt-2 mb-0 font-mono text-[13px] break-words text-ink">{presentText(tenant.bootstrap_admin_actor_id)}</p>
+          ) : (
+            <p className="mx-0 mt-2 mb-0 text-sm break-words text-ink" data-bootstrap-admin-missing>{strings.identifiers.notRecorded}</p>
+          )}
           <p className="m-0 text-xs leading-relaxed text-muted break-words">Optional actor created at provisioning time</p>
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
@@ -245,11 +250,11 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
               </div>
               <div>
                 <p className="eyebrow m-0">Actor</p>
-                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{entry.actor ?? "Unknown actor"}</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{presentText(entry.actor) ?? "Unknown actor"}</p>
               </div>
               <div>
                 <p className="eyebrow m-0">Reason</p>
-                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{entry.reason ?? "No reason recorded"}</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{presentText(entry.reason) ?? "No reason recorded"}</p>
               </div>
               <div>
                 <p className="eyebrow m-0">Audit Event ID</p>

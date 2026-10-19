@@ -28,6 +28,7 @@ import {
   type PlatformStatus,
 } from "@/lib/platform-overview";
 import { deriveSourceState } from "@/lib/source-state";
+import { humanizeIdentifier } from "@/lib/display-names";
 import { strings } from "@/lib/strings";
 import { parseManufacturingAgentRegistry } from "@/lib/runtime-contracts/agents";
 import {
@@ -234,8 +235,8 @@ export function AgentRegistry() {
         aria-label="Agent source and registry status"
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
-        <p className="m-0 min-w-0 text-sm break-words text-muted">
-          {formatContextPath(registry.plant_name, registry.scenario, registry.tenant_id)}
+        <p className="m-0 min-w-0 text-sm break-words text-muted" title={registry.tenant_id}>
+          {formatContextPath(registry.plant_name ?? humanizeIdentifier(registry.tenant_id), registry.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill

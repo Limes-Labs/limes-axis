@@ -25,6 +25,7 @@ import {
 import { formatContextPath, formatNumber } from "@/lib/format";
 import { platformStatusClass, platformStatusLabel } from "@/lib/platform-overview";
 import { deriveSourceState } from "@/lib/source-state";
+import { humanizeIdentifier } from "@/lib/display-names";
 import { strings } from "@/lib/strings";
 import {
   IDENTITY_SESSION_ENDPOINT,
@@ -286,12 +287,8 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
         aria-label="Connector source and status"
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
-        <p className="m-0 min-w-0 text-sm break-words text-muted">
-          {formatContextPath(
-            registryData.plant_name,
-            registryData.scenario,
-            registryData.tenant_id,
-          )}
+        <p className="m-0 min-w-0 text-sm break-words text-muted" title={registryData.tenant_id}>
+          {formatContextPath(registryData.plant_name ?? humanizeIdentifier(registryData.tenant_id), registryData.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2.5">
           <SourcePill

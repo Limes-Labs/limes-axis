@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DetailGrid, KeyValueRow } from "@/components/ui/detail-grid";
 import { Eyebrow } from "@/components/ui/eyebrow";
+import { IdentifiedName } from "@/components/ui/identified-name";
 import { InspectDrawer } from "@/components/ui/inspect-drawer";
 import { MasterDetail } from "@/components/ui/master-detail";
 import type { Metric } from "@/components/ui/metric-strip";
@@ -34,6 +35,7 @@ import {
 import { cn } from "@/lib/cn";
 import type { AxisOperatorError } from "@/lib/axis-api";
 import { enumUrlField, opaqueStringUrlField, stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
+import { humanizeIdentifier, humanizeScope } from "@/lib/display-names";
 import { formatContextPath, formatNumber, formatTimestamp } from "@/lib/format";
 import { type IdentitySessionReadModel } from "@/lib/platform-overview";
 import { deriveSourceState } from "@/lib/source-state";
@@ -89,19 +91,19 @@ function buildDecisionRail(
   return [
     {
       label: "Submitted",
-      detail: `${approval.requested_by} / due ${approval.due}`,
+      detail: `${humanizeIdentifier(approval.requested_by) ?? strings.identifiers.notRecorded} / due ${approval.due}`,
       state: "done",
     },
     {
       label: "Required controls",
-      detail: `${approval.required_permission} / ${approval.model_policy}`,
+      detail: `${humanizeScope(approval.required_permission) ?? strings.identifiers.notRecorded} / ${humanizeIdentifier(approval.model_policy) ?? strings.identifiers.notRecorded}`,
       state: "required",
     },
     {
       label: "Approval",
       detail: decision
         ? approvalDecisionLabel(decision.decision)
-        : `${approval.owner_role} decision pending`,
+        : `${humanizeIdentifier(approval.owner_role) ?? strings.identifiers.notRecorded} decision pending`,
       state: decided ? "done" : "current",
     },
     {
@@ -299,7 +301,13 @@ function ApprovalDetail({
             {strings.approvals.decision.cost}: {approval.estimated_cost}
           </span>
           <span>Due {approval.due}</span>
-          <span className="min-w-0 [overflow-wrap:anywhere]">Owner: {approval.owner_role}</span>
+          <span className="min-w-0 [overflow-wrap:anywhere]">
+            Owner:{" "}
+            <IdentifiedName
+              id={approval.owner_role}
+              name={humanizeIdentifier(approval.owner_role) ?? strings.identifiers.notRecorded}
+            />
+          </span>
         </div>
       </div>
 
@@ -359,12 +367,19 @@ function ApprovalDetail({
 
       <div className="grid gap-3">
         <DetailGrid>
-          <KeyValueRow label="Workflow" mono>
-            <span className="block max-w-full truncate" title={approval.workflow_id}>
-              {approval.workflow_id}
-            </span>
+          <KeyValueRow label="Workflow">
+            <IdentifiedName
+              id={approval.workflow_id}
+              name={humanizeIdentifier(approval.workflow_id) ?? strings.identifiers.notRecorded}
+              showId
+            />
           </KeyValueRow>
-          <KeyValueRow label="Requested by">{approval.requested_by}</KeyValueRow>
+          <KeyValueRow label="Requested by">
+            <IdentifiedName
+              id={approval.requested_by}
+              name={humanizeIdentifier(approval.requested_by) ?? strings.identifiers.notRecorded}
+            />
+          </KeyValueRow>
           <KeyValueRow label="Cost exposure">{approval.estimated_cost}</KeyValueRow>
         </DetailGrid>
         <InspectDrawer

@@ -25,6 +25,7 @@ import {
   type ManufacturingAuditExplorer,
 } from "@/lib/audit-demo";
 import { enumUrlField, stringUrlField, useConsoleUrlState } from "@/lib/console-url-state";
+import { humanizeIdentifier } from "@/lib/display-names";
 import { strings } from "@/lib/strings";
 import {
   buildTenantScopedPath,
@@ -404,12 +405,8 @@ export function AuditExplorer() {
         aria-label="Audit source and ledger status"
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
-        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
-          {formatContextPath(
-            auditData.plant_name,
-            auditData.scenario,
-            auditData.tenant_id,
-          )}
+        <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted" title={auditData.tenant_id}>
+          {formatContextPath(auditData.plant_name ?? humanizeIdentifier(auditData.tenant_id), auditData.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill state={source} subject="audit ledger" />
