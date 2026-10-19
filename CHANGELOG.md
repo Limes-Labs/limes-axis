@@ -7,6 +7,51 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- An optional authenticated public institutional context reader (GovCore),
+  absent unless `create_app(public_context=...)` opts in, with current
+  tenant/scope and separate fixed-origin policy checks before and after the
+  remote read. No ontology ingestion, tenant writes or execution authority.
+  See [ADR 0020](docs/adr/0020-public-institutional-context.md); production
+  installation remains unverified
+  ([#930](https://github.com/Limes-Labs/limes-axis/issues/930)).
+
+- End-to-end portability conformance harness: two isolated deployment facades
+  run the canonical #324/#876 export bundle through the real #877 validation
+  and #878 restore paths with the source permanently disconnected before the
+  destination is touched; zero runtime source access is enforced by the
+  destination view, logical identities/digests/effective permissions are
+  compared against the approved plan, imported audit evidence stays
+  source-origin while new destination actions append separate attributable
+  evidence, and one machine-readable PASS/FAIL/BLOCKED/NOT RUN report carries
+  the exact reason, release and profile per row. `portable` is claimed only
+  on an all-PASS supported profile; missing handlers, planned exclusions,
+  blocked rows or NOT RUN infrastructure yield the narrower
+  `partially_portable`, and corrupt bundles or incompatible versions yield
+  `not_portable` with the exact validator reason
+  ([#879](https://github.com/Limes-Labs/limes-axis/issues/879)).
+
+- Resumable restore runner for portability: persisted run/step state machine
+  over versioned component restore ports, dependency-ordered sequencing with
+  per-step digest evidence, worker fencing and idempotent retries, quarantine
+  and resume of interrupted runs (only identical bundle/plan digests are
+  resumed), targets gated on the persisted suspended tenant row (never a
+  tenant with lifecycle history) and bound to one bundle, steps settled only
+  by their fencing worker, unsupported plans refused, fail-closed operator
+  authorization, missing handlers recorded as
+  blocked instead of fabricated completion, and activation blockers surfaced
+  for the later verification slice
+  ([#878](https://github.com/Limes-Labs/limes-axis/issues/878)).
+
+- Offline portability bundle validator and dry-run restore plan: bounded
+  archive-safety checks without opening members, Ed25519 manifest signature
+  verification against operator-supplied public keys, per-component payload
+  digest verification, deterministic
+  identity mapping with explicit consent (two-to-one merges refused, unknown
+  principals disabled without default roles), suspension of operational
+  schedules, and exclusion acknowledgment gating the later write runner.
+  Zero network, admission, credential or destination-write behavior
+  ([#877](https://github.com/Limes-Labs/limes-axis/issues/877)).
+
 - Versioned assurance pack manifest contract: audience/engagement-bound
   selection of exact answer, posture and evidence revisions, structured
   support states that keep gaps and limitations visible, freshness
@@ -101,6 +146,13 @@ release-bound behavior, not the complete commit history.
   limits and context-bound SDK checkpoints. Endpoint revisions and selection
   changes invalidate resume; no HTTP transport or source execution is enabled
   ([#859](https://github.com/Limes-Labs/limes-axis/issues/859)).
+
+- Restore-capable tenant portability manifest contract
+  ([#876](https://github.com/Limes-Labs/limes-axis/issues/876)): versioned
+  component inventory with owner/consistency/restore decisions, typed rebinding
+  references that keep secrets non-portable, watermark-vs-quiesced consistency
+  disclosure, default-suspended restore safety policy and deterministic
+  portability review for the later #877 dry run.
 
 - Microsoft 365 library discovery (#864): bounded Graph v1.0 enumeration of one
   explicitly selected drive, permission evidence normalized into #863

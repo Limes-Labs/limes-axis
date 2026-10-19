@@ -79,6 +79,11 @@
       "reason": "Leave model execution disabled until a compatible local provider is qualified."
     },
     {
+      "dependency": "public-institutional-context",
+      "state": "omitted",
+      "reason": "Leave the optional public institutional context reader unregistered unless a local GovCore service is approved."
+    },
+    {
       "dependency": "telemetry-export",
       "state": "omitted",
       "reason": "Leave telemetry export disabled; adding a collector requires reviewing its downstream destinations."
