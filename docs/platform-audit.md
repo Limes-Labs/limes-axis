@@ -188,6 +188,14 @@ append audit evidence (`audit.object_legal_hold.applied` /
 parallel or conflicting concept: the DB hold protects the source ledger, the
 object hold protects the exported artifact.
 
+An object-store legal hold only targets keys in the requesting tenant's own
+namespace: `<tenant_id>/...` (export bundles) or `tenants/<tenant_id>/...`
+(ingestion artifacts). Keys must already be clean relative paths; absolute
+paths, `.`/`..` or empty segments, backslashes and control characters are
+rejected, not normalized. Any other key fails closed with 403
+`storage_key_outside_tenant_scope` before the object store is called and
+without writing audit evidence.
+
 Future Platform work should connect this contract to:
 
 - richer legal review workflows and UI for legal hold administration;

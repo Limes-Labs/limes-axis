@@ -12,6 +12,11 @@ release-bound behavior, not the complete commit history.
   `required_scopes`/`required_scope` request fields are deprecated and ignored
   (still accepted on the wire), so a caller can no longer send
   `"required_scopes": []` or `"required_scope": "openid"` to bypass the gate.
+- Object-store legal hold apply/release only accept storage keys in the
+  requesting tenant's namespace (`<tenant_id>/...` or `tenants/<tenant_id>/...`)
+  and reject traversal or non-normalized keys with 403
+  `storage_key_outside_tenant_scope`, so a tenant can no longer hold or release
+  another tenant's WORM export artifact.
 
 ### Added
 

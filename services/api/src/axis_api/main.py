@@ -106,6 +106,7 @@ from axis_api.audit_queries import (
     AuditLegalHoldPermissionDenied,
     AuditLegalHoldRecord,
     AuditLegalHoldReleaseRequest,
+    AuditObjectLegalHoldKeyOutOfScope,
     AuditObjectLegalHoldRecord,
     AuditObjectLegalHoldRequest,
     AuditRetentionDeletionPermissionDenied,
@@ -1822,6 +1823,15 @@ def _run_object_legal_hold(
                 "message": "The actor cannot manage object-store legal holds.",
                 "required_permissions": [LEGAL_HOLD_REQUIRED_SCOPE],
                 "reason": exc.decision.reason,
+            },
+        ) from exc
+    except AuditObjectLegalHoldKeyOutOfScope as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": AxisErrorCode.PERMISSION_DENIED.value,
+                "message": "The storage key is outside the requesting tenant's namespace.",
+                "reason": exc.reason,
             },
         ) from exc
     except AuditExportWormEnforcementError as exc:

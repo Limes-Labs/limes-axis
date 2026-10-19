@@ -853,7 +853,7 @@ review.
 Object-store legal holds on materialized export artifacts are applied and
 released through `POST /demo/manufacturing/audit/object-legal-holds` and
 `.../object-legal-holds/release` (permission-gated on `audit:legal_hold:write`,
-audited). This is distinct from the DB-level audit legal hold that blocks
+restricted to storage keys in the caller's tenant namespace, audited). This is distinct from the DB-level audit legal hold that blocks
 physical retention deletion of ledger rows.
 
 ## Object Storage Recovery Rehearsal
