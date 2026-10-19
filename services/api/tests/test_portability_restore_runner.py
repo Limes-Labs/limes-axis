@@ -38,6 +38,7 @@ from axis_api.portability_restore_runner import (
     start_restore_run,
 )
 from axis_api.portability_validator import (
+    PlanAcknowledgement,
     acknowledge_restore_plan,
     validate_bundle,
 )
@@ -234,7 +235,7 @@ def test_completed_step_cannot_be_reclaimed(session, plan, components) -> None:
         worker_id="worker:a", authorize=_AUTHORIZE,
     )
     complete_step(
-        session, run_id=run.id, component_id="ontology",
+        session, run_id=run.id, component_id="ontology", worker_id="worker:a",
         evidence_digest=_evidence("ontology"),
     )
     with pytest.raises(PortabilityRestoreError) as blocked:
@@ -265,8 +266,11 @@ def test_completion_is_idempotent_on_retry(session, plan, components) -> None:
         worker_id="worker:a", authorize=_AUTHORIZE,
     )
     digest = _evidence("ontology")
-    complete_step(session, run_id=run.id, component_id="ontology", evidence_digest=digest)
-    complete_step(session, run_id=run.id, component_id="ontology", evidence_digest=digest)
+    for _attempt in range(2):
+        complete_step(
+            session, run_id=run.id, component_id="ontology",
+            worker_id="worker:a", evidence_digest=digest,
+        )
     step = _step(session, run.id, "ontology")
     assert step.state == "completed"
     assert step.evidence_digest == digest
@@ -280,7 +284,7 @@ def test_failure_quarantines_and_resume_reuses_the_run(session, plan, components
         worker_id="worker:a", authorize=_AUTHORIZE,
     )
     fail_step(
-        session, run_id=run.id, component_id="ontology",
+        session, run_id=run.id, component_id="ontology", worker_id="worker:a",
         failure_code="object_write_conflict",
     )
     session.refresh(run)
@@ -327,7 +331,10 @@ def test_incomplete_run_has_activation_blockers(session, plan, components) -> No
         session, run_id=run.id, component_id="ontology",
         worker_id="worker:a", authorize=_AUTHORIZE,
     )
-    fail_step(session, run_id=run.id, component_id="ontology", failure_code="checksum")
+    fail_step(
+        session, run_id=run.id, component_id="ontology",
+        worker_id="worker:a", failure_code="checksum",
+    )
     blockers = activation_blockers(session, run_id=run.id)
     assert "step_incomplete:ontology" in blockers
 
@@ -340,7 +347,7 @@ def test_completed_run_clears_activation_blockers(session, plan, components) -> 
             worker_id="worker:a", authorize=_AUTHORIZE,
         )
         complete_step(
-            session, run_id=run.id, component_id=component_id,
+            session, run_id=run.id, component_id=component_id, worker_id="worker:a",
             evidence_digest=_evidence(component_id),
         )
     session.refresh(run)
@@ -483,7 +490,7 @@ def test_unclaimed_steps_cannot_be_completed(session, plan, components, prepare)
         )
     with pytest.raises(PortabilityRestoreError) as blocked:
         complete_step(
-            session, run_id=run.id, component_id="ontology",
+            session, run_id=run.id, component_id="ontology", worker_id="worker:a",
             evidence_digest=_evidence("ontology"),
         )
     assert blocked.value.code == PortabilityRestoreError.NOT_RESUMABLE
@@ -498,7 +505,8 @@ def test_completion_requires_digest_shaped_evidence(session, plan, components) -
     )
     with pytest.raises(PortabilityRestoreError) as blocked:
         complete_step(
-            session, run_id=run.id, component_id="ontology", evidence_digest="done",
+            session, run_id=run.id, component_id="ontology",
+            worker_id="worker:a", evidence_digest="done",
         )
     assert blocked.value.code == PortabilityRestoreError.EVIDENCE_INVALID
 
@@ -514,7 +522,7 @@ def test_completed_identical_run_is_returned_not_re_executed(
             worker_id="worker:a", authorize=_AUTHORIZE,
         )
         complete_step(
-            session, run_id=run.id, component_id=component_id,
+            session, run_id=run.id, component_id=component_id, worker_id="worker:a",
             evidence_digest=_evidence(component_id),
         )
     again = _start(session, plan, components, target_tenant_id=target)
@@ -531,7 +539,10 @@ def test_resume_reset_of_failed_steps_is_persisted(engine, plan, components) -> 
             db, run_id=run.id, component_id="ontology",
             worker_id="worker:a", authorize=_AUTHORIZE,
         )
-        fail_step(db, run_id=run.id, component_id="ontology", failure_code="checksum")
+        fail_step(
+            db, run_id=run.id, component_id="ontology",
+            worker_id="worker:a", failure_code="checksum",
+        )
         db.commit()
         _start(db, plan, components, target_tenant_id=target)
         db.commit()
@@ -540,3 +551,59 @@ def test_resume_reset_of_failed_steps_is_persisted(engine, plan, components) -> 
         persisted = fresh.get(PortabilityRestoreRunRecord, run_id)
         assert persisted.steps_failed == {}
         assert _step(fresh, run_id, "ontology").state == "pending"
+
+
+def test_only_the_fencing_worker_settles_its_step(session, plan, components) -> None:
+    run = _start(session, plan, components)
+    claim_step(
+        session, run_id=run.id, component_id="ontology",
+        worker_id="worker:a", authorize=_AUTHORIZE,
+    )
+    for settle in (
+        lambda: complete_step(
+            session, run_id=run.id, component_id="ontology",
+            worker_id="worker:b", evidence_digest=_evidence("ontology"),
+        ),
+        lambda: fail_step(
+            session, run_id=run.id, component_id="ontology",
+            worker_id="worker:b", failure_code="checksum",
+        ),
+    ):
+        with pytest.raises(PortabilityRestoreError) as blocked:
+            settle()
+        assert blocked.value.code == PortabilityRestoreError.FENCED
+    assert _step(session, run.id, "ontology").state == "in_progress"
+
+
+@pytest.mark.parametrize("history", ["suspended_at", "reactivated_at"])
+def test_tenant_with_lifecycle_history_is_never_a_restore_target(
+    session, plan, components, history
+) -> None:
+    from datetime import UTC, datetime
+
+    target = f"tenant-restore-{uuid4().hex[:12]}"
+    tenant = _tenant(session, target)
+    setattr(tenant, history, datetime.now(UTC))
+    session.flush()
+    with pytest.raises(PortabilityRestoreError) as blocked:
+        _start(session, plan, components, target_tenant_id=target)
+    assert blocked.value.code == PortabilityRestoreError.TARGET_NOT_NEWLY_ADMITTED
+    assert session.scalar(
+        select(PortabilityRestoreRunRecord).where(
+            PortabilityRestoreRunRecord.target_tenant_id == target
+        )
+    ) is None
+
+
+def test_hand_built_acknowledgement_must_name_the_exclusions(session, components) -> None:
+    manifest = _supported_manifest(decisions={"object-store": "exclude"})
+    plan = _validate(manifest)
+    forged = PlanAcknowledgement(
+        plan_digest=plan.plan_digest,
+        acknowledged_exclusions=(),
+        acknowledged_by="operator:restore",
+        acknowledged_at="2026-09-16T08:00:00Z",
+    )
+    with pytest.raises(PortabilityRestoreError) as blocked:
+        _start(session, plan, _components(manifest), manifest=manifest, acknowledgement=forged)
+    assert blocked.value.code == PortabilityRestoreError.PLAN_MISMATCH

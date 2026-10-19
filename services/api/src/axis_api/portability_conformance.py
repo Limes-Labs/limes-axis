@@ -505,6 +505,7 @@ def restore_into_destination(
                     session,
                     run_id=run.id,
                     component_id=component_id,
+                    worker_id=operator,
                     failure_code="handler_error",
                 )
                 continue
@@ -512,6 +513,7 @@ def restore_into_destination(
                 session,
                 run_id=run.id,
                 component_id=component_id,
+                worker_id=operator,
                 evidence_digest=evidence,
             )
         blockers = activation_blockers(session, run_id=run.id)

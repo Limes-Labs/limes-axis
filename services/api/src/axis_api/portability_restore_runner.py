@@ -70,6 +70,7 @@ class PortabilityRestoreError(ValueError):
     NOT_RESUMABLE = "restore_run_not_resumable"
     OPERATOR_UNAUTHORIZED = "restore_operator_not_authorized"
     TARGET_NOT_SUSPENDED = "restore_target_not_suspended"
+    TARGET_NOT_NEWLY_ADMITTED = "restore_target_has_lifecycle_history"
     UNSUPPORTED_HANDLER = "restore_handler_unsupported"
     PLAN_UNSUPPORTED = "restore_plan_unsupported"
     TARGET_BOUND = "restore_target_bound_to_other_restore"
@@ -188,11 +189,18 @@ def _dependency_order(manifest_components) -> list[str]:
 
 
 def _require_suspended_target(session: Session, target_tenant_id: str) -> None:
-    """The persisted tenant row, not a caller claim, decides suspension."""
+    """The persisted tenant row, not a caller claim, decides suspension.
+
+    The target must also be a newly admitted restore target: a tenant that
+    has ever gone through a lifecycle transition (suspended after being
+    active, or reactivated) is an existing tenant and is never restored into.
+    """
 
     tenant = session.get(Tenant, target_tenant_id, with_for_update=True)
     if tenant is None or tenant.status != "suspended":
         raise PortabilityRestoreError(PortabilityRestoreError.TARGET_NOT_SUSPENDED)
+    if tenant.suspended_at is not None or tenant.reactivated_at is not None:
+        raise PortabilityRestoreError(PortabilityRestoreError.TARGET_NOT_NEWLY_ADMITTED)
 
 
 def start_restore_run(
@@ -216,6 +224,9 @@ def start_restore_run(
     if acknowledgement.plan_digest != plan.plan_digest:
         raise PortabilityRestoreError(PortabilityRestoreError.PLAN_MISMATCH)
     if acknowledgement.acknowledged_by != acknowledged_by:
+        raise PortabilityRestoreError(PortabilityRestoreError.PLAN_MISMATCH)
+    # A hand-built acknowledgement must still name exactly the exclusions.
+    if set(acknowledgement.acknowledged_exclusions) != set(plan.exclusions()):
         raise PortabilityRestoreError(PortabilityRestoreError.PLAN_MISMATCH)
     if manifest.digest() != plan.manifest_digest:
         raise PortabilityRestoreError(PortabilityRestoreError.PLAN_MISMATCH)
@@ -357,14 +368,26 @@ def claim_step(
     return step
 
 
+def _require_fence_owner(
+    run: PortabilityRestoreRunRecord, component_id: str, worker_id: str
+) -> None:
+    # Only the worker holding the fence on this step may settle it.
+    if not run.fenced or run.current_step != component_id or run.fenced_by != worker_id:
+        raise PortabilityRestoreError(PortabilityRestoreError.FENCED)
+
+
 def complete_step(
     session: Session,
     *,
     run_id: str,
     component_id: str,
+    worker_id: str,
     evidence_digest: Digest,
 ) -> PortabilityRestoreRunRecord:
-    """Record step evidence and release the fence; idempotent on retry."""
+    """Record step evidence and release the fence; idempotent on retry.
+
+    Only the fencing worker (``worker_id``) may complete its claimed step.
+    """
 
     run = session.get(PortabilityRestoreRunRecord, run_id, with_for_update=True)
     if run is None:
@@ -383,6 +406,7 @@ def complete_step(
     # never be marked restored without running their handler.
     if step.state != STEP_STATE_IN_PROGRESS or run.current_step != component_id:
         raise PortabilityRestoreError(PortabilityRestoreError.NOT_RESUMABLE)
+    _require_fence_owner(run, component_id, worker_id)
     if not _is_digest(evidence_digest):
         raise PortabilityRestoreError(PortabilityRestoreError.EVIDENCE_INVALID)
     step.state = STEP_STATE_COMPLETED
@@ -417,9 +441,13 @@ def fail_step(
     *,
     run_id: str,
     component_id: str,
+    worker_id: str,
     failure_code: str,
 ) -> PortabilityRestoreRunRecord:
-    """Quarantine the run on failure; crash-safe and resumable."""
+    """Quarantine the run on failure; crash-safe and resumable.
+
+    Only the fencing worker (``worker_id``) may fail its claimed step.
+    """
 
     run = session.get(PortabilityRestoreRunRecord, run_id, with_for_update=True)
     if run is None:
@@ -432,6 +460,7 @@ def fail_step(
     )
     if step is None or step.state != STEP_STATE_IN_PROGRESS:
         raise PortabilityRestoreError(PortabilityRestoreError.NOT_RESUMABLE)
+    _require_fence_owner(run, component_id, worker_id)
     step.state = STEP_STATE_FAILED
     step.failure_code = failure_code[:80]
     run.state = RUN_STATE_QUARANTINED

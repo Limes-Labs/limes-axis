@@ -19,7 +19,10 @@ of scope (#879 verifies, operators enable).
   `tenants` row under lock — never a caller-supplied status — and refuses a
   missing or non-suspended target (`restore_target_not_suspended`) at start
   and at every claim, so a tenant reactivated mid-restore receives no further
-  writes. A target is bound to one bundle: a different bundle, or a different
+  writes. The target must also be newly admitted: a tenant with any
+  lifecycle history (`suspended_at` or `reactivated_at` set, i.e. an existing
+  tenant that was suspended or reactivated through the lifecycle API) is
+  refused (`restore_target_has_lifecycle_history`). A target is bound to one bundle: a different bundle, or a different
   plan while an earlier run is unfinished, is refused
   (`restore_target_bound_to_other_restore`) rather than overwriting it by an
   implicit id match. Operator rights are re-checked through an injected
@@ -27,8 +30,9 @@ of scope (#879 verifies, operators enable).
   fail-closed). The runner does not admit or create the target tenant.
 - **Acknowledgement and plan carried forward.** The run records the #877
   `PlanAcknowledgement` identity; a mismatched plan digest, acknowledging
-  operator, or a manifest whose digest is not the plan's is a construction
-  failure (`plan_acknowledgement_mismatch`). Plans that are not `supported`
+  operator, acknowledged exclusions that differ from the plan's, or a
+  manifest whose digest is not the plan's is a construction failure
+  (`plan_acknowledgement_mismatch`). Plans that are not `supported`
   (blocked rebinding) are refused (`restore_plan_unsupported`).
 - **Persisted state machine.** Runs (`pending → running →
   suspended_quarantined | completed | aborted`) and steps (`pending →
@@ -39,8 +43,10 @@ of scope (#879 verifies, operators enable).
   fencing flag, its owner (`fenced_by`) and the current step; any other
   worker — on another step or the same one — is refused
   (`restore_run_fenced_by_other_worker`). Only the fencing worker may re-claim
-  its interrupted step; there is no lease expiry, so a crashed worker's step
-  is retried under the same worker identity.
+  its interrupted step, and only the fencing worker may complete or fail it
+  (`complete_step`/`fail_step` take its `worker_id`); there is no lease
+  expiry, so a crashed worker's step is retried under the same worker
+  identity.
 - **Idempotent retries.** Deterministic handlers make re-execution safe;
   `complete_step` is a no-op for an already-completed step and records the
   exact evidence digest (a 64-hex digest, else
