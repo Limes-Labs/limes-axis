@@ -56,9 +56,11 @@ _MAX_METADATA_ENTRIES = 16
 
 _IDENTIFIER = r"^[a-z][a-z0-9-]{2,47}$"
 _RESOURCE_ID = r"^[a-z][a-z0-9._/-]{2,199}$"
-_VERSION_REVISION = r"^\d+$"
-_TIMESTAMP = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
-_DATE = r"^\d{4}-\d{2}-\d{2}$"
+# ASCII digits only: ``\d`` matches any Unicode digit, which would let two
+# spellings of one revision number coexist.
+_VERSION_REVISION = r"^[1-9][0-9]{0,8}$"
+_TIMESTAMP = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+_DATE = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
 _TOKEN = r"^[a-z0-9][a-z0-9-]{0,31}$"
 _PARAMETER_NAME = r"^[a-z][a-z0-9_]{0,31}$"
 
@@ -79,8 +81,11 @@ _UNSAFE = re.compile(
     r"onload\s*=|\{\{|\}\}|\$\{|__proto__)"
 )
 
-_NUMBER = re.compile(r"^-?\d+(\.\d+)?$")
-_BOOLEAN = re.compile(r"^(true|false)$")
+# Python checks below use ``fullmatch``: ``re.match`` with ``$`` accepts a
+# trailing newline.
+_NUMBER = re.compile(r"-?[0-9]+(\.[0-9]+)?")
+_BOOLEAN = re.compile(r"true|false")
+_URL_SCHEME = re.compile(r"(?i)[a-z][a-z0-9+.-]*://")
 
 
 class DocumentStudioError(ValueError):
@@ -97,6 +102,7 @@ class DocumentStudioError(ValueError):
     NOT_PUBLISHED = "template_not_published"
     DELETED_TEMPLATE = "template_deleted"
     TEMPLATE_DIGEST_MISMATCH = "template_digest_mismatch"
+    STALE_DRAFT = "stale_document_draft"
 
     def __init__(self, code: str) -> None:
         self.code = code
@@ -125,6 +131,15 @@ def _ensure_safe(text: str, code: str) -> str:
     if _UNSAFE.search(text):
         raise DocumentStudioError(code)
     return text
+
+
+def _ensure_safe_parameter(value: str) -> str:
+    """Parameter values are plain typed data: no markup, delimiters or URLs."""
+
+    _ensure_safe(value, DocumentStudioError.INVALID_PARAMETER)
+    if _URL_SCHEME.search(value):
+        raise DocumentStudioError(DocumentStudioError.INVALID_PARAMETER)
+    return value
 
 
 class ManifestVersion(ContractModel):
@@ -203,10 +218,14 @@ class DocumentBlock(ContractModel):
             _ensure_safe(self.alt_text, DocumentStudioError.UNSAFE_CONTENT)
         if self.media_ref is not None and ".." in self.media_ref:
             raise DocumentStudioError(DocumentStudioError.INVALID_DOCUMENT)
+        if len(self.metadata) > _MAX_METADATA_ENTRIES:
+            raise DocumentStudioError(DocumentStudioError.INVALID_DOCUMENT)
         for key, value in self.metadata.items():
-            if not re.match(_TOKEN, key) or len(value) > _MAX_ALT:
+            if not re.fullmatch(_TOKEN, key) or len(value) > _MAX_ALT:
                 raise DocumentStudioError(DocumentStudioError.INVALID_DOCUMENT)
             _ensure_safe(value, DocumentStudioError.UNSAFE_CONTENT)
+        if self.heading_level is not None and self.kind != "heading":
+            raise ValueError("Only heading blocks carry a heading level")
         if self.kind == "heading":
             if self.heading_level is None or self.text is None:
                 raise ValueError("Heading blocks require a level and text")
@@ -293,11 +312,16 @@ class DocumentRevision(ContractModel):
         if self.state == "published":
             if self.issued_at is None:
                 raise ValueError("A published revision must carry its issuance timestamp")
-        else:
-            if self.issued_at is not None:
-                raise ValueError("Only published revisions carry an issuance timestamp")
-            if self.template_provenance is None and self.parameter_values:
-                raise ValueError("Standalone documents have no template parameters")
+        elif self.issued_at is not None:
+            raise ValueError("Only published revisions carry an issuance timestamp")
+        if self.template_provenance is None and self.parameter_values:
+            raise ValueError("Standalone documents have no template parameters")
+        if len(self.parameter_values) > _MAX_PARAMETERS:
+            raise ValueError("Too many template parameter values")
+        for name, value in self.parameter_values.items():
+            if not re.fullmatch(_PARAMETER_NAME, name) or len(value) > _MAX_ALT:
+                raise ValueError("Template parameter values must be bounded and named")
+            _ensure_safe_parameter(value)
         return self
 
     def digest(self) -> Digest:
@@ -319,16 +343,7 @@ class TemplateParameter(ContractModel):
         if self.default is None:
             return self
         _ensure_safe(self.default, DocumentStudioError.UNSAFE_CONTENT)
-        if self.kind == "number" and not _NUMBER.match(self.default):
-            raise DocumentStudioError(DocumentStudioError.INVALID_PARAMETER)
-        if self.kind == "boolean" and not _BOOLEAN.match(self.default):
-            raise DocumentStudioError(DocumentStudioError.INVALID_PARAMETER)
-        if self.kind == "date" and not re.match(_DATE, self.default):
-            raise DocumentStudioError(DocumentStudioError.INVALID_PARAMETER)
-        if self.kind == "governed_ref" and not re.match(_RESOURCE_ID, self.default):
-            raise DocumentStudioError(DocumentStudioError.INVALID_PARAMETER)
-        if self.kind == "string" and not self.default:
-            raise DocumentStudioError(DocumentStudioError.INVALID_PARAMETER)
+        _validated_parameter(self, self.default)
         return self
 
 
@@ -410,15 +425,17 @@ class DocumentTemplate(ContractModel):
 def _validated_parameter(
     parameter: TemplateParameter, value: str
 ) -> str:
-    _ensure_safe(value, DocumentStudioError.INVALID_PARAMETER)
-    if parameter.kind == "number" and not _NUMBER.match(value):
+    if len(value) > _MAX_ALT:
         raise DocumentStudioError(DocumentStudioError.INVALID_PARAMETER)
-    if parameter.kind == "boolean" and not _BOOLEAN.match(value):
+    _ensure_safe_parameter(value)
+    if parameter.kind == "number" and not _NUMBER.fullmatch(value):
         raise DocumentStudioError(DocumentStudioError.INVALID_PARAMETER)
-    if parameter.kind == "date" and not re.match(_DATE, value):
+    if parameter.kind == "boolean" and not _BOOLEAN.fullmatch(value):
+        raise DocumentStudioError(DocumentStudioError.INVALID_PARAMETER)
+    if parameter.kind == "date" and not re.fullmatch(_DATE, value):
         raise DocumentStudioError(DocumentStudioError.INVALID_PARAMETER)
     if parameter.kind == "governed_ref" and (
-        not re.match(_RESOURCE_ID, value) or ".." in value
+        not re.fullmatch(_RESOURCE_ID, value) or ".." in value
     ):
         raise DocumentStudioError(DocumentStudioError.INVALID_PARAMETER)
     if parameter.kind == "string" and not value:
@@ -439,7 +456,11 @@ def _instantiate_sections(
                 if len(replacement) > _MAX_TEXT:
                     raise DocumentStudioError(DocumentStudioError.INVALID_DOCUMENT)
                 block["text"] = replacement
-    return tuple(DocumentSection.model_validate(section) for section in payload)
+    try:
+        return tuple(DocumentSection.model_validate(section) for section in payload)
+    except ValidationError:
+        # e.g. text supplied for a region block whose kind carries no text.
+        raise DocumentStudioError(DocumentStudioError.INCOMPATIBLE_INSTANTIATION) from None
 
 
 def instantiate_template(
@@ -548,15 +569,30 @@ def revise_template(published: DocumentTemplate) -> DocumentTemplate:
 
 
 _LIFECYCLE_FIELDS = frozenset({"state", "revision", "issued_at"})
+#: Identity and lineage are set at creation/instantiation. Rewriting them in a
+#: draft would forge provenance or bypass typed parameter validation, which
+#: needs the template revision, so edits to them are refused outright.
+_PINNED_FIELDS = frozenset(
+    {"format", "schema_version", "document_id", "template_provenance", "parameter_values"}
+)
 
 
-def edit_document(draft: DocumentRevision, changes: Mapping[str, object]) -> DocumentRevision:
-    """Apply validated edits to a draft; lifecycle fields go through publish."""
+def edit_document(
+    draft: DocumentRevision, changes: Mapping[str, object], *, base_digest: Digest
+) -> DocumentRevision:
+    """Apply validated edits to a draft; lifecycle fields go through publish.
+
+    ``base_digest`` is the digest of the draft the editor started from; a
+    concurrent edit that already moved the draft is refused as stale instead
+    of silently overwriting the other author's changes.
+    """
 
     if draft.state != "draft":
         raise DocumentStudioError(DocumentStudioError.IMMUTABLE_REVISION)
-    if _LIFECYCLE_FIELDS.intersection(changes):
+    if _LIFECYCLE_FIELDS.intersection(changes) or _PINNED_FIELDS.intersection(changes):
         raise DocumentStudioError(DocumentStudioError.IMMUTABLE_REVISION)
+    if draft.digest() != base_digest:
+        raise DocumentStudioError(DocumentStudioError.STALE_DRAFT)
     payload = draft.model_dump(mode="json")
     payload.update(changes)
     return DocumentRevision.model_validate(payload)

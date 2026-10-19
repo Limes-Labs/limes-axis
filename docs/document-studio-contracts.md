@@ -55,7 +55,15 @@ packaging a document or template.
 - Published revisions cannot be edited (`edit_document` refuses) or
   re-published; `revise_document` starts a new draft revision and never
   rewrites issued bytes. Lifecycle fields (`state`, `revision`, `issued_at`)
-  cannot be smuggled through `edit_document`.
+  and identity/lineage fields (`document_id`, `template_provenance`,
+  `parameter_values`) cannot be smuggled through `edit_document`.
+- `edit_document` requires the `base_digest` of the draft the editor started
+  from; a draft already moved by a concurrent edit is refused with
+  `stale_document_draft` instead of being silently overwritten.
+- Region policy is enforced at instantiation only: documents do not carry
+  the template's region map, so later draft edits are not checked against
+  `fixed` regions by this contract. A later editor slice must re-check edits
+  against the provenance revision if fixed content must stay fixed.
 - Template deletion keeps historical lineage; re-instantiation from a
   deleted template is refused (`template_deleted`), instantiation from a
   draft is refused (`template_not_published`).
@@ -68,8 +76,12 @@ packaging a document or template.
   shapes are rejected with the fixed `unsafe_document_content` code.
 - Theme values are bounded design tokens; arbitrary CSS/JS is
   unrepresentable. Media references reject traversal payloads.
-- Template parameters cannot smuggle queries, URLs, scripts or delimiters:
-  values are re-validated against their declared kind at instantiation.
+- Template parameter values are bounded plain data, re-validated against
+  their declared kind at instantiation (exact-match number/boolean/date/
+  governed-ref grammars) and rejected when they carry markup, template
+  delimiters or URL schemes. Free-text `string` values are never interpreted
+  as queries by this contract; whether a consumer treats them as data is a
+  binding concern (#830).
 
 ## Accessibility as contract data
 

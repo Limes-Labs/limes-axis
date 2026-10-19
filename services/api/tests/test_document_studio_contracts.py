@@ -327,7 +327,7 @@ def test_template_regions_must_reference_real_blocks() -> None:
 def test_published_document_cannot_be_edited() -> None:
     document = publish_document(_instantiate(_published_template()), now="2026-09-13T08:00:00Z")
     with pytest.raises(DocumentStudioError) as blocked:
-        edit_document(document, {"title": "Rewritten"})
+        edit_document(document, {"title": "Rewritten"}, base_digest=document.digest())
     assert blocked.value.code == DocumentStudioError.IMMUTABLE_REVISION
 
 
@@ -342,7 +342,11 @@ def test_editing_creates_new_revision_without_rewriting_bytes() -> None:
 def test_edit_document_cannot_bypass_lifecycle() -> None:
     draft = _instantiate(_published_template())
     with pytest.raises(DocumentStudioError) as blocked:
-        edit_document(draft, {"state": "published", "issued_at": _NOW_INSTANTIATE})
+        edit_document(
+            draft,
+            {"state": "published", "issued_at": _NOW_INSTANTIATE},
+            base_digest=draft.digest(),
+        )
     assert blocked.value.code == DocumentStudioError.IMMUTABLE_REVISION
 
 
@@ -507,3 +511,69 @@ def test_provenance_digest_is_tamper_evident() -> None:
     forged = DocumentRevision.model_validate(raw)
     assert not verify_template_lineage(forged, template)
     assert isinstance(forged.template_provenance, TemplateProvenance)
+
+
+# --- review hardening ---------------------------------------------------------
+
+
+def test_concurrent_draft_edit_is_refused_as_stale() -> None:
+    draft = _instantiate(_published_template())
+    base = draft.digest()
+    first = edit_document(draft, {"title": "Author A"}, base_digest=base)
+    assert first.title == "Author A"
+    with pytest.raises(DocumentStudioError) as blocked:
+        edit_document(first, {"title": "Author B"}, base_digest=base)
+    assert blocked.value.code == DocumentStudioError.STALE_DRAFT
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"template_provenance": None},
+        {"parameter_values": {"period": "SELECT secret FROM vault"}},
+        {"document_id": "doc-other"},
+    ],
+)
+def test_edit_document_cannot_rewrite_identity_or_lineage(changes: dict[str, object]) -> None:
+    draft = _instantiate(_published_template())
+    with pytest.raises(DocumentStudioError) as blocked:
+        edit_document(draft, changes, base_digest=draft.digest())
+    assert blocked.value.code == DocumentStudioError.IMMUTABLE_REVISION
+
+
+@pytest.mark.parametrize("value", ["https://attacker.example/x", "ftp://host/file"])
+def test_parameter_values_reject_urls(value: str) -> None:
+    template = _published_template()
+    with pytest.raises(DocumentStudioError):
+        _instantiate(template, parameter_values={"period": value})
+
+
+def test_typed_parameter_values_reject_trailing_newline() -> None:
+    template = _published_template()
+    with pytest.raises(DocumentStudioError):
+        _instantiate(template, parameter_values={"period": "Q3", "risk_threshold": "0.5\n"})
+
+
+def test_unicode_digit_revisions_are_rejected() -> None:
+    draft = _instantiate(_published_template())
+    with pytest.raises(ValidationError):
+        DocumentRevision.model_validate({**draft.model_dump(mode="json"), "revision": "\u0663"})
+
+
+def test_published_standalone_document_cannot_carry_parameter_values() -> None:
+    published = publish_document(_instantiate(_published_template()), now=_NOW_INSTANTIATE)
+    with pytest.raises(ValidationError, match="no template parameters"):
+        DocumentRevision.model_validate(
+            {**published.model_dump(mode="json"), "template_provenance": None}
+        )
+
+
+def test_parsed_parameter_values_are_bounded_and_safe() -> None:
+    draft = _instantiate(_published_template())
+    payload = draft.model_dump(mode="json")
+    payload["parameter_values"] = {"period": "{{request.session}}"}
+    with pytest.raises(DocumentStudioError):
+        parse_document_contract(payload)
+    payload["parameter_values"] = {f"p{i}": "x" for i in range(33)}
+    with pytest.raises(DocumentStudioError):
+        parse_document_contract(payload)
