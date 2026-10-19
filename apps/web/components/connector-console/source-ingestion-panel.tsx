@@ -75,11 +75,12 @@ function eligibilityPill(row: EligibilityRow, strings: ConsoleStrings): { label:
 }
 
 function PreflightRow({ met, label }: { met: boolean; label: string }) {
+  const strings = useStrings();
   return (
     <li className="flex min-w-0 flex-wrap items-center justify-between gap-2">
       <span className="min-w-0 break-words text-xs text-ink">{label}</span>
       <span className={`status-pill ${met ? "signal-ready" : "status-checking"}`}>
-        {met ? "Yes" : "Off"}
+        {met ? strings.ui.common.yes : strings.ui.connectorConsoleSourceIngestionPanel.off}
       </span>
     </li>
   );

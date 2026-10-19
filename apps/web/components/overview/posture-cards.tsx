@@ -191,7 +191,7 @@ export function PostureCards({
 
   return (
     <div
-      aria-label="Platform posture"
+      aria-label={strings.ui.overviewPostureCards.platformPosture}
       className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5"
       role="list"
     >

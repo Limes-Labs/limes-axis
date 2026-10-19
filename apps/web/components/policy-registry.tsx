@@ -124,7 +124,7 @@ export function PolicyRegistry() {
   if (identity.source === "unavailable" || !tenantId) {
     return (
       <ErrorPanel
-        detail="The console could not verify the current actor and tenant. Policy data is not loaded until identity is available."
+        detail={strings.ui.common.theConsoleCouldNotVerify}
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
         onRetry={identity.refetch}
@@ -175,7 +175,7 @@ export function PolicyRegistry() {
       {authoredPolicyId ? (
         authoredRecord ? (
           <div
-            aria-label="Policy authoring result"
+            aria-label={strings.ui.policyRegistry.policyAuthoringResult}
             className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-signal/30 bg-tint-50 px-4 py-3 dark:border-signal/40 dark:bg-signal/10"
             data-policy-authored={authoredRecord.policy_id}
             role="status"
@@ -189,12 +189,12 @@ export function PolicyRegistry() {
               onClick={dismissAuthoredBanner}
               type="button"
             >
-              Dismiss
+              {strings.ui.common.dismiss}
             </button>
           </div>
         ) : (
           <div
-            aria-label="Policy authoring result"
+            aria-label={strings.ui.policyRegistry.policyAuthoringResult}
             className="rounded-2xl border border-line bg-surface px-4 py-3 dark:border-white/10"
             role="status"
           >
@@ -205,7 +205,7 @@ export function PolicyRegistry() {
         )
       ) : null}
       <div
-        aria-label="Policy source and registry status"
+        aria-label={strings.ui.policyRegistry.policySourceAndRegistryStatus}
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
@@ -225,39 +225,39 @@ export function PolicyRegistry() {
 
       <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4 [&>*]:min-w-0">
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Policies</p>
+          <p className="eyebrow m-0">{strings.ui.common.policies}</p>
           <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(registry.policy_count)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Tenant-scoped rules matching the current filters</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.policyRegistry.tenantScopedRulesMatchingThe}</p>
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Deny</p>
+          <p className="eyebrow m-0">{strings.ui.policyRegistry.deny}</p>
           <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(denyCount)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Hard blocks that reject matching action runs</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.policyRegistry.hardBlocksThatRejectMatching}</p>
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Require Approval</p>
+          <p className="eyebrow m-0">{strings.ui.policyRegistry.requireApproval}</p>
           <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(requireApprovalCount)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Rules that force the human approval gate</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.policyRegistry.rulesThatForceTheHuman}</p>
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Allow With Evidence</p>
+          <p className="eyebrow m-0">{strings.ui.policyRegistry.allowWithEvidence}</p>
           <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(evidenceCount)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Rules that record decision evidence on execution</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.policyRegistry.rulesThatRecordDecisionEvidence}</p>
         </article>
       </div>
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow m-0">Filters</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Policy registry</h2>
+          <p className="eyebrow m-0">{strings.ui.common.filters}</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.policyRegistry.policyRegistry}</h2>
         </div>
         <div className="grid w-full min-w-0 gap-2.5 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:justify-end">
-          <Field label="Scope">
+          <Field label={strings.ui.common.scope}>
             <Select
               value={filters.scope}
               onChange={(event) => updateFilter("scope", event.target.value)}
             >
-              <option value={allPolicyFilter}>All scopes</option>
+              <option value={allPolicyFilter}>{strings.ui.common.allScopes}</option>
               {platformPolicyScopes.map((scope) => (
                 <option key={scope} value={scope}>
                   {policyScopeLabel(scope)}
@@ -265,12 +265,12 @@ export function PolicyRegistry() {
               ))}
             </Select>
           </Field>
-          <Field label="Status">
+          <Field label={strings.ui.common.status}>
             <Select
               value={filters.status}
               onChange={(event) => updateFilter("status", event.target.value)}
             >
-              <option value={allPolicyFilter}>All statuses</option>
+              <option value={allPolicyFilter}>{strings.ui.common.allStatuses}</option>
               {platformPolicyStatuses.map((status) => (
                 <option key={status} value={status}>
                   {policyStatusLabel(status)}
@@ -278,7 +278,7 @@ export function PolicyRegistry() {
               ))}
             </Select>
           </Field>
-          <button className="icon-button" onClick={resetFilters} title="Reset filters" type="button">
+          <button className="icon-button" onClick={resetFilters} title={strings.ui.common.resetFilters} type="button">
             <RotateCcw size={17} />
           </button>
         </div>
@@ -288,13 +288,13 @@ export function PolicyRegistry() {
         <DataTable wrapperProps={{ className: "min-w-0" }}>
           <thead>
             <tr>
-              <th>Policy</th>
-              <th>Scope</th>
-              <th>Effect</th>
-              <th>Conditions</th>
-              <th>Revision</th>
-              <th>Status</th>
-              <th>Updated</th>
+              <th>{strings.ui.common.policy}</th>
+              <th>{strings.ui.common.scope}</th>
+              <th>{strings.ui.common.effect}</th>
+              <th>{strings.ui.common.conditions}</th>
+              <th>{strings.ui.common.revision}</th>
+              <th>{strings.ui.common.status}</th>
+              <th>{strings.ui.common.updated}</th>
             </tr>
           </thead>
           <tbody>
@@ -336,16 +336,15 @@ export function PolicyRegistry() {
       ) : (
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="eyebrow m-0">Registry</p>
-            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">No policies match the current filters</h2>
+            <p className="eyebrow m-0">{strings.ui.common.registry}</p>
+            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.policyRegistry.noPoliciesMatchTheCurrent}</h2>
             <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-              The policy API responded without records for this tenant, scope and status
-              selection. Author the tenant&apos;s first policy with the form below.
+              {strings.ui.policyRegistry.thePolicyApiRespondedWithout}
             </p>
           </div>
           <span className="status-pill status-checking">
             <ScrollText size={15} />
-            Empty registry
+            {strings.ui.common.emptyRegistry}
           </span>
         </section>
       )}
@@ -355,7 +354,7 @@ export function PolicyRegistry() {
       </Disclosure>
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-        <p className="eyebrow m-0">Evaluation Precedence</p>
+        <p className="eyebrow m-0">{strings.ui.common.evaluationPrecedence}</p>
         <div className="grid min-w-0 gap-2.5">
           {platformPolicyPrecedenceSteps.map((step) => (
             <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={step}>
@@ -367,7 +366,7 @@ export function PolicyRegistry() {
 
       {policyNotes.length > 0 ? (
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-          <p className="eyebrow m-0">Registry Notes</p>
+          <p className="eyebrow m-0">{strings.ui.common.registryNotes}</p>
           <div className="grid min-w-0 gap-2.5">
             {policyNotes.map((note) => (
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>

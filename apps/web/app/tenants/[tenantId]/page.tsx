@@ -11,8 +11,8 @@ type TenantDetailPageProps = {
 };
 
 export async function generateMetadata({ params }: TenantDetailPageProps): Promise<Metadata> {
-  const { tenantId } = await params;
-  return { title: `Tenant ${tenantId}` };
+  const [{ tenantId }, strings] = await Promise.all([params, getServerStrings()]);
+  return { title: strings.ui.detailPages.tenantMetaTitle(tenantId) };
 }
 
 export default async function TenantDetailPage({ params }: TenantDetailPageProps) {
@@ -23,7 +23,7 @@ export default async function TenantDetailPage({ params }: TenantDetailPageProps
     <ConsolePage
       pageKey="tenants"
       subtitle={strings.clarity.tenantPurpose}
-      title="Tenant detail"
+      title={strings.ui.detailPages.tenantTitle}
     >
       <TenantDetail key={tenantId} tenantId={tenantId} />
     </ConsolePage>

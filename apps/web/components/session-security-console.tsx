@@ -89,13 +89,14 @@ function SessionRow({
   logoutUrl: string;
   onRevoke: (record: IdentityBrowserSessionRecord) => void;
 }) {
+  const strings = useStrings();
   const revocable = isRevocableSessionStatus(record.status);
 
   return (
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10" aria-label={`Browser session ${record.session_ref}`}>
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10" aria-label={strings.ui.sessionSecurityConsole.browserSession(record.session_ref)}>
       <div>
         <p className="m-0 font-medium text-ink break-words">
-          {showActor ? record.actor_id : `Session ${record.session_ref.slice(0, 8)}`}
+          {showActor ? record.actor_id : strings.ui.sessionSecurityConsole.sessionShort(record.session_ref.slice(0, 8))}
           {record.current ? " (this browser)" : ""}
         </p>
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
@@ -113,17 +114,17 @@ function SessionRow({
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
         <span className={`status-pill ${sessionStatusClass(record.status)}`}>
-          {record.current ? "Current" : sessionStatusLabel(record.status)}
+          {record.current ? strings.ui.sessionSecurityConsole.current : sessionStatusLabel(record.status)}
         </span>
         {revocable ? (
           record.current ? (
             <a
               className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
               href={logoutUrl}
-              title="Revoking this browser's session signs you out through the identity provider"
+              title={strings.ui.sessionSecurityConsole.revokingThisBrowsersSessionSigns}
             >
               <LogOut size={15} />
-              Sign out
+              {strings.ui.sessionSecurityConsole.signOut}
             </a>
           ) : (
             <button
@@ -132,7 +133,7 @@ function SessionRow({
               onClick={() => onRevoke(record)}
               type="button"
             >
-              {pending ? "Revoking" : "Revoke"}
+              {pending ? strings.ui.sessionSecurityConsole.revoking : strings.ui.sessionSecurityConsole.revoke}
             </button>
           )
         ) : null}
@@ -146,12 +147,10 @@ function SignedOutPanel({ signInUrl }: { signInUrl: string }) {
   return (
     <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
       <div>
-        <p className="eyebrow m-0">Signed out</p>
-        <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">No authenticated operator session</h2>
+        <p className="eyebrow m-0">{strings.ui.sessionSecurityConsole.signedOut}</p>
+        <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.sessionSecurityConsole.noAuthenticatedOperatorSession}</h2>
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-          Session management lists only API-verified sessions. Sign in with the API-owned OIDC
-          browser session, or attach a bearer token from the account panel, before managing
-          sessions.
+          {strings.ui.sessionSecurityConsole.sessionManagementListsOnlyApi}
         </p>
       </div>
       <SsoSignInLink className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href={signInUrl}>
@@ -169,6 +168,7 @@ function SessionListPanel({
   identitySession: IdentitySessionReadModel;
   logoutUrl: string;
 }) {
+  const strings = useStrings();
   const { session } = useOidcConsoleSession();
   const { triggerRefresh } = useConsole();
   const adminCapable = canListTenantSessions(identitySession.scopes);
@@ -207,10 +207,10 @@ function SessionListPanel({
   if (sessions.isUnavailable && !sessions.data) {
     return (
       <ErrorPanel
-        detail="Live session data requires the Axis identity session APIs. Local fallback session records are disabled."
+        detail={strings.ui.sessionSecurityConsole.liveSessionDataRequiresThe}
         endpoint={identitySessionsPath(listTenantWide)}
         reference={sessions.errorRequestId ?? undefined}
-        title="Sessions API unavailable"
+        title={strings.ui.sessionSecurityConsole.sessionsApiUnavailable}
       />
     );
   }
@@ -221,9 +221,9 @@ function SessionListPanel({
     <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="eyebrow m-0">Browser sessions</p>
+          <p className="eyebrow m-0">{strings.ui.sessionSecurityConsole.browserSessions}</p>
           <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
-            {listTenantWide ? "Tenant-wide sessions" : "Your sessions"}
+            {listTenantWide ? strings.ui.sessionSecurityConsole.tenantWideSessions : strings.ui.sessionSecurityConsole.yourSessions}
           </h2>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -233,18 +233,18 @@ function SessionListPanel({
               onClick={() => setTenantWide((value) => !value)}
               type="button"
             >
-              {listTenantWide ? "Show my sessions" : "Show tenant sessions"}
+              {listTenantWide ? strings.ui.sessionSecurityConsole.showMySessions : strings.ui.sessionSecurityConsole.showTenantSessions}
             </button>
           ) : null}
           <span className={`status-pill ${list ? "signal-ready" : "signal-watch"}`}>
-            {list ? `${formatNumber(list.sessions.length)} recorded` : "Loading sessions"}
+            {list ? `${formatNumber(list.sessions.length)} recorded` : strings.ui.sessionSecurityConsole.loadingSessions}
           </span>
         </div>
       </div>
 
       {sessions.isUnavailable && list ? (
         <p className="m-0 text-sm text-warning" role="status">
-          Live refresh failed. Showing the last validated session data.
+          {strings.ui.sessionSecurityConsole.liveRefreshFailedShowingThe}
         </p>
       ) : null}
 
@@ -264,18 +264,17 @@ function SessionListPanel({
           ) : (
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
               <div>
-                <p className="m-0 font-medium text-ink break-words">No browser sessions recorded</p>
+                <p className="m-0 font-medium text-ink break-words">{strings.ui.sessionSecurityConsole.noBrowserSessionsRecorded}</p>
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                  Axis has no persisted OIDC browser sessions for this actor. Bearer-token
-                  bridges do not create cookie sessions; sign in with SSO to start one.
+                  {strings.ui.sessionSecurityConsole.axisHasNoPersistedOidc}
                 </p>
               </div>
-              <span className="status-pill signal-ready">Empty</span>
+              <span className="status-pill signal-ready">{strings.ui.sessionSecurityConsole.empty}</span>
             </div>
           )}
         </div>
       ) : (
-        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Loading persisted session records from the Axis API.</p>
+        <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{strings.ui.sessionSecurityConsole.loadingPersistedSessionRecordsFrom}</p>
       )}
 
       {revokeError ? (
@@ -283,7 +282,7 @@ function SessionListPanel({
           <ErrorPanel
             detail={revokeError.message}
             reference={revokeError.requestId ?? undefined}
-            title="Session revocation failed"
+            title={strings.ui.sessionSecurityConsole.sessionRevocationFailed}
           />
         </div>
       ) : null}
@@ -302,6 +301,7 @@ function SessionListPanel({
 }
 
 export function SessionSecurityConsole() {
+  const strings = useStrings();
   const { apiBaseUrl } = useConsole();
   const identity = useIdentitySession();
   const identitySession = identity.data;
@@ -314,11 +314,11 @@ export function SessionSecurityConsole() {
         identitySession?.authenticated && identitySession.mode === "secure_oidc_cookie" ? (
           <a className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href={logoutUrl}>
             <LogOut size={16} />
-            Sign out
+            {strings.ui.sessionSecurityConsole.signOut}
           </a>
         ) : undefined
       }
-      eyebrow="Platform control"
+      eyebrow={strings.ui.sessionSecurityConsole.platformControl}
       sourceLabel={sourceStateLabel(
         deriveSourceState(
           identity.source,
@@ -327,15 +327,15 @@ export function SessionSecurityConsole() {
         ),
         "session security",
       )}
-      subtitle="API-owned OIDC browser sessions with rotation, revocation and logout evidence."
-      title="Session security"
+      subtitle={strings.ui.sessionSecurityConsole.apiOwnedOidcBrowserSessions}
+      title={strings.ui.sessionSecurityConsole.sessionSecurity}
     >
       {!identitySession ? (
         <ErrorPanel
-          detail="Live session management requires the Axis identity APIs. Local fallback session records are disabled."
+          detail={strings.ui.sessionSecurityConsole.liveSessionManagementRequiresThe}
           endpoint={SESSION_ENDPOINTS}
           reference={identity.errorRequestId ?? undefined}
-          title="Session API unavailable"
+          title={strings.ui.common.sessionApiUnavailable}
         />
       ) : !identitySession.authenticated ? (
         <SignedOutPanel signInUrl={signInUrl} />
@@ -344,37 +344,35 @@ export function SessionSecurityConsole() {
           <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
             <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="eyebrow m-0">Operator session</p>
-                <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">API-verified identity</h2>
+                <p className="eyebrow m-0">{strings.ui.sessionSecurityConsole.operatorSession}</p>
+                <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.sessionSecurityConsole.apiVerifiedIdentity}</h2>
               </div>
               <span className="status-pill signal-ready">
                 <MonitorSmartphone size={15} />
-                {identitySession.mode === "secure_oidc_cookie" ? "Cookie session" : "Bearer session"}
+                {identitySession.mode === "secure_oidc_cookie" ? strings.ui.sessionSecurityConsole.cookieSession : strings.ui.sessionSecurityConsole.bearerSession}
               </span>
             </div>
             <div className="mb-3.5 grid gap-2.5 sm:grid-cols-2 [&>span]:grid [&>span]:min-w-0 [&>span]:gap-1 [&>span]:rounded-xl [&>span]:border [&>span]:border-line/60 [&>span]:bg-ink/3 [&>span]:p-2.5 dark:[&>span]:border-white/10 dark:[&>span]:bg-white/4 [&_small]:text-[11px] [&_small]:font-medium [&_small]:tracking-wide [&_small]:uppercase [&_small]:text-muted [&_strong]:min-w-0 [&_strong]:break-words [&_strong]:text-[13px] [&_strong]:leading-tight [&_strong]:text-ink">
               <span>
-                <small>Actor</small>
-                <strong>{identitySession.actor_id ?? "Unknown"}</strong>
+                <small>{strings.ui.common.actor}</small>
+                <strong>{identitySession.actor_id ?? strings.ui.common.unknown}</strong>
               </span>
               <span>
-                <small>Tenant</small>
-                <strong>{identitySession.tenant_id ?? "Unknown"}</strong>
+                <small>{strings.ui.common.tenant}</small>
+                <strong>{identitySession.tenant_id ?? strings.ui.common.unknown}</strong>
               </span>
               <span>
-                <small>Session boundary</small>
+                <small>{strings.ui.sessionSecurityConsole.sessionBoundary}</small>
                 <strong>{identitySession.session_boundary.replaceAll("_", " ")}</strong>
               </span>
               <span>
-                <small>Scopes</small>
+                <small>{strings.ui.sessionSecurityConsole.scopes}</small>
                 <strong>{formatNumber(identitySession.scopes.length)}</strong>
               </span>
             </div>
             {identitySession.mode !== "secure_oidc_cookie" ? (
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                This console is attached through the developer bearer bridge. Revocation below
-                applies to persisted browser cookie sessions; clear the bearer bridge from the
-                account panel to detach this console.
+                {strings.ui.sessionSecurityConsole.thisConsoleIsAttachedThrough}
               </p>
             ) : null}
           </section>

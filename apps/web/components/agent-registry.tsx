@@ -161,7 +161,7 @@ export function AgentRegistry() {
   if (identity.source === "unavailable") {
     return (
       <ErrorPanel
-        detail="The agent registry is not loaded until the current actor and tenant are verified."
+        detail={strings.ui.agentRegistry.theAgentRegistryIsNot}
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
         onRetry={identity.refetch}
@@ -173,9 +173,9 @@ export function AgentRegistry() {
   if (identity.source === "api" && !tenantId) {
     return (
       <ErrorPanel
-        detail="The authenticated identity response does not contain a tenant. Axis will not fall back to demo agent records."
+        detail={strings.ui.agentRegistry.theAuthenticatedIdentityResponseDoes}
         endpoint={IDENTITY_SESSION_ENDPOINT}
-        title="Authenticated tenant missing"
+        title={strings.ui.common.authenticatedTenantMissing}
       />
     );
   }
@@ -183,7 +183,7 @@ export function AgentRegistry() {
   if (!registry) {
     if (source === "loading") {
       return (
-        <div aria-label="Loading agent API" className="grid gap-4">
+        <div aria-label={strings.ui.agentRegistry.loadingAgentApi} className="grid gap-4">
           <LoadingPanel layout="metrics" rows={3} />
           <MasterDetail
             detail={<LoadingPanel layout="detail" />}
@@ -232,7 +232,7 @@ export function AgentRegistry() {
   return (
     <div className="grid gap-4">
       <div
-        aria-label="Agent source and registry status"
+        aria-label={strings.ui.agentRegistry.agentSourceAndRegistryStatus}
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm break-words text-muted">

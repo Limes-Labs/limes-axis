@@ -513,7 +513,7 @@ export function TenantVocabularyEditor({ tenantId }: { tenantId: string }) {
       ) : null}
 
       <details className="mt-4 border-t border-line/60 pt-3 text-sm text-muted dark:border-white/10">
-        <summary className="cursor-pointer font-medium text-ink">Vocabulary technical details</summary>
+        <summary className="cursor-pointer font-medium text-ink">{strings.ui.tenantVocabularyEditor.vocabularyTechnicalDetails}</summary>
         <div className="mt-3 grid min-w-0 grid-cols-1 gap-2.5 [&>p]:min-w-0 [&>p]:[overflow-wrap:anywhere]">
           <p className="m-0 leading-snug break-words">{copy.requiredScope(platformTenantConfigureScope)}</p>
           <p aria-label={copy.endpoint} className="m-0 font-mono text-[13px] leading-snug break-words">{buildPlatformTenantVocabularyPath(tenantId)}</p>

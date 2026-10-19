@@ -60,10 +60,11 @@ function RunRailMarker({ state }: { state: AgentRunRailState }) {
  * approval inbox decision rail treatment.
  */
 function AgentRunRail({ run }: { run: AgentRunRecord }) {
+  const strings = useStrings();
   const stages = buildAgentRunRail(run);
 
   return (
-    <div className="grid gap-2" aria-label="Agent run step timeline">
+    <div className="grid gap-2" aria-label={strings.ui.agentsAgentRuns.agentRunStepTimeline}>
       <div className="flex items-center gap-2">
         {stages.map((stage, index) => (
           <div
@@ -181,7 +182,7 @@ function AgentRunDetail({ agentId, run }: { agentId: string; run: AgentRunRecord
   return (
     <div className="grid min-w-0 gap-3 border-t border-line/60 pt-3 dark:border-white/10" data-run-detail={run.run_id}>
       {detailQuery.isLoading ? (
-        <Skeleton aria-label="Loading agent run steps" className="h-14 w-full" />
+        <Skeleton aria-label={strings.ui.agentsAgentRuns.loadingAgentRunSteps} className="h-14 w-full" />
       ) : detailRun ? (
         <AgentRunRail run={detailRun} />
       ) : (
@@ -310,7 +311,7 @@ export function AgentRuns({
 
   if (runsQuery.isLoading) {
     return (
-      <div aria-label="Loading agent runs" className="grid gap-2.5" role="status">
+      <div aria-label={strings.ui.agentsAgentRuns.loadingAgentRuns} className="grid gap-2.5" role="status">
         <Skeleton className="h-9 w-full" />
         <Skeleton className="h-9 w-2/3" />
       </div>

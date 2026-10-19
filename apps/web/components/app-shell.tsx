@@ -49,6 +49,7 @@ function ApprovalsBadge({
   identitySource: string;
   tenantId: string | null;
 }) {
+  const strings = useStrings();
   const { data } = useAxisQuery<ManufacturingApprovalInbox>(
     buildTenantScopedPath(
       `${OPERATIONS_API_PREFIX}/approvals`,
@@ -68,7 +69,7 @@ function ApprovalsBadge({
 
   return (
     <span
-      aria-label={`${pendingCount} pending approvals`}
+      aria-label={strings.ui.appShell.pendingApprovals(pendingCount)}
       className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-signal px-1.5 font-mono text-[10px] leading-none font-bold text-white"
     >
       {pendingCount > 9 ? "9+" : pendingCount}
@@ -163,6 +164,7 @@ function Navigation({
   badge: ReactNode;
   pathname: string;
 }) {
+  const strings = useStrings();
   const { overflow, ref } = useNavOverflow();
   const navGroups = useNavGroups();
   const desktopNavGroups = useMemo(() => toDesktopNavGroups(navGroups), [navGroups]);
@@ -184,7 +186,7 @@ function Navigation({
         // scroll-py matches the fade height so a scrolled-to item is never
         // left underneath an edge fade.
         className="nav-list grid min-h-0 grow scroll-py-10 content-start gap-1 overflow-y-auto overscroll-contain pr-1 pb-1"
-        aria-label="Axis sections"
+        aria-label={strings.ui.appShell.axisSections}
         ref={ref}
       >
         {desktopNavGroups.map((group, index) => (
@@ -282,7 +284,7 @@ function ConsoleShell({ children }: { children: ReactNode }) {
           className="fixed top-2 left-2 z-50 -translate-y-20 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-surface shadow-lg transition-transform focus:translate-y-0"
           href="#console-main"
         >
-          Skip to main content
+          {strings.ui.appShell.skipToMainContent}
         </a>
         <div className="grid min-h-screen grid-cols-1 min-[921px]:grid-cols-[212px_minmax(0,1fr)]">
           <aside

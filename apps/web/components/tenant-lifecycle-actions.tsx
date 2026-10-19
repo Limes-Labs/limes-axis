@@ -35,6 +35,7 @@ function forbiddenMessage(message: string, requiredPermission?: string): string 
 }
 
 export function TenantLifecycleActions({ tenant }: { tenant: TenantRecord }) {
+  const strings = useStrings();
   const suspendCopy = useStrings().tenantLifecycle.suspend;
   const suspendImpactId = useId();
   const { session } = useOidcConsoleSession();
@@ -179,9 +180,9 @@ export function TenantLifecycleActions({ tenant }: { tenant: TenantRecord }) {
     <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
-          <p className="eyebrow m-0">Lifecycle Actions</p>
+          <p className="eyebrow m-0">{strings.ui.tenantLifecycleActions.lifecycleActions}</p>
           <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
-            {isActive ? suspendCopy.title : isSuspended ? "Reactivate tenant" : "No actions available"}
+            {isActive ? suspendCopy.title : isSuspended ? strings.ui.tenantLifecycleActions.reactivateTenant : strings.ui.tenantLifecycleActions.noActionsAvailable}
           </h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
             Lifecycle transitions require the {platformTenantSuspendScope} scope and append audit
@@ -193,16 +194,16 @@ export function TenantLifecycleActions({ tenant }: { tenant: TenantRecord }) {
 
       {isActive ? (
         <form
-          aria-label="Suspend tenant"
+          aria-label={strings.ui.tenantLifecycleActions.suspendTenant}
           className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
           noValidate
           onSubmit={(event) => void submitSuspend(event)}
         >
-          <Field className="col-span-full" label="Suspension Reason">
+          <Field className="col-span-full" label={strings.ui.tenantLifecycleActions.suspensionReason}>
             <Input
-              aria-label="Suspension reason"
+              aria-label={strings.ui.tenantLifecycleActions.suspensionReason2}
               onChange={(event) => setReason(event.target.value)}
-              placeholder="Why this tenant is being suspended"
+              placeholder={strings.ui.tenantLifecycleActions.whyThisTenantIsBeing}
               required
               type="text"
               value={reason}
@@ -229,16 +230,16 @@ export function TenantLifecycleActions({ tenant }: { tenant: TenantRecord }) {
         </form>
       ) : isSuspended ? (
         <form
-          aria-label="Reactivate tenant"
+          aria-label={strings.ui.tenantLifecycleActions.reactivateTenant}
           className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
           noValidate
           onSubmit={(event) => void submitReactivate(event)}
         >
-          <Field className="col-span-full" label="Reactivation Reason (optional)">
+          <Field className="col-span-full" label={strings.ui.tenantLifecycleActions.reactivationReasonOptional}>
             <Input
-              aria-label="Reactivation reason"
+              aria-label={strings.ui.tenantLifecycleActions.reactivationReason}
               onChange={(event) => setReactivateReason(event.target.value)}
-              placeholder="Optional reason for reactivating"
+              placeholder={strings.ui.tenantLifecycleActions.optionalReasonForReactivating}
               type="text"
               value={reactivateReason}
             />
@@ -249,7 +250,7 @@ export function TenantLifecycleActions({ tenant }: { tenant: TenantRecord }) {
             type="submit"
           >
             <PlayCircle size={15} />
-            {action.phase === "saving" ? "Reactivating" : "Reactivate tenant"}
+            {action.phase === "saving" ? strings.ui.tenantLifecycleActions.reactivating : strings.ui.tenantLifecycleActions.reactivateTenant}
           </button>
         </form>
       ) : (

@@ -158,7 +158,7 @@ function OverviewHero({
           </div>
         ))}
       </dl>
-      <div aria-label="Overview data sources" className="flex min-w-0 flex-wrap gap-1.5">
+      <div aria-label={strings.ui.platformOverview.overviewDataSources} className="flex min-w-0 flex-wrap gap-1.5">
         <SourcePill compact state={deriveSourceState(overview.source, true, data.provenance)} subject="Context" />
         <SourcePill compact state={deriveSourceState(snapshot.source, Boolean(snapshot.data), snapshot.data?.provenance)} subject="Operations" />
         <SourcePill compact state={deriveSourceState(approvals.source, Boolean(approvals.data), approvals.data?.provenance)} subject="Approvals" />
@@ -247,7 +247,7 @@ export function PlatformOverview() {
   if (identityQuery.source === "unavailable") {
     return (
       <ErrorPanel
-        detail="The console could not verify the current actor and tenant. Tenant-scoped data is not loaded until identity is available."
+        detail={strings.ui.platformOverview.theConsoleCouldNotVerify}
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identityQuery.errorRequestId ?? undefined}
         onRetry={identityQuery.refetch}
@@ -259,9 +259,9 @@ export function PlatformOverview() {
   if (!tenantId) {
     return (
       <ErrorPanel
-        detail="The authenticated identity response does not contain a tenant. Axis will not fall back to demo data for an authenticated actor."
+        detail={strings.ui.platformOverview.theAuthenticatedIdentityResponseDoes}
         endpoint={IDENTITY_SESSION_ENDPOINT}
-        title="Authenticated tenant missing"
+        title={strings.ui.common.authenticatedTenantMissing}
       />
     );
   }
@@ -325,7 +325,7 @@ export function PlatformOverview() {
       />
 
       <div className="ops-dashboard-grid grid grid-cols-1 gap-4">
-        <section aria-label="Operations evidence" className="ops-dashboard-main grid min-w-0 content-start gap-4">
+        <section aria-label={strings.ui.platformOverview.operationsEvidence} className="ops-dashboard-main grid min-w-0 content-start gap-4">
           <EvidenceFeed
             auditEvents={activityQuery}
             reads={{

@@ -11,8 +11,8 @@ type OntologyEntityPageProps = {
 };
 
 export async function generateMetadata({ params }: OntologyEntityPageProps): Promise<Metadata> {
-  const { nodeId } = await params;
-  return { title: `Entity ${nodeId}` };
+  const [{ nodeId }, strings] = await Promise.all([params, getServerStrings()]);
+  return { title: strings.ui.detailPages.entityMetaTitle(nodeId) };
 }
 
 export default async function OntologyEntityPage({ params }: OntologyEntityPageProps) {
@@ -23,7 +23,7 @@ export default async function OntologyEntityPage({ params }: OntologyEntityPageP
     <ConsolePage
       pageKey="ontology"
       subtitle={strings.clarity.entityPurpose}
-      title="Entity detail"
+      title={strings.ui.detailPages.entityTitle}
     >
       <OntologyEntityDetail nodeId={nodeId} />
     </ConsolePage>

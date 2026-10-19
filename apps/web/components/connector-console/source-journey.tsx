@@ -192,7 +192,7 @@ export function SourceJourneySpine({
               )}
               <span className="text-sm font-medium text-ink">
                 <span className="sr-only">
-                  {step.done ? "Completed step: " : "Not done yet: "}
+                  {step.done ? strings.ui.connectorConsoleSourceJourney.completedStep : strings.ui.connectorConsoleSourceJourney.notDoneYet}
                 </span>
                 {step.label}
               </span>
@@ -205,7 +205,7 @@ export function SourceJourneySpine({
                       : "status-checking"
                 }`}
               >
-                {step.warn ? "Needs attention" : step.done ? "Done" : "To do"}
+                {step.warn ? strings.ui.connectorConsoleSourceJourney.needsAttention : step.done ? strings.ui.connectorConsoleSourceJourney.done : strings.ui.connectorConsoleSourceJourney.toDo}
               </span>
             </div>
             <p className="m-0 max-w-prose text-xs leading-snug text-muted">{step.body}</p>

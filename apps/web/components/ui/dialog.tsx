@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 
 import { cn } from "@/lib/cn";
+import { useStrings } from "@/providers/locale-provider";
 
 /*
  * Thin Radix Dialog wrapper styled with the console tokens: midnight-tinted
@@ -45,6 +46,7 @@ export function DialogContent({
   returnFocusRef,
   ...props
 }: DialogContentProps) {
+  const strings = useStrings();
   // Radix returns focus only to a <DialogTrigger>. Most console dialogs are
   // controlled and opened from a plain button, so without this focus fell to
   // <body> on close (WCAG 2.4.3). Capture the opener as the dialog mounts —
@@ -90,7 +92,7 @@ export function DialogContent({
           {children}
         </div>
         {/* `absolute!`: .icon-button sets position: relative and would otherwise win. */}
-        <DialogPrimitive.Close aria-label="Close" className="icon-button absolute! top-3 right-3">
+        <DialogPrimitive.Close aria-label={strings.ui.common.close} className="icon-button absolute! top-3 right-3">
           <X aria-hidden="true" size={16} />
         </DialogPrimitive.Close>
       </DialogPrimitive.Content>

@@ -194,10 +194,10 @@ export function TenantRegistry() {
 
     return (
       <ErrorPanel
-        detail="Axis did not receive API-backed platform tenant records. Local fallback tenant records are disabled."
+        detail={strings.ui.tenantRegistry.axisDidNotReceiveApi}
         endpoint={platformTenantsPath}
         reference={loadError?.requestId ?? undefined}
-        title="Tenant API unavailable"
+        title={strings.ui.common.tenantApiUnavailable}
       />
     );
   }
@@ -213,11 +213,11 @@ export function TenantRegistry() {
   return (
     <div className="grid min-w-0 gap-4">
       <div
-        aria-label="Tenant source and registry status"
+        aria-label={strings.ui.tenantRegistry.tenantSourceAndRegistryStatus}
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm leading-snug break-words text-muted">
-          Cross-tenant operator surface; every lifecycle change appends audit evidence.
+          {strings.ui.tenantRegistry.crossTenantOperatorSurfaceEvery}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
@@ -233,36 +233,36 @@ export function TenantRegistry() {
 
       <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4 [&>*]:min-w-0">
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Tenants</p>
+          <p className="eyebrow m-0">{strings.ui.common.tenants}</p>
           <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(registry.tenant_count)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Tenants matching the current status filter</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.tenantRegistry.tenantsMatchingTheCurrentStatus}</p>
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Active</p>
+          <p className="eyebrow m-0">{strings.ui.tenantRegistry.active}</p>
           <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(registry.active_tenant_count)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Tenants able to establish sessions</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.tenantRegistry.tenantsAbleToEstablishSessions}</p>
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Suspended</p>
+          <p className="eyebrow m-0">{strings.ui.tenantRegistry.suspended}</p>
           <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(suspendedCount)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Rejected fail-closed at the OIDC principal boundary</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.tenantRegistry.rejectedFailClosedAtThe}</p>
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Pending Deletion</p>
+          <p className="eyebrow m-0">{strings.ui.tenantRegistry.pendingDeletion}</p>
           <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(pendingDeletionCount)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Modeled and blocked; no deletion pipeline yet</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.tenantRegistry.modeledAndBlockedNoDeletion}</p>
         </article>
       </div>
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow m-0">Filters</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Tenant registry</h2>
+          <p className="eyebrow m-0">{strings.ui.common.filters}</p>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.tenantRegistry.tenantRegistry}</h2>
         </div>
         <div className="grid w-full min-w-0 gap-2.5 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:justify-end">
-          <Field label="Status">
+          <Field label={strings.ui.common.status}>
             <Select value={filters.status} onChange={(event) => updateStatus(event.target.value)}>
-              <option value={allTenantFilter}>All statuses</option>
+              <option value={allTenantFilter}>{strings.ui.common.allStatuses}</option>
               {tenantLifecycleStatuses.map((status: TenantLifecycleStatus) => (
                 <option key={status} value={status}>
                   {tenantStatusLabel(status)}
@@ -270,7 +270,7 @@ export function TenantRegistry() {
               ))}
             </Select>
           </Field>
-          <button className="icon-button" onClick={resetFilters} title="Reset filters" type="button">
+          <button className="icon-button" onClick={resetFilters} title={strings.ui.common.resetFilters} type="button">
             <RotateCcw size={17} />
           </button>
         </div>
@@ -281,11 +281,11 @@ export function TenantRegistry() {
           <table className={cn(dataTableClassName, "min-w-[640px]")}>
             <thead>
               <tr>
-                <th>Tenant</th>
-                <th>Status</th>
-                <th>Created by</th>
-                <th>Lifecycle</th>
-                <th>Updated</th>
+                <th>{strings.ui.common.tenant}</th>
+                <th>{strings.ui.common.status}</th>
+                <th>{strings.ui.tenantRegistry.createdBy}</th>
+                <th>{strings.ui.tenantRegistry.lifecycle}</th>
+                <th>{strings.ui.common.updated}</th>
               </tr>
             </thead>
             <tbody>
@@ -316,7 +316,7 @@ export function TenantRegistry() {
                         Reactivated by {tenant.reactivated_by ?? "unknown"}
                       </p>
                     ) : (
-                      <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">No lifecycle changes</p>
+                      <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{strings.ui.tenantRegistry.noLifecycleChanges}</p>
                     )}
                   </td>
                   <td>
@@ -329,7 +329,7 @@ export function TenantRegistry() {
           {hasMore ? (
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line/60 px-4 py-3.5 dark:border-white/10">
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                Showing {formatNumber(tenants.length)} tenants. More match this filter.
+                {strings.ui.tenantRegistry.showingTenants(formatNumber(tenants.length))}
               </p>
               <button
                 className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
@@ -338,16 +338,16 @@ export function TenantRegistry() {
                 type="button"
               >
                 <Building2 size={16} />
-                {loadingMore ? "Loading…" : "Load more tenants"}
+                {loadingMore ? strings.ui.tenantRegistry.loading : strings.ui.tenantRegistry.loadMoreTenants}
               </button>
             </div>
           ) : null}
           {loadMoreError ? (
             <div className="border-t border-line/60 p-4 dark:border-white/10" role="alert">
               <ErrorPanel
-                detail="Axis could not load the next page of tenants. Try again."
+                detail={strings.ui.tenantRegistry.axisCouldNotLoadThe}
                 reference={loadMoreError.requestId ?? undefined}
-                title="Tenant page unavailable"
+                title={strings.ui.tenantRegistry.tenantPageUnavailable}
               />
             </div>
           ) : null}
@@ -355,16 +355,15 @@ export function TenantRegistry() {
       ) : (
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="eyebrow m-0">Registry</p>
-            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">No tenants match the current filter</h2>
+            <p className="eyebrow m-0">{strings.ui.common.registry}</p>
+            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.tenantRegistry.noTenantsMatchTheCurrent}</h2>
             <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-              The tenant API responded without records for this status selection. Provision the
-              first tenant with the form below.
+              {strings.ui.tenantRegistry.theTenantApiRespondedWithout}
             </p>
           </div>
           <span className="status-pill status-checking">
             <Building2 size={15} />
-            Empty registry
+            {strings.ui.common.emptyRegistry}
           </span>
         </section>
       )}
@@ -375,7 +374,7 @@ export function TenantRegistry() {
 
       {tenantNotes.length > 0 ? (
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-          <p className="eyebrow m-0">Registry Notes</p>
+          <p className="eyebrow m-0">{strings.ui.common.registryNotes}</p>
           <div className="grid min-w-0 gap-2.5">
             {tenantNotes.map((note) => (
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>

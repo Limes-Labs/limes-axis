@@ -273,7 +273,7 @@ export function OntologyGraph({
           data-testid="ontology-graph"
           ref={svgRef}
           role="group"
-          aria-label={`Ontology graph with ${layout.nodes.length} nodes and ${layout.edges.length} relationships`}
+          aria-label={strings.ui.ontologyGraph.graphLabel(layout.nodes.length, layout.edges.length)}
           viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
           onPointerCancel={onPointerEnd}
           onPointerDown={onPointerDown}

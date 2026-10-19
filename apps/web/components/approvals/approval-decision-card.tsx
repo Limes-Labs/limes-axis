@@ -250,7 +250,7 @@ export function ApprovalDecisionCard({
   const alreadyDecided = approval.status === "decided";
   return (
     <section
-      aria-label="Decision"
+      aria-label={strings.ui.common.decision}
       ref={sectionRef}
       tabIndex={-1}
       className="grid content-start gap-3 rounded-2xl border border-signal/25 bg-tint-50 p-4 dark:border-signal/30 dark:bg-signal/8"
@@ -321,7 +321,7 @@ export function ApprovalDecisionCard({
         <ErrorPanel
           detail={error.message}
           reference={error.requestId ?? undefined}
-          title="Decision persistence error"
+          title={strings.ui.approvalsApprovalDecisionCard.decisionPersistenceError}
         />
       ) : null}
 

@@ -137,7 +137,7 @@ function BlockerBanner({ workflow }: { workflow: WorkflowRun }) {
 
   return (
     <div
-      aria-label="Current blocker"
+      aria-label={strings.ui.workflowConsole.currentBlocker}
       className="flex items-start gap-3 rounded-2xl border border-warning/50 bg-warning/10 p-4"
       role="status"
     >
@@ -184,7 +184,7 @@ function RuntimeTimeline({ workflow }: { workflow: WorkflowRun }) {
           {formatNumber(waitingSignals)} {copy.waiting}
         </span>
       </div>
-      <DataTable aria-label="Workflow runtime timeline" minWidth={560}>
+      <DataTable aria-label={strings.ui.workflowConsole.workflowRuntimeTimeline} minWidth={560}>
         <thead>
           <tr>
             <th>{copy.columns.step}</th>
@@ -436,7 +436,7 @@ export function WorkflowConsole() {
   if (identity.source === "unavailable" || !tenantId) {
     return (
       <ErrorPanel
-        detail="The console could not verify the current actor and tenant. Workflow data is not loaded until identity is available."
+        detail={strings.ui.workflowConsole.theConsoleCouldNotVerify}
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
         onRetry={identity.refetch}
@@ -448,7 +448,7 @@ export function WorkflowConsole() {
   if (!workflowData) {
     if (source === "loading") {
       return (
-        <div aria-label="Loading workflow API" className="grid gap-4">
+        <div aria-label={strings.ui.workflowConsole.loadingWorkflowApi} className="grid gap-4">
           <LoadingPanel layout="metrics" rows={4} />
           <MasterDetail
             detail={<LoadingPanel layout="detail" />}
@@ -499,7 +499,7 @@ export function WorkflowConsole() {
   return (
     <div className="grid gap-4">
       <div
-        aria-label="Workflow source and runtime status"
+        aria-label={strings.ui.workflowConsole.workflowSourceAndRuntimeStatus}
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm break-words text-muted">
@@ -604,7 +604,7 @@ export function WorkflowConsole() {
 
       {workflowData.runtime_notes.length > 0 ? (
         <Card className="grid content-start gap-3">
-          <Eyebrow>Runtime Notes</Eyebrow>
+          <Eyebrow>{strings.ui.workflowConsole.runtimeNotes}</Eyebrow>
           <div className="grid gap-2">
             {workflowData.runtime_notes.map((note) => (
               <p className="m-0 text-sm text-muted" key={note}>

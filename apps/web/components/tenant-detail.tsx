@@ -139,10 +139,10 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
     if (source !== "missing") {
       return (
         <ErrorPanel
-          detail="Axis did not receive an API-backed platform tenant. Local fallback tenant records are disabled."
+          detail={strings.ui.tenantDetail.axisDidNotReceiveAn}
           endpoint={buildPlatformTenantDetailPath(tenantId)}
           reference={loadError?.requestId ?? undefined}
-          title="Tenant API unavailable"
+          title={strings.ui.common.tenantApiUnavailable}
         />
       );
     }
@@ -151,16 +151,16 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
       <div className="grid min-w-0 gap-4">
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="eyebrow m-0">Platform Tenant</p>
-            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Tenant not found</h2>
+            <p className="eyebrow m-0">{strings.ui.tenantDetail.platformTenant}</p>
+            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.tenantDetail.tenantNotFound}</h2>
             <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{tenantId}</p>
             <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-              The tenant read route returned 404: no tenant with this id is provisioned.
+              {strings.ui.tenantDetail.theTenantReadRouteReturned}
             </p>
           </div>
           <Link className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href="/tenants">
             <ArrowLeft size={17} />
-            Tenants
+            {strings.ui.common.tenants}
           </Link>
         </section>
       </div>
@@ -174,12 +174,12 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
     <div className="grid min-w-0 gap-4">
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="eyebrow m-0">Platform Tenant</p>
+          <p className="eyebrow m-0">{strings.ui.tenantDetail.platformTenant}</p>
           <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{tenant.display_name}</h2>
-          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{tenant.description || "No description recorded."}</p>
+          <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{tenant.description || strings.ui.tenantDetail.noDescriptionRecorded}</p>
           <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{tenant.tenant_id}</p>
         </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Tenant source and status">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label={strings.ui.tenantDetail.tenantSourceAndStatus}>
           <SourcePill
             state={deriveSourceState(
               source === "missing" ? "unavailable" : source,
@@ -194,42 +194,41 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
           </span>
           <Link className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href="/tenants">
             <ArrowLeft size={17} />
-            Tenants
+            {strings.ui.common.tenants}
           </Link>
         </div>
       </section>
 
       <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4 [&>*]:min-w-0">
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Status</p>
+          <p className="eyebrow m-0">{strings.ui.common.status}</p>
           <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{tenantStatusLabel(tenant.status)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Only active tenants can establish sessions</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.tenantDetail.onlyActiveTenantsCanEstablish}</p>
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Created By</p>
+          <p className="eyebrow m-0">{strings.ui.tenantDetail.createdBy}</p>
           <p className="mx-0 mt-3 mb-1.5 font-mono text-sm leading-relaxed break-words text-ink">{tenant.created_by}</p>
           <p className="m-0 text-xs leading-relaxed text-muted break-words">{formatTimestamp(tenant.created_at)}</p>
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Bootstrap Admin</p>
-          <p className="mx-0 mt-2 mb-0 font-mono text-[13px] break-words text-ink">{tenant.bootstrap_admin_actor_id ?? "None"}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Optional actor created at provisioning time</p>
+          <p className="eyebrow m-0">{strings.ui.tenantDetail.bootstrapAdmin}</p>
+          <p className="mx-0 mt-2 mb-0 font-mono text-[13px] break-words text-ink">{tenant.bootstrap_admin_actor_id ?? strings.ui.common.none}</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.tenantDetail.optionalActorCreatedAtProvisioning}</p>
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Last Audit Event</p>
+          <p className="eyebrow m-0">{strings.ui.tenantDetail.lastAuditEvent}</p>
           <p className="mx-0 mt-3 mb-1.5 font-mono text-sm leading-relaxed break-words text-ink">{tenant.audit_event_type}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words font-mono text-[13px]">{tenant.audit_event_id ?? "No audit id"}</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words font-mono text-[13px]">{tenant.audit_event_id ?? strings.ui.tenantDetail.noAuditId}</p>
         </article>
       </div>
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
           <div>
-            <p className="eyebrow m-0">Lifecycle Timeline</p>
-            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Provisioning and lifecycle transitions</h2>
+            <p className="eyebrow m-0">{strings.ui.tenantDetail.lifecycleTimeline}</p>
+            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.tenantDetail.provisioningAndLifecycleTransitions}</h2>
             <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-              Every transition records the operator actor, an optional reason and append-only
-              audit evidence.
+              {strings.ui.tenantDetail.everyTransitionRecordsTheOperator}
             </p>
           </div>
           <History size={18} />
@@ -238,23 +237,23 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
           {timeline.map((entry) => (
             <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0" key={entry.key}>
               <div>
-                <p className="eyebrow m-0">Event</p>
+                <p className="eyebrow m-0">{strings.ui.common.event}</p>
                 <p className="m-0 font-medium text-ink break-words">{entry.label}</p>
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                   {formatTimestamp(entry.timestamp)}
                 </p>
               </div>
               <div>
-                <p className="eyebrow m-0">Actor</p>
-                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{entry.actor ?? "Unknown actor"}</p>
+                <p className="eyebrow m-0">{strings.ui.common.actor}</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{entry.actor ?? strings.ui.tenantDetail.unknownActor}</p>
               </div>
               <div>
-                <p className="eyebrow m-0">Reason</p>
-                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{entry.reason ?? "No reason recorded"}</p>
+                <p className="eyebrow m-0">{strings.ui.tenantDetail.reason}</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{entry.reason ?? strings.ui.tenantDetail.noReasonRecorded}</p>
               </div>
               <div>
-                <p className="eyebrow m-0">Audit Event ID</p>
-                <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{entry.auditEventId ?? (entry.auditEventSuperseded ? "Superseded by later event" : strings.clarity.auditEventIdUnavailable)}</p>
+                <p className="eyebrow m-0">{strings.ui.tenantDetail.auditEventId}</p>
+                <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{entry.auditEventId ?? (entry.auditEventSuperseded ? strings.ui.tenantDetail.supersededByLaterEvent : strings.clarity.auditEventIdUnavailable)}</p>
               </div>
             </div>
           ))}
@@ -271,7 +270,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
 
       {notes.length > 0 ? (
         <details className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-          <summary className="cursor-pointer text-sm font-medium text-ink">Tenant notes</summary>
+          <summary className="cursor-pointer text-sm font-medium text-ink">{strings.ui.tenantDetail.tenantNotes}</summary>
           <div className="mt-3 grid min-w-0 gap-2.5">
             {notes.map((note) => (
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>

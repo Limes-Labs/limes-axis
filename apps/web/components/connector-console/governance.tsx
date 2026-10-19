@@ -65,6 +65,7 @@ function SectionState({
   emptyLabel: string;
   children: ReactNode;
 }) {
+  const strings = useStrings();
   if (source === "loading") {
     return <LoadingPanel rows={2} />;
   }
@@ -78,7 +79,7 @@ function SectionState({
     return (
       <>
         <p className="m-0 text-sm text-warning" role="status">
-          Live refresh failed. Showing the last validated data.
+          {strings.ui.connectorConsoleGovernance.liveRefreshFailedShowingThe}
         </p>
         {children}
       </>
@@ -152,10 +153,10 @@ export function ConnectorGovernance({
                 status={handle.status}
                 title={handle.display_name}
               >
-                <KeyValueRow label="Reference" mono>
+                <KeyValueRow label={strings.ui.connectorConsoleGovernance.reference} mono>
                   {handle.secret_ref}
                 </KeyValueRow>
-                <KeyValueRow label="Rotation">
+                <KeyValueRow label={strings.ui.connectorConsoleGovernance.rotation}>
                   {formatConnectorLabel(handle.rotation_status)} / every{" "}
                   {handle.rotation_interval_days} days
                 </KeyValueRow>
@@ -181,10 +182,10 @@ export function ConnectorGovernance({
                 status={lease.status}
                 title={lease.lease_purpose}
               >
-                <KeyValueRow label="Lease" mono>
+                <KeyValueRow label={strings.ui.connectorConsoleGovernance.lease} mono>
                   {lease.lease_id}
                 </KeyValueRow>
-                <KeyValueRow label="Window">
+                <KeyValueRow label={strings.ui.connectorConsoleGovernance.window}>
                   {formatDateTime(lease.granted_at)} → {formatDateTime(lease.expires_at)}
                 </KeyValueRow>
               </RecordRow>
@@ -209,11 +210,11 @@ export function ConnectorGovernance({
                 status={policy.status}
                 title={policy.display_name}
               >
-                <KeyValueRow label="Boundary">
+                <KeyValueRow label={strings.ui.connectorConsoleGovernance.boundary}>
                   {formatConnectorLabel(policy.egress_boundary)} /{" "}
                   {formatConnectorLabel(policy.policy_mode)}
                 </KeyValueRow>
-                <KeyValueRow label="Profile" mono>
+                <KeyValueRow label={strings.ui.connectorConsoleGovernance.profile} mono>
                   {policy.connection_profile_id}
                 </KeyValueRow>
               </RecordRow>

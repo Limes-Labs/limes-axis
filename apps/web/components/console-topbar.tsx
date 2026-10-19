@@ -119,7 +119,7 @@ export function ConsoleTopbar({
   return (
     <header
       className="ops-topbar sticky top-14 isolate z-10 -mx-4 flex min-h-[62px] flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface/80 px-4 py-2 backdrop-blur-xl max-sm:grid max-sm:min-h-0 max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-2 max-sm:py-1.5 sm:-mx-6 sm:px-6 min-[921px]:top-0 dark:border-white/10"
-      aria-label="Console status bar"
+      aria-label={strings.ui.consoleTopbar.consoleStatusBar}
     >
       <div className="flex min-w-0 flex-wrap items-center gap-2 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:pb-px max-sm:[&_.status-pill]:px-2 max-sm:[&_.status-pill]:text-[11px] max-sm:[&_.status-pill]:whitespace-nowrap sm:ml-auto sm:justify-end">
         <span className={`status-pill ${apiStatusClass(apiStatus.state)}`} title={apiStatus.detail}>
@@ -145,13 +145,13 @@ export function ConsoleTopbar({
       </div>
       <div
         className="ops-toolbar-icons flex min-w-0 flex-wrap items-center justify-end gap-2 max-sm:flex-nowrap max-sm:gap-0.5"
-        aria-label="Utility actions"
+        aria-label={strings.ui.consoleTopbar.utilityActions}
       >
         <button
           className="icon-button"
           type="button"
-          aria-label="Refresh state"
-          title="Refresh state"
+          aria-label={strings.ui.common.refreshState}
+          title={strings.ui.common.refreshState}
           onClick={triggerRefresh}
         >
           <RefreshCw size={17} />

@@ -121,9 +121,9 @@ export function ApprovalQueue({
           <Field label={copy.risk}>
             <Select className="min-h-11" onChange={(event) => onFilterChange({ risk: event.target.value as ApprovalQueueFilters["risk"] })} value={filters.risk}>
               <option value="all">{copy.allRisks}</option>
-              <option value="high">High risk</option>
-              <option value="medium">Medium risk</option>
-              <option value="low">Low risk</option>
+              <option value="high">{strings.ui.approvalsApprovalQueue.highRisk}</option>
+              <option value="medium">{strings.ui.approvalsApprovalQueue.mediumRisk}</option>
+              <option value="low">{strings.ui.approvalsApprovalQueue.lowRisk}</option>
             </Select>
           </Field>
           <Field label={copy.domain}>

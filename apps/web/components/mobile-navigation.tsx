@@ -48,18 +48,18 @@ export function MobileNavigation({
   const currentGroup = currentItem
     ? navGroups.find((group) => group.items.some((item) => item.href === currentItem.href))
     : null;
-  const currentLabel = currentItem?.label ?? "Console";
+  const currentLabel = currentItem?.label ?? strings.routeError.eyebrow;
 
   return (
     <nav
-      aria-label={`Mobile Axis navigation. Current section: ${currentLabel}`}
+      aria-label={strings.ui.mobileNavigation.navigationLabel(currentLabel)}
       className="sticky top-0 z-20 block h-14 border-b border-line bg-surface/95 px-3 backdrop-blur-xl min-[921px]:hidden dark:border-white/10"
       data-mobile-navigation
     >
       <div className="flex h-full min-w-0 items-center gap-2.5">
         <Link
           aria-current={currentItem?.href === "/" ? "page" : undefined}
-          aria-label="Limes Axis overview"
+          aria-label={strings.ui.mobileNavigation.limesAxisOverview}
           className="grid size-11 shrink-0 place-items-center rounded-xl text-ink transition-colors hover:bg-signal/8 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
           href="/"
         >
@@ -92,14 +92,14 @@ export function MobileNavigation({
           </SheetTrigger>
           <SheetContent className="w-[88vw]! max-w-[22rem]! gap-5 p-4!" side="left">
             <SheetHeader>
-              <SheetTitle>Navigate Axis</SheetTitle>
+              <SheetTitle>{strings.ui.mobileNavigation.navigateAxis}</SheetTitle>
               <SheetDescription>
-                Current section: {currentLabel}. Choose another console area.
+                {strings.ui.mobileNavigation.sheetDescription(currentLabel)}
               </SheetDescription>
             </SheetHeader>
 
             <nav
-              aria-label="All Axis sections"
+              aria-label={strings.ui.mobileNavigation.allAxisSections}
               className="grid min-h-0 grow content-start gap-1 overflow-y-auto overscroll-contain pr-1 pb-2"
             >
               {navGroups.map((group, index) => (

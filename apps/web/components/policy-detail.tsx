@@ -88,16 +88,17 @@ function ConditionTagList({ items, anyLabel }: { items?: string[]; anyLabel: str
 }
 
 function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[] }) {
+  const strings = useStrings();
   return (
     <DataTable wrapperProps={{ className: "min-w-0" }}>
-      <caption className="sr-only">Policy revision history</caption>
+      <caption className="sr-only">{strings.ui.policyDetail.policyRevisionHistory}</caption>
       <thead>
         <tr>
-          <th>Revision</th>
-          <th>Effect</th>
-          <th>Conditions</th>
-          <th>Status</th>
-          <th>Authored</th>
+          <th>{strings.ui.common.revision}</th>
+          <th>{strings.ui.common.effect}</th>
+          <th>{strings.ui.common.conditions}</th>
+          <th>{strings.ui.common.status}</th>
+          <th>{strings.ui.policyDetail.authored}</th>
         </tr>
       </thead>
       <tbody>
@@ -110,7 +111,7 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
               {revision.revises_revision_number != null ? (
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Revises r{revision.revises_revision_number}</p>
               ) : (
-                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Initial revision</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{strings.ui.policyDetail.initialRevision}</p>
               )}
             </td>
             <td>
@@ -234,7 +235,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
   if (identity.source === "unavailable" || !tenantId) {
     return (
       <ErrorPanel
-        detail="The console could not verify the current actor and tenant. Policy data is not loaded until identity is available."
+        detail={strings.ui.common.theConsoleCouldNotVerify}
         endpoint={IDENTITY_SESSION_ENDPOINT}
         reference={identity.errorRequestId ?? undefined}
         onRetry={identity.refetch}
@@ -266,13 +267,13 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
       <div className="grid min-w-0 gap-4">
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="eyebrow m-0">Platform Policy</p>
-            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Policy not found</h2>
+            <p className="eyebrow m-0">{strings.ui.policyDetail.platformPolicy}</p>
+            <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.policyDetail.policyNotFound}</h2>
             <p className="mx-0 mt-1 mb-0 leading-snug text-muted break-words font-mono text-[13px]">{policyId}</p>
           </div>
           <Link className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href="/policies">
             <ArrowLeft size={17} />
-            Policies
+            {strings.ui.common.policies}
           </Link>
         </section>
       </div>
@@ -300,7 +301,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
             {detail.policy_id} / {detail.tenant_id}
           </p>
         </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Policy source and status">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label={strings.ui.policyDetail.policySourceAndStatus}>
           <SourcePill
             state={deriveSourceState(
               source === "missing" ? "unavailable" : source,
@@ -315,29 +316,29 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
           </span>
           <Link className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href="/policies">
             <ArrowLeft size={17} />
-            Policies
+            {strings.ui.common.policies}
           </Link>
         </div>
       </section>
 
       <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4 [&>*]:min-w-0">
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Current Revision</p>
+          <p className="eyebrow m-0">{strings.ui.policyDetail.currentRevision}</p>
           <p className="mx-0 mt-2 mb-0 font-mono text-[13px] break-words text-ink">r{current.revision_number}</p>
           <p className="m-0 text-xs leading-relaxed text-muted break-words">{current.policy_version}</p>
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Status</p>
+          <p className="eyebrow m-0">{strings.ui.common.status}</p>
           <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{policyStatusLabel(current.status)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">Only the active revision is evaluated</p>
+          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.policyDetail.onlyTheActiveRevisionIs}</p>
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Authored By</p>
+          <p className="eyebrow m-0">{strings.ui.policyDetail.authoredBy}</p>
           <p className="mx-0 mt-3 mb-1.5 font-mono text-sm leading-relaxed break-words text-ink">{current.created_by}</p>
           <p className="m-0 text-xs leading-relaxed text-muted break-words">{formatTimestamp(current.created_at)}</p>
         </article>
         <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">Authoring Scope</p>
+          <p className="eyebrow m-0">{strings.ui.policyDetail.authoringScope}</p>
           <p className="mx-0 mt-2 mb-0 font-mono text-[13px] break-words text-ink">{current.required_authoring_scope}</p>
           <p className="m-0 text-xs leading-relaxed text-muted break-words">{current.audit_event_type}</p>
         </article>
@@ -358,41 +359,41 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
 
         <TabsContent className="grid min-w-0 gap-4" value="conditions">
           <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-            <p className="eyebrow m-0">Rule Conditions</p>
+            <p className="eyebrow m-0">{strings.ui.policyDetail.ruleConditions}</p>
             <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
               {summarizePolicyConditions(current.conditions)}
             </h2>
             <div className="grid grid-cols-2 gap-3.5 border-y border-line/60 py-3.5 xl:grid-cols-4 dark:border-white/10 [&>*]:min-w-0">
               <div>
-                <p className="eyebrow m-0">Action Domains</p>
+                <p className="eyebrow m-0">{strings.ui.common.actionDomains}</p>
                 <ConditionTagList
                   anyLabel="Any domain"
                   items={current.conditions.action_domains}
                 />
               </div>
               <div>
-                <p className="eyebrow m-0">Risk Levels</p>
+                <p className="eyebrow m-0">{strings.ui.policyDetail.riskLevels}</p>
                 <ConditionTagList
                   anyLabel="Any risk level"
                   items={current.conditions.risk_levels}
                 />
               </div>
               <div>
-                <p className="eyebrow m-0">Autonomy Levels</p>
+                <p className="eyebrow m-0">{strings.ui.policyDetail.autonomyLevels}</p>
                 <ConditionTagList
                   anyLabel="Any autonomy level"
                   items={current.conditions.autonomy_levels}
                 />
               </div>
               <div>
-                <p className="eyebrow m-0">Amount Threshold</p>
+                <p className="eyebrow m-0">{strings.ui.common.amountThreshold}</p>
                 <p className="m-0 font-mono text-[13px] font-medium text-ink break-words">
                   {current.conditions.requested_amount_at_least != null
                     ? `>= ${current.conditions.requested_amount_at_least}`
-                    : "No amount gate"}
+                    : strings.ui.policyDetail.noAmountGate}
                 </p>
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                  Malformed amounts fail closed
+                  {strings.ui.policyDetail.malformedAmountsFailClosed}
                 </p>
               </div>
             </div>
@@ -411,9 +412,9 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
           </section>
 
           <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-            <p className="eyebrow m-0">Evaluation Precedence</p>
+            <p className="eyebrow m-0">{strings.ui.common.evaluationPrecedence}</p>
             <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
-              Deterministic decision order
+              {strings.ui.policyDetail.deterministicDecisionOrder}
             </h2>
             <div className="grid min-w-0 gap-2.5">
               {platformPolicyPrecedenceSteps.map((step) => (
@@ -431,7 +432,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
         <TabsContent className="grid min-w-0 gap-4" value="revisions">
           {urlState.revisedRevisionNumber ? (
             <div
-              aria-label="Policy revision result"
+              aria-label={strings.ui.policyDetail.policyRevisionResult}
               className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-signal/30 bg-tint-50 px-4 py-3 dark:border-signal/40 dark:bg-signal/10"
               data-policy-revised
               role="status"
@@ -445,7 +446,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
                 onClick={() => setUrlState({ revisedRevisionNumber: "" })}
                 type="button"
               >
-                Dismiss
+                {strings.ui.common.dismiss}
               </button>
             </div>
           ) : null}
@@ -458,12 +459,12 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
           <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
               <div>
-                <p className="eyebrow m-0">Revision History</p>
+                <p className="eyebrow m-0">{strings.ui.policyDetail.revisionHistory}</p>
                 <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
                   {formatNumber(detail.revisions.length)} append-only revisions
                 </h2>
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                  Superseded revisions stay readable but are never evaluated.
+                  {strings.ui.policyDetail.supersededRevisionsStayReadableBut}
                 </p>
               </div>
               <ScrollText size={18} />
@@ -474,27 +475,27 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
           <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
               <div>
-                <p className="eyebrow m-0">Revision Compare</p>
+                <p className="eyebrow m-0">{strings.ui.policyDetail.revisionCompare}</p>
                 <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
-                  Diff a revision against the current one
+                  {strings.ui.policyDetail.diffARevisionAgainstThe}
                 </h2>
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                  Field-level compare of name, description, effect and typed conditions.
+                  {strings.ui.policyDetail.fieldLevelCompareOfName}
                 </p>
               </div>
               <GitCompareArrows size={18} />
             </div>
             {compareCandidates.length > 0 ? (
               <div className="grid grid-cols-1 items-end gap-3 border-t border-line/60 pt-4 dark:border-white/10 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
-                <Field label="Compare Revision">
+                <Field label={strings.ui.policyDetail.compareRevision}>
                   <Select
-                    aria-label="Revision to compare"
+                    aria-label={strings.ui.policyDetail.revisionToCompare}
                     onChange={(event) =>
                       setUrlState({ compareRevisionNumber: event.target.value })
                     }
                     value={compareRevisionNumber}
                   >
-                    <option value="">Select a revision</option>
+                    <option value="">{strings.ui.policyDetail.selectARevision}</option>
                     {compareCandidates.map((revision) => (
                       <option key={revision.revision_number} value={revision.revision_number}>
                         r{revision.revision_number} / {revision.policy_version}
@@ -505,7 +506,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
               </div>
             ) : (
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                Only the initial revision exists; append a revision to compare definitions.
+                {strings.ui.policyDetail.onlyTheInitialRevisionExists}
               </p>
             )}
             {compareRevision ? (
@@ -518,13 +519,12 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
           <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
               <div>
-                <p className="eyebrow m-0">Dry-Run Evaluation</p>
+                <p className="eyebrow m-0">{strings.ui.policyDetail.dryRunEvaluation}</p>
                 <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
-                  Evaluate a context against tenant policies
+                  {strings.ui.policyDetail.evaluateAContextAgainstTenant}
                 </h2>
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                  Dry run only: evaluation is deterministic, records no audit event and
-                  never mutates state.
+                  {strings.ui.policyDetail.dryRunOnlyEvaluationIs}
                 </p>
               </div>
               <FlaskConical size={18} />

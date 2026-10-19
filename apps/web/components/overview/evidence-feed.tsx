@@ -110,7 +110,10 @@ export function EvidenceFeed({
           <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
             {readsToggle}
             <span className="font-mono text-xs whitespace-nowrap text-muted">
-              Showing {Math.min(events.length, FEED_ROW_LIMIT)} of {events.length} recent events
+              {strings.ui.overviewEvidenceFeed.showingRecent(
+                Math.min(events.length, FEED_ROW_LIMIT),
+                events.length,
+              )}
             </span>
           </span>
         }

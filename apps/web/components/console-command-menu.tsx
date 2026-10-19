@@ -242,7 +242,7 @@ export function ConsoleCommandMenu({
         ) : null}
       </CommandList>
       <div
-        aria-label="Current API status"
+        aria-label={strings.ui.consoleCommandMenu.currentApiStatus}
         className="flex items-center justify-between border-t border-line px-3.5 py-2 font-mono text-[10.5px] font-medium tracking-[0.16em] text-muted uppercase dark:border-white/10"
       >
         <span>{copy.apiStatus}</span>

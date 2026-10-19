@@ -91,7 +91,7 @@ export function OntologyEntitySheet({
           <>
             {source === "unavailable" ? (
               <p className="m-0 text-sm text-warning" role="status">
-                Live refresh failed. Showing the last validated entity data.
+                {strings.ui.ontologyEntitySheet.liveRefreshFailedShowingThe}
               </p>
             ) : null}
             <EntityDetailContent detail={detail} layout="sheet" onNavigateToNode={onNavigateToNode} />

@@ -202,7 +202,7 @@ function ApprovalAttentionRow({
             className="inline-flex w-fit items-center text-sm font-medium text-signal hover:underline"
             href="/approvals"
           >
-            Open the full approval inbox
+            {strings.ui.overviewNeedsAttention.openTheFullApprovalInbox}
           </Link>
         </SheetContent>
       </Sheet>
@@ -228,9 +228,10 @@ function AttentionSources({
   approvals: OverviewQuery<ManufacturingApprovalInbox>;
   overview: OverviewQuery<ManufacturingOverview>;
 }) {
+  const strings = useStrings();
   return (
     <div
-      aria-label="Needs attention data sources"
+      aria-label={strings.ui.overviewNeedsAttention.needsAttentionDataSources}
       className="flex min-w-0 flex-wrap items-center gap-1.5"
     >
       <SourcePill

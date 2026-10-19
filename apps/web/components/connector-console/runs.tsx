@@ -460,7 +460,7 @@ export function ConnectorRuns({
 
       {runsQuery.source === "unavailable" && connectorRuns.length > 0 ? (
         <p className="m-0 text-sm text-warning" role="status">
-          Live refresh failed. Showing the last validated run data.
+          {strings.ui.connectorConsoleRuns.liveRefreshFailedShowingThe}
         </p>
       ) : null}
 

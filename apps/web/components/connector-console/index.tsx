@@ -191,7 +191,7 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
   if (!tenantQueriesEnabled || tenantId === null) {
     if (identity.source === "loading") {
       return (
-        <div aria-label="Loading connector identity" className="grid gap-4">
+        <div aria-label={strings.ui.connectorConsole.loadingConnectorIdentity} className="grid gap-4">
           <LoadingPanel layout="metrics" rows={5} />
           <MasterDetail detail={<LoadingPanel layout="detail" />} list={<LoadingPanel rows={4} />} />
         </div>
@@ -200,11 +200,11 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
 
     return (
       <ErrorPanel
-        detail="The connector console is disabled because the current tenant could not be verified."
+        detail={strings.ui.connectorConsole.theConnectorConsoleIsDisabled}
         endpoint={IDENTITY_SESSION_ENDPOINT}
         onRetry={identity.refetch}
         reference={identity.errorRequestId ?? undefined}
-        title="Tenant identity unavailable"
+        title={strings.ui.connectorConsole.tenantIdentityUnavailable}
       />
     );
   }
@@ -212,7 +212,7 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
   if (!registry.data) {
     if (registry.source === "loading") {
       return (
-        <div aria-label="Loading connector API" className="grid gap-4">
+        <div aria-label={strings.ui.connectorConsole.loadingConnectorApi} className="grid gap-4">
           <LoadingPanel layout="metrics" rows={5} />
           <MasterDetail detail={<LoadingPanel layout="detail" />} list={<LoadingPanel rows={4} />} />
         </div>
@@ -286,7 +286,7 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
   return (
     <div className="grid gap-4">
       <div
-        aria-label="Connector source and status"
+        aria-label={strings.ui.connectorConsole.connectorSourceAndStatus}
         className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2"
       >
         <p className="m-0 min-w-0 text-sm break-words text-muted">
@@ -348,14 +348,14 @@ function ConnectorWorkspace({ scope }: { scope: ReturnType<typeof useConsoleTena
         <MasterDetail
           detail={registries.detail.source === "unavailable" ? (
             <ErrorPanel
-              title="Connector detail unavailable"
-              detail="Refresh to load the selected connector again."
+              title={strings.ui.connectorConsole.connectorDetailUnavailable}
+              detail={strings.ui.connectorConsole.refreshToLoadTheSelected}
               endpoint={CONNECTOR_ENDPOINTS.detail}
               reference={registries.detail.errorRequestId ?? undefined}
             />
           ) : !selectedConnector ? (
             registries.selectedConnectorId ? <LoadingPanel layout="detail" /> : (
-              <EmptyPanel title="Select a connector" detail="Choose a connector from the list." icon={Cable} />
+              <EmptyPanel title={strings.ui.connectorConsole.selectAConnector} detail={strings.ui.connectorConsole.chooseAConnectorFromThe} icon={Cable} />
             )
           ) : (
             <ConnectorDetail

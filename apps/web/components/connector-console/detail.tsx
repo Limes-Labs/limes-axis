@@ -41,8 +41,9 @@ import { ManifestExportPanel } from "./manifest-export-panel";
  */
 
 function ChipList({ items, emptyLabel }: { items: string[]; emptyLabel?: string }) {
+  const strings = useStrings();
   if (items.length === 0) {
-    return <span className="text-sm text-muted">{emptyLabel ?? "None"}</span>;
+    return <span className="text-sm text-muted">{emptyLabel ?? strings.ui.common.none}</span>;
   }
 
   return (

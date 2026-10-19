@@ -139,10 +139,10 @@ export function SidebarAccount({
         </Link>
         <button
           aria-expanded={activePanel === "help"}
-          aria-label="Open platform help"
+          aria-label={strings.ui.sidebarAccount.openPlatformHelp}
           className={cn("icon-button", activePanel === "help" && "icon-button-active")}
           onClick={() => toggle("help")}
-          title="Open platform help"
+          title={strings.ui.sidebarAccount.openPlatformHelp}
           type="button"
         >
           <HugeiconsIcon icon={HelpCircleIcon} size={17} strokeWidth={1.8} />
@@ -192,10 +192,10 @@ export function SidebarAccount({
 
       <button
         aria-expanded={activePanel === "help"}
-        aria-label="Open platform help"
+        aria-label={strings.ui.sidebarAccount.openPlatformHelp}
         className={cn(footerRowClass, activePanel === "help" && "bg-signal/10 text-ink")}
         onClick={() => toggle("help")}
-        title="Open platform help"
+        title={strings.ui.sidebarAccount.openPlatformHelp}
         type="button"
       >
         <HugeiconsIcon icon={HelpCircleIcon} size={18} strokeWidth={1.8} />

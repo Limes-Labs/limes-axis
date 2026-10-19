@@ -11,8 +11,8 @@ type PolicyDetailPageProps = {
 };
 
 export async function generateMetadata({ params }: PolicyDetailPageProps): Promise<Metadata> {
-  const { policyId } = await params;
-  return { title: `Policy ${policyId}` };
+  const [{ policyId }, strings] = await Promise.all([params, getServerStrings()]);
+  return { title: strings.ui.detailPages.policyMetaTitle(policyId) };
 }
 
 export default async function PolicyDetailPage({ params }: PolicyDetailPageProps) {
@@ -23,7 +23,7 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
     <ConsolePage
       pageKey="policies"
       subtitle={strings.clarity.policyPurpose}
-      title="Policy detail"
+      title={strings.ui.detailPages.policyTitle}
     >
       <PolicyDetail key={policyId} policyId={policyId} />
     </ConsolePage>

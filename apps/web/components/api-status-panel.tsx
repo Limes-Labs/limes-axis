@@ -8,6 +8,7 @@ import {
   summarizeApiStatus,
   type ApiStatusSummary,
 } from "@/lib/api-status";
+import { useStrings } from "@/providers/locale-provider";
 
 const checkingStatus: ApiStatusSummary = {
   state: "checking",
@@ -21,6 +22,7 @@ async function endpointResponds(url: string, signal: AbortSignal): Promise<boole
 }
 
 export function ApiStatusPanel() {
+  const strings = useStrings();
   const [status, setStatus] = useState<ApiStatusSummary>(checkingStatus);
   const apiBaseUrl = getApiBaseUrl();
 
@@ -49,8 +51,8 @@ export function ApiStatusPanel() {
   return (
     <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 grid gap-3">
       <div>
-        <p className="eyebrow m-0">API Status</p>
-        <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Control API</h2>
+        <p className="eyebrow m-0">{strings.ui.apiStatusPanel.apiStatus}</p>
+        <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.apiStatusPanel.controlApi}</h2>
       </div>
       <div className="grid gap-2">
         <span className={`status-pill status-${status.state}`}>
