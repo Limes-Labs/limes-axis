@@ -10,13 +10,18 @@ a complete per-component outcome before any application access is possible:
   digest evidence; a crash leaves resumable or quarantined state, never a
   partially activated tenant.
 * Execution is fenced: one worker owns a run's current step via a row lock
-  plus explicit fencing flag; two workers cannot claim the same generation.
+  plus an explicit fencing flag and owner; two workers cannot claim the same
+  generation. Only the fencing worker may re-claim its interrupted step.
 * Every step is idempotent by construction (deterministic handler writes);
   retries re-run the handler and record a new attempt, completed steps are
   never re-executed.
 * Authorization binds the run to the exact bundle/plan/target digests and
   the acknowledgement; operator rights are re-checked through an injected
   callback at start and at every resume, failing closed.
+* The target tenant row is read under lock and must be ``suspended`` at
+  start and at every claim; a target already bound to another bundle is
+  refused, never overwritten by an implicit id match. Unsupported plans
+  (blocked rebinding) and manifests that do not match the plan are refused.
 * Writes land only inside the newly admitted suspended target tenant and a
   dedicated object prefix derived from the bundle digest; object-store
   writes and SQL step records are not one distributed transaction, so
@@ -37,7 +42,12 @@ from axis_sdk.connector_authoring.contracts import Digest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from axis_api.models import PortabilityRestoreRunRecord, PortabilityRestoreStepRecord
+from axis_api.models import (
+    PortabilityRestoreRunRecord,
+    PortabilityRestoreStepRecord,
+    Tenant,
+)
+from axis_api.portability_manifest import PortabilityManifest
 from axis_api.portability_validator import PlanAcknowledgement, RestorePlan
 
 RUN_STATE_PENDING = "pending"
@@ -61,6 +71,9 @@ class PortabilityRestoreError(ValueError):
     OPERATOR_UNAUTHORIZED = "restore_operator_not_authorized"
     TARGET_NOT_SUSPENDED = "restore_target_not_suspended"
     UNSUPPORTED_HANDLER = "restore_handler_unsupported"
+    PLAN_UNSUPPORTED = "restore_plan_unsupported"
+    TARGET_BOUND = "restore_target_bound_to_other_restore"
+    EVIDENCE_INVALID = "restore_step_evidence_invalid"
 
     def __init__(self, code: str) -> None:
         self.code = code
@@ -144,6 +157,14 @@ class HandlerRegistry:
         return self.handlers.get(component_id)
 
 
+def _is_digest(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(char in "0123456789abcdef" for char in value)
+    )
+
+
 def _dependency_order(manifest_components) -> list[str]:
     """Topological order over depends_on; unknown dependencies first."""
 
@@ -166,28 +187,61 @@ def _dependency_order(manifest_components) -> list[str]:
     return [component_id for component_id in order if component_id in by_id]
 
 
+def _require_suspended_target(session: Session, target_tenant_id: str) -> None:
+    """The persisted tenant row, not a caller claim, decides suspension."""
+
+    tenant = session.get(Tenant, target_tenant_id, with_for_update=True)
+    if tenant is None or tenant.status != "suspended":
+        raise PortabilityRestoreError(PortabilityRestoreError.TARGET_NOT_SUSPENDED)
+
+
 def start_restore_run(
     session: Session,
     *,
     plan: RestorePlan,
     acknowledgement: PlanAcknowledgement,
     target_tenant_id: str,
-    target_tenant_status: str,
-    manifest_components,
+    manifest: PortabilityManifest,
     acknowledged_by: str,
     authorized_by: str,
     authorize: Callable[[str], bool],
 ) -> PortabilityRestoreRunRecord:
-    """Persist a new run (or resume an identical interrupted generation)."""
+    """Persist a new run (or resume an identical interrupted generation).
+
+    ``manifest`` must be the validated manifest the plan was derived from;
+    its digest is checked against the plan so steps cannot be derived from
+    a different component inventory.
+    """
 
     if acknowledgement.plan_digest != plan.plan_digest:
         raise PortabilityRestoreError(PortabilityRestoreError.PLAN_MISMATCH)
     if acknowledgement.acknowledged_by != acknowledged_by:
         raise PortabilityRestoreError(PortabilityRestoreError.PLAN_MISMATCH)
+    if manifest.digest() != plan.manifest_digest:
+        raise PortabilityRestoreError(PortabilityRestoreError.PLAN_MISMATCH)
+    if not plan.supported or plan.blocked_by:
+        raise PortabilityRestoreError(PortabilityRestoreError.PLAN_UNSUPPORTED)
     if not authorize(authorized_by):
         raise PortabilityRestoreError(PortabilityRestoreError.OPERATOR_UNAUTHORIZED)
-    if target_tenant_status != "suspended":
-        raise PortabilityRestoreError(PortabilityRestoreError.TARGET_NOT_SUSPENDED)
+    _require_suspended_target(session, target_tenant_id)
+    manifest_components = manifest.components
+
+    # A target is bound to one bundle; a different bundle, or a different
+    # plan while an earlier one is still unfinished, never reuses it.
+    conflicting = session.scalar(
+        select(PortabilityRestoreRunRecord.id)
+        .where(
+            PortabilityRestoreRunRecord.target_tenant_id == target_tenant_id,
+            (PortabilityRestoreRunRecord.bundle_digest != plan.bundle_digest)
+            | (
+                (PortabilityRestoreRunRecord.plan_digest != plan.plan_digest)
+                & (PortabilityRestoreRunRecord.state != RUN_STATE_COMPLETED)
+            ),
+        )
+        .limit(1)
+    )
+    if conflicting is not None:
+        raise PortabilityRestoreError(PortabilityRestoreError.TARGET_BOUND)
 
     existing = session.scalar(
         select(PortabilityRestoreRunRecord)
@@ -200,23 +254,29 @@ def start_restore_run(
         .limit(1)
         .with_for_update()
     )
+    if existing is not None and existing.state == RUN_STATE_COMPLETED:
+        # Idempotent: an identical completed restore is never re-executed.
+        return existing
     if existing is not None and existing.state in {
         RUN_STATE_PENDING,
         RUN_STATE_RUNNING,
         RUN_STATE_QUARANTINED,
     }:
         # Resume: only interrupted work (failed for a retryable reason) goes
-        # back to pending; missing-handler blocks stay blocked until an
-        # operator registers the handler.
+        # back to pending; missing-handler blocks stay blocked.
+        steps_failed = dict(existing.steps_failed)
         for step in session.scalars(
             select(PortabilityRestoreStepRecord).where(
                 PortabilityRestoreStepRecord.run_id == existing.id,
                 PortabilityRestoreStepRecord.state == STEP_STATE_FAILED,
             )
         ):
-            if existing.steps_failed.get(step.component_id) != "missing_handler":
+            if steps_failed.get(step.component_id) != "missing_handler":
                 step.state = STEP_STATE_PENDING
-                existing.steps_failed.pop(step.component_id, None)
+                steps_failed.pop(step.component_id, None)
+        # Reassign: in-place mutation of a JSON column is not persisted.
+        existing.steps_failed = steps_failed
+        session.flush()
         return existing
 
     from datetime import UTC, datetime
@@ -236,6 +296,7 @@ def start_restore_run(
         steps_completed=[],
         steps_failed={},
         fenced=False,
+        fenced_by=None,
     )
     session.add(run)
     session.flush()
@@ -270,12 +331,14 @@ def claim_step(
     run = session.get(PortabilityRestoreRunRecord, run_id, with_for_update=True)
     if run is None:
         raise PortabilityRestoreError(PortabilityRestoreError.NOT_RESUMABLE)
-    if run.fenced and run.current_step != component_id:
+    # Only the fencing worker may re-claim its own interrupted step.
+    if run.fenced and (run.current_step != component_id or run.fenced_by != worker_id):
         raise PortabilityRestoreError(PortabilityRestoreError.FENCED)
     if not authorize(worker_id):
         raise PortabilityRestoreError(PortabilityRestoreError.OPERATOR_UNAUTHORIZED)
     if run.state not in {RUN_STATE_PENDING, RUN_STATE_RUNNING, RUN_STATE_QUARANTINED}:
         raise PortabilityRestoreError(PortabilityRestoreError.NOT_RESUMABLE)
+    _require_suspended_target(session, run.target_tenant_id)
     step = session.scalar(
         select(PortabilityRestoreStepRecord).where(
             PortabilityRestoreStepRecord.run_id == run.id,
@@ -285,6 +348,7 @@ def claim_step(
     if step is None or step.state in {STEP_STATE_COMPLETED, STEP_STATE_BLOCKED}:
         raise PortabilityRestoreError(PortabilityRestoreError.NOT_RESUMABLE)
     run.fenced = True
+    run.fenced_by = worker_id
     run.current_step = component_id
     run.state = RUN_STATE_RUNNING
     step.state = STEP_STATE_IN_PROGRESS
@@ -315,11 +379,19 @@ def complete_step(
         raise PortabilityRestoreError(PortabilityRestoreError.NOT_RESUMABLE)
     if step.state == STEP_STATE_COMPLETED:
         return run
+    # Only a claimed step completes: pending, failed or blocked steps can
+    # never be marked restored without running their handler.
+    if step.state != STEP_STATE_IN_PROGRESS or run.current_step != component_id:
+        raise PortabilityRestoreError(PortabilityRestoreError.NOT_RESUMABLE)
+    if not _is_digest(evidence_digest):
+        raise PortabilityRestoreError(PortabilityRestoreError.EVIDENCE_INVALID)
     step.state = STEP_STATE_COMPLETED
     step.evidence_digest = evidence_digest
     if component_id not in run.steps_completed:
         run.steps_completed = [*run.steps_completed, component_id]
-    run.steps_failed.pop(component_id, None)
+    run.steps_failed = {
+        key: value for key, value in run.steps_failed.items() if key != component_id
+    }
     # Reconciliation queries must observe this step's new state even under
     # autoflush=False sessions.
     session.flush()
@@ -333,11 +405,9 @@ def complete_step(
     ).all()
     if not remaining:
         run.state = RUN_STATE_COMPLETED
-        run.current_step = None
-        run.fenced = False
-    else:
-        run.current_step = None
-        run.fenced = False
+    run.current_step = None
+    run.fenced = False
+    run.fenced_by = None
     session.flush()
     return run
 
@@ -360,14 +430,15 @@ def fail_step(
             PortabilityRestoreStepRecord.component_id == component_id,
         )
     )
-    if step is None:
+    if step is None or step.state != STEP_STATE_IN_PROGRESS:
         raise PortabilityRestoreError(PortabilityRestoreError.NOT_RESUMABLE)
     step.state = STEP_STATE_FAILED
-    step.failure_code = failure_code
+    step.failure_code = failure_code[:80]
     run.state = RUN_STATE_QUARANTINED
-    run.steps_failed = {**run.steps_failed, component_id: failure_code}
+    run.steps_failed = {**run.steps_failed, component_id: failure_code[:80]}
     run.current_step = None
     run.fenced = False
+    run.fenced_by = None
     session.flush()
     return run
 

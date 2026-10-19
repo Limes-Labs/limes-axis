@@ -19,20 +19,24 @@ release-bound behavior, not the complete commit history.
   on an all-PASS supported profile; missing handlers, planned exclusions,
   blocked rows or NOT RUN infrastructure yield the narrower
   `partially_portable`, and corrupt bundles or incompatible versions yield
-  `not_portable` with the exact validator reason.
+  `not_portable` with the exact validator reason
+  ([#879](https://github.com/Limes-Labs/limes-axis/issues/879)).
+
 - Resumable restore runner for portability: persisted run/step state machine
   over versioned component restore ports, dependency-ordered sequencing with
   per-step digest evidence, worker fencing and idempotent retries, quarantine
   and resume of interrupted runs (only identical bundle/plan digests are
-  resumed; changed bundles open a new generation), suspension-gated targets
-  with fail-closed operator authorization, missing handlers recorded as
+  resumed), targets gated on the persisted suspended tenant row and bound to
+  one bundle, unsupported plans refused, fail-closed operator authorization,
+  missing handlers recorded as
   blocked instead of fabricated completion, and activation blockers surfaced
   for the later verification slice
   ([#878](https://github.com/Limes-Labs/limes-axis/issues/878)).
 
 - Offline portability bundle validator and dry-run restore plan: bounded
-  archive-safety checks without opening members, operator-anchored signature
-  verification, per-component payload digest verification, deterministic
+  archive-safety checks without opening members, Ed25519 manifest signature
+  verification against operator-supplied public keys, per-component payload
+  digest verification, deterministic
   identity mapping with explicit consent (two-to-one merges refused, unknown
   principals disabled without default roles), suspension of operational
   schedules, and exclusion acknowledgment gating the later write runner.

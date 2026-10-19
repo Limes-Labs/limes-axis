@@ -30,6 +30,7 @@ def upgrade() -> None:
         sa.Column("steps_completed", sa.JSON(), nullable=False),
         sa.Column("steps_failed", sa.JSON(), nullable=False),
         sa.Column("fenced", sa.Boolean(), nullable=False),
+        sa.Column("fenced_by", sa.String(160), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint(

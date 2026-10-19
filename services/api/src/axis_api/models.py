@@ -2229,11 +2229,12 @@ class PortabilityRestoreRunRecord(Base):
     steps_completed: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     steps_failed: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     fenced: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    fenced_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utc_now, nullable=False
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )
 
     __table_args__ = (
@@ -2275,7 +2276,7 @@ class PortabilityRestoreStepRecord(Base):
         DateTime(timezone=True), default=utc_now, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utc_now, nullable=False
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )
 
     __table_args__ = (

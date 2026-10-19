@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from pydantic import ValidationError
 
 from axis_api.portability_manifest import (
@@ -24,11 +26,22 @@ from axis_api.portability_validator import (
     PortabilityValidationError,
     acknowledge_restore_plan,
     canonical_portability_digest,
+    sign_portability_manifest,
     validate_bundle,
 )
 
 _SOURCE_TENANT = "tenant-source-alpha"
 _TRUSTED_KEY = "signing/2026/portability"
+# Deterministic test-only key; the destination trusts only its public half.
+_SIGNING_KEY = Ed25519PrivateKey.from_private_bytes(bytes(range(32)))
+_ROGUE_KEY = Ed25519PrivateKey.from_private_bytes(bytes(range(32, 64)))
+
+
+def _public(key: Ed25519PrivateKey) -> bytes:
+    return key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+
+
+_TRUSTED_KEYS = {_TRUSTED_KEY: _public(_SIGNING_KEY)}
 _AXIS_VERSION = "1.14.0"
 
 _COMPONENTS = (
@@ -149,16 +162,15 @@ def _bundle(manifest: PortabilityManifest) -> PortabilityBundle:
         component_payloads=_payloads(
             {component.component_id: component.decision for component in manifest.components}
         ),
-        signature=BundleSignature(
-            signer_key_id=_TRUSTED_KEY,
-            signed_manifest_digest=manifest.digest(),
+        signature=sign_portability_manifest(
+            manifest, signer_key_id=_TRUSTED_KEY, private_key=_SIGNING_KEY
         ),
     )
 
 
 def _validated(bundle: PortabilityBundle, **overrides: object):
     values: dict[str, object] = {
-        "trusted_signer_key_ids": frozenset({_TRUSTED_KEY}),
+        "trusted_signer_keys": _TRUSTED_KEYS,
         "supported_axis_versions": (_AXIS_VERSION,),
     }
     values.update(overrides)
@@ -252,13 +264,16 @@ def test_unknown_principals_stay_unmapped_and_disabled() -> None:
 # --- AC: wrong signer, corrupt payload, duplicate, missing, version -------------
 
 
-def _with_signature(bundle: PortabilityBundle, key_id: str) -> PortabilityBundle:
+def _with_signature(
+    bundle: PortabilityBundle,
+    key_id: str,
+    private_key: Ed25519PrivateKey = _ROGUE_KEY,
+) -> PortabilityBundle:
     return PortabilityBundle.model_validate(
         {
             **bundle.model_dump(mode="json"),
-            "signature": BundleSignature(
-                signer_key_id=key_id,
-                signed_manifest_digest=bundle.manifest.digest(),
+            "signature": sign_portability_manifest(
+                bundle.manifest, signer_key_id=key_id, private_key=private_key
             ).model_dump(mode="json"),
         }
     )
@@ -279,13 +294,16 @@ def test_signature_over_a_different_digest_fails() -> None:
             "signature": BundleSignature(
                 signer_key_id=_TRUSTED_KEY,
                 signed_manifest_digest="0" * 64,
+                signature=_SIGNING_KEY.sign(
+                    b"axis.tenant-portability-bundle:manifest:" + b"0" * 64
+                ).hex(),
             ).model_dump(mode="json"),
         }
     )
     with pytest.raises(PortabilityValidationError) as blocked:
         _validated(
             forged,
-            trusted_signer_key_ids=frozenset({_TRUSTED_KEY, "signing/2026/other"}),
+            trusted_signer_keys=_TRUSTED_KEYS | {"signing/2026/other": _public(_ROGUE_KEY)},
         )
     assert blocked.value.code == PortabilityValidationError.UNTRUSTED_SIGNER
 
@@ -497,3 +515,104 @@ def test_validator_module_has_no_network_or_persistence_imports() -> None:
         "subprocess",
     ):
         assert forbidden not in source, forbidden
+
+
+# --- review hardening: real signatures, payload coverage, mapping input --------
+
+
+def test_trusted_key_id_with_a_foreign_key_signature_fails() -> None:
+    # Key ids are public; claiming the trusted id without its private key
+    # must never verify.
+    forged = _with_signature(_bundle(_manifest()), _TRUSTED_KEY, _ROGUE_KEY)
+    with pytest.raises(PortabilityValidationError) as blocked:
+        _validated(forged)
+    assert blocked.value.code == PortabilityValidationError.UNTRUSTED_SIGNER
+
+
+def test_tampered_payload_with_recomputed_manifest_digests_fails() -> None:
+    # An attacker rewrites a payload and every digest it can compute, but
+    # cannot re-sign the new manifest digest with the trusted key.
+    original = _bundle(_manifest())
+    tampered_records = (
+        PayloadRecord(identity="user:planner", data={"entity": "attacker"}),
+        PayloadRecord(identity="user:auditor", data={"entity": "asset_line_1"}),
+    )
+    manifest = PortabilityManifest.model_validate(
+        {
+            **original.manifest.model_dump(mode="json"),
+            "components": [
+                {
+                    **component.model_dump(mode="json"),
+                    "content_digest": canonical_portability_digest(
+                        [record.model_dump(mode="json") for record in tampered_records]
+                    ),
+                }
+                if component.component_id == "ontology"
+                else component.model_dump(mode="json")
+                for component in original.manifest.components
+            ],
+        }
+    )
+    tampered = PortabilityBundle.model_validate(
+        {
+            **original.model_dump(mode="json"),
+            "manifest": manifest.model_dump(mode="json"),
+            "component_payloads": {
+                **{
+                    component_id: [record.model_dump(mode="json") for record in records]
+                    for component_id, records in original.component_payloads.items()
+                },
+                "ontology": [record.model_dump(mode="json") for record in tampered_records],
+            },
+            "signature": {
+                **original.signature.model_dump(mode="json"),
+                "signed_manifest_digest": manifest.digest(),
+            },
+        }
+    )
+    with pytest.raises(PortabilityValidationError) as blocked:
+        _validated(tampered)
+    assert blocked.value.code == PortabilityValidationError.UNTRUSTED_SIGNER
+
+
+@pytest.mark.parametrize("component_id", ["undeclared-component", "object-store"])
+def test_payloads_for_undeclared_or_excluded_components_fail(component_id: str) -> None:
+    bundle = _bundle(_manifest(decisions={"object-store": "exclude"}))
+    smuggled = PortabilityBundle.model_validate(
+        {
+            **bundle.model_dump(mode="json"),
+            "component_payloads": {
+                **{
+                    key: [record.model_dump(mode="json") for record in records]
+                    for key, records in bundle.component_payloads.items()
+                },
+                component_id: [{"identity": "user:intruder", "data": {"role": "owner"}}],
+            },
+        }
+    )
+    with pytest.raises(PortabilityValidationError) as blocked:
+        _validated(smuggled)
+    assert blocked.value.code == PortabilityValidationError.UNDECLARED_COMPONENT_PAYLOAD
+
+
+@pytest.mark.parametrize(
+    "identity_map",
+    [
+        {"user:planner": ("user:restored", "owner")},
+        {"user:planner": ("Not A Subject", "user")},
+        {"user:planner": ("user:restored",)},
+    ],
+)
+def test_malformed_identity_map_fails_with_a_fixed_code(identity_map) -> None:
+    with pytest.raises(PortabilityValidationError) as blocked:
+        _validated(_bundle(_manifest()), identity_map=identity_map)
+    assert blocked.value.code == PortabilityValidationError.INVALID_IDENTITY_MAPPING
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["C:payload.jsonl", "components//x.jsonl", "./manifest.json", "components/\x00.jsonl"],
+)
+def test_ambiguous_archive_member_paths_are_rejected(path: str) -> None:
+    with pytest.raises(ValidationError, match="unsafe_archive_member"):
+        BundleArchive(members=(ArchiveMember(path=path, size_bytes=1),))

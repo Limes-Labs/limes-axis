@@ -12,18 +12,29 @@ separately authorized execution (#878).
 ## Bundle verification before anything is opened
 
 - `BundleArchive` validates members **by name and size only**: bounded member
-  counts and total decompressed size, absolute paths, backslashes, `..`
-  traversal, duplicate paths and executable serialization formats (`.py`,
+  counts and declared total size, absolute paths, backslashes, `..`
+  traversal, drive letters/schemes (`:`), empty or `.` segments, control and
+  format characters, duplicate paths and executable serialization formats (`.py`,
   `.pkl`, `.so`, `.jar`, `.wasm`, …) are rejected without inspecting
-  contents.
-- The bundle signature is verified against **operator-supplied** trusted
-  signer key ids, and the signature must cover exactly the manifest digest.
-  A public key embedded in an untrusted bundle is never its own trust
-  anchor; a signature over any other digest fails (`bundle_signer_not_trusted`).
-- Every `restore` component's payload must exist, match the declared object
-  count, digest to the manifest's frozen `content_digest`, and carry unique
-  identities. Missing required payloads, digest mismatches, duplicate
-  identities and unsupported source versions fail before any plan exists.
+  contents. The archive description is the producer's declaration; a later
+  reader that extracts real members must enforce the same limits on the
+  actual bytes it reads.
+- The bundle carries an Ed25519 signature over the canonical manifest digest
+  (domain-separated as `axis.tenant-portability-bundle:manifest:<digest>`).
+  It is verified against **operator-supplied** raw public keys
+  (`trusted_signer_keys`, key id → 32-byte public key); the key id only
+  selects the key. A key id or public key carried by an untrusted bundle is
+  never its own trust anchor. An unknown key id, a signature by any other
+  key, or a signature over any other digest fails
+  (`bundle_signer_not_trusted`). Producers sign with
+  `sign_portability_manifest`; key custody stays with #324/#329.
+- Every `restore` component's payload must exist; every carried payload
+  (including `rebuild` components) must match the declared object count,
+  digest to the manifest's signed `content_digest`, and carry unique
+  identities. Payloads for undeclared or excluded components are refused
+  (`undeclared_component_payload`), so no unsigned record reaches the plan.
+  Missing required payloads, digest mismatches, duplicate identities and
+  unsupported source versions fail before any plan exists.
 
 ## Deterministic restore plan
 
@@ -33,6 +44,8 @@ identity map:
 - **Explicit mapping only**: two source principals mapping to one target is
   an ambiguous merge and is refused; principals are never matched by email
   or display name.
+- Malformed operator mappings (unknown kind, invalid subject) fail with
+  `invalid_identity_mapping`.
 - **Unknown principals stay `unmapped_disabled`** with no target subject and
   no default roles.
 - Rebinding references become concrete actions: credentials/signing keys
@@ -53,11 +66,13 @@ identity map:
 plan's excluded components — nothing missed, nothing extra
 (`unacknowledged_exclusion`). The resulting `PlanAcknowledgement` binds the
 plan digest and is the handoff artifact the write runner (#878) must
-require; it is not an approval token by itself.
+require; it is not an approval token by itself. The runner additionally
+refuses plans that are not `supported`.
 
 ## Offline, provably
 
 The module imports no HTTP client, no socket, no database driver, no
-`subprocess` (enforced by test); serialization is canonical JSON only.
+`subprocess` (enforced by test); serialization is canonical JSON only and
+signature verification uses local `cryptography` primitives.
 Malformed input degrades to the fixed safe codes of the #876 contract —
 bundle details are never echoed back.
