@@ -159,7 +159,7 @@ function ApprovalAttentionRow({
           <span className="flex flex-wrap items-center gap-2">
             {decision ? (
               <span className="status-pill signal-ready">
-                {approvalDecisionLabel(decision.decision)}
+                {approvalDecisionLabel(decision.decision, strings)}
               </span>
             ) : (
               <span className={`status-pill ${approvalRiskClass(approval.risk_level)}`}>
@@ -171,7 +171,7 @@ function ApprovalAttentionRow({
             </button>
           </span>
         }
-        detail={`${approval.domain} / due ${approval.due}`}
+        detail={strings.ui.overviewNeedsAttention.approvalDetail(approval.domain, approval.due)}
         title={approval.action}
         tone={<StatusDot status={approval.risk_level === "high" ? "action_required" : "watch"} />}
       />
@@ -223,34 +223,38 @@ type AttentionSourceQueries = {
   overview: OverviewQuery<ManufacturingOverview>;
 };
 
-function attentionSources({ actionRuns, approvals, overview }: AttentionSourceQueries) {
+function attentionSources(
+  { actionRuns, approvals, overview }: AttentionSourceQueries,
+  copy: ConsoleStrings,
+) {
+  const subjects = copy.sources.subjects;
   return [
     {
-      subject: "Risks",
+      subject: subjects.risks,
       state: deriveSourceState(overview.source, Boolean(overview.data), overview.data?.provenance),
     },
     {
-      subject: "Approvals",
+      subject: subjects.approvals,
       state: deriveSourceState(approvals.source, Boolean(approvals.data), approvals.data?.provenance),
     },
     {
-      subject: "Outcomes",
+      subject: subjects.outcomes,
       state: deriveSourceState(actionRuns.source, Boolean(actionRuns.data), PROVENANCE_NOT_APPLICABLE),
     },
   ];
 }
 
 /** Provenance for the strip's tooltip; the page banner covers example data. */
-function attentionSourceTitle(queries: AttentionSourceQueries): string {
-  return attentionSources(queries)
-    .map((source) => sourceStateLabel(source.state, source.subject))
+function attentionSourceTitle(queries: AttentionSourceQueries, copy: ConsoleStrings): string {
+  return attentionSources(queries, copy)
+    .map((source) => sourceStateLabel(source.state, source.subject, copy))
     .join(" · ");
 }
 
 /** Only data that is no longer current keeps a visible provenance warning. */
 function AttentionSources(queries: AttentionSourceQueries) {
   const strings = useStrings();
-  const stale = attentionSources(queries).filter((source) => source.state === "stale");
+  const stale = attentionSources(queries, strings).filter((source) => source.state === "stale");
   if (stale.length === 0) {
     return null;
   }
@@ -345,7 +349,7 @@ export function NeedsAttention({
     return (
       <div
         className="grid gap-3"
-        title={attentionSourceTitle({ actionRuns: actionRunsQuery, approvals: approvalsQuery, overview })}
+        title={attentionSourceTitle({ actionRuns: actionRunsQuery, approvals: approvalsQuery, overview }, strings)}
       >
         <AttentionSources
           actionRuns={actionRunsQuery}
@@ -372,7 +376,7 @@ export function NeedsAttention({
           />
         }
         eyebrow={copy.eyebrow}
-        sourceHint={attentionSourceTitle({ actionRuns: actionRunsQuery, approvals: approvalsQuery, overview })}
+        sourceHint={attentionSourceTitle({ actionRuns: actionRunsQuery, approvals: approvalsQuery, overview }, strings)}
       />
       {approvalsFailed ? <SourceUnavailableNote message={copy.approvalsUnavailable} /> : null}
       {overviewFailed ? <SourceUnavailableNote message={copy.overviewUnavailable} /> : null}

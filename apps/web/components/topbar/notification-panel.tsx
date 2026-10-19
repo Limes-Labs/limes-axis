@@ -16,7 +16,6 @@ import {
   type AxisOperatorError,
 } from "@/lib/axis-api";
 import { cn } from "@/lib/cn";
-import { formatNumber } from "@/lib/format";
 import { notificationTone } from "@/lib/identity-format";
 import type {
   IdentitySessionReadModel,
@@ -171,12 +170,12 @@ export function NotificationPanel({
     return (
       <section className={popoverClass} aria-label={strings.ui.topbarNotificationPanel.notifications}>
         <PopoverHeader label={strings.ui.topbarNotificationPanel.notifications}>
-          <SourcePill state={sourceState} subject="notifications" />
+          <SourcePill state={sourceState} subject={strings.sources.subjects.notifications} />
         </PopoverHeader>
         <p className="m-0 text-sm leading-snug text-muted">
           {sourceState === "loading"
             ? strings.ui.topbarNotificationPanel.loadingNotificationEvidence
-            : `Notification data requires ${OPERATIONS_API_PREFIX}/notifications.`}
+            : strings.ui.topbarNotificationPanel.requiresEndpoint(OPERATIONS_API_PREFIX)}
         </p>
       </section>
     );
@@ -284,11 +283,11 @@ export function NotificationPanel({
       <PopoverHeader label={strings.ui.topbarNotificationPanel.notifications}>
         <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
           <span className="status-pill status-checking">
-            {formatNumber(center.unread_count)} unread
+            {strings.ui.topbarNotificationPanel.unreadCount(center.unread_count)}
           </span>
           <SourcePill
             state={deriveSourceState(source, true, center.provenance)}
-            subject="notifications"
+            subject={strings.sources.subjects.notifications}
           />
         </span>
       </PopoverHeader>
@@ -359,7 +358,7 @@ export function NotificationPanel({
           {acknowledgementError.message}
           {acknowledgementError.requestId ? (
             <span className="ml-1 font-mono text-[10px] break-all text-muted">
-              Ref {acknowledgementError.requestId}
+              {strings.ui.topbarNotificationPanel.reference(acknowledgementError.requestId)}
             </span>
           ) : null}
         </p>

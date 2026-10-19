@@ -11,11 +11,14 @@ import {
   settingsStatusLabel,
 } from "./platform-settings";
 import { strings } from "./strings";
+import { stringsIt } from "./strings.it";
 
 describe("platform settings helpers", () => {
   it("formats readiness status labels for enterprise operators", () => {
     expect(settingsStatusLabel("ready")).toBe("Ready");
     expect(settingsStatusLabel("action_required")).toBe("Action required");
+    expect(settingsStatusLabel("ready", stringsIt)).toBe("Pronto");
+    expect(settingsStatusLabel("action_required", stringsIt)).toBe("Azione richiesta");
   });
 
   it("maps readiness statuses to existing console signal classes", () => {
@@ -70,6 +73,13 @@ describe("platform settings helpers", () => {
       label: strings.settings.checkActions.identityTab,
     });
     expect(settingsCheckAction("api_rate_limiting")).toBeNull();
+    expect(settingsCheckAction("oidc_enterprise_sso", stringsIt)).toEqual({
+      href: "/settings?tab=identity",
+      label: stringsIt.settings.checkActions.identityTab,
+    });
+    expect(settingsCheckGuidance("https_issuer", stringsIt)).toBe(
+      stringsIt.settings.guidance.https_issuer,
+    );
   });
 
   it("sorts failing checks first, required before recommended, stably", () => {

@@ -150,7 +150,7 @@ function ProgressBar({ complete, total }: { complete: number; total: number }) {
   return (
     <div className="grid min-w-0 gap-1.5">
       <p className="m-0 text-sm font-medium text-ink">
-        {complete} of {total} {strings.onboarding.stepsComplete}
+        {strings.onboarding.stepsProgress(complete, total)}
       </p>
       <div
         aria-label={strings.onboarding.progressLabel}

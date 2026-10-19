@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { SourcePill } from "./source-pill";
+import { stringsIt } from "@/lib/strings.it";
+import { LocaleProvider } from "@/providers/locale-provider";
+
+import { SourcePill, sourceStateLabel } from "./source-pill";
 
 describe("SourcePill", () => {
   it("renders reference data without a live claim", () => {
@@ -32,5 +35,19 @@ describe("SourcePill", () => {
     pill = screen.getByText("audit ledger: unavailable").closest(".status-pill");
     expect(pill).toHaveAttribute("data-source-state", "unavailable");
     expect(pill).toHaveClass("signal-action-required");
+  });
+
+  it("composes subject and state from the active catalogue", () => {
+    render(
+      <LocaleProvider locale="it">
+        <SourcePill state="live" subject={stringsIt.sources.subjects.agentRegistry} />
+      </LocaleProvider>,
+    );
+
+    expect(screen.getByText("registro degli agenti: in tempo reale")).toBeInTheDocument();
+    expect(screen.getByText("Origine dei dati:")).toHaveClass("sr-only");
+    expect(sourceStateLabel("stale", stringsIt.sources.subjects.auditLedger, stringsIt)).toBe(
+      "registro di audit: non aggiornato",
+    );
   });
 });

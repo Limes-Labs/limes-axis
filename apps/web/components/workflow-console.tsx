@@ -506,10 +506,10 @@ export function WorkflowConsole() {
           {formatContextPath(workflowData.plant_name ?? humanizeIdentifier(workflowData.tenant_id), workflowData.scenario)}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <SourcePill state={source} subject="workflow runs" />
+          <SourcePill state={source} subject={strings.sources.subjects.workflowRuns} />
           <span className={`status-pill ${platformStatusClass(workflowData.runtime_status)}`}>
             <Route size={15} />
-            {platformStatusLabel(workflowData.runtime_status)}
+            {platformStatusLabel(workflowData.runtime_status, strings)}
           </span>
           <span className="font-mono text-xs text-muted">
             {formatOverviewTimestamp(workflowData.as_of)}
@@ -557,7 +557,7 @@ export function WorkflowConsole() {
               <div className="grid gap-1">
                 <Eyebrow>{strings.workflows.list.eyebrow}</Eyebrow>
                 <h2 className="font-display m-0 text-xl text-ink">
-                  {formatNumber(filteredWorkflows.length)} visible
+                  {strings.ui.common.visibleCount(filteredWorkflows.length)}
                 </h2>
               </div>
               <div className="grid gap-2">

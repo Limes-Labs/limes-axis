@@ -79,7 +79,7 @@ export function TenantUsagePanel({ tenantId }: { tenantId: string }) {
     return () => controller.abort();
   }, [tenantId, session, refreshNonce]);
 
-  const rows: UsageMetricSummaryRow[] = summarizeUsageByMetric(summary);
+  const rows: UsageMetricSummaryRow[] = summarizeUsageByMetric(summary, strings);
   const usageNotes = summary?.usage_notes ?? [];
 
   return (
@@ -87,7 +87,7 @@ export function TenantUsagePanel({ tenantId }: { tenantId: string }) {
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10">
         <div>
           <p className="eyebrow m-0">{strings.ui.tenantUsagePanel.usageMetering}</p>
-          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">Consumption over the last {defaultUsageWindowDays} days</h2>
+          <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{strings.ui.tenantUsagePanel.consumptionOverDays(defaultUsageWindowDays)}</h2>
         </div>
         <Activity size={18} />
       </div>
@@ -104,7 +104,7 @@ export function TenantUsagePanel({ tenantId }: { tenantId: string }) {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0" aria-label={strings.ui.tenantUsagePanel.perMetricConsumption} role="list">
           {rows.map((row) => (
             <StatCard
-              detail={`${row.periodCount} ${row.periodCount === 1 ? "period" : "periods"} in window`}
+              detail={strings.ui.tenantUsagePanel.periodsInWindow(row.periodCount)}
               key={row.metricKey}
               label={row.label}
               value={formatNumber(row.total)}
@@ -120,7 +120,7 @@ export function TenantUsagePanel({ tenantId }: { tenantId: string }) {
       >
         <div className="grid min-w-0 grid-cols-1 gap-2.5 [&>p]:min-w-0 [&>p]:[overflow-wrap:anywhere]">
           <p className="m-0 leading-snug">{strings.ui.tenantUsagePanel.meteringIsCumulativeConsumptionAccounting}</p>
-          <p className="m-0 leading-snug break-words">Required permission: {platformTenantUsageScope}.</p>
+          <p className="m-0 leading-snug break-words">{strings.ui.common.requiredPermission(platformTenantUsageScope)}</p>
           <p className="m-0 break-words font-mono text-[13px]">GET {buildPlatformTenantUsagePath(tenantId)}</p>
           {usageNotes.map((note) => (
             <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>

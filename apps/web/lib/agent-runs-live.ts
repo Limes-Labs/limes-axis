@@ -1,3 +1,5 @@
+import type { ConsoleStrings } from "@/lib/i18n";
+import { strings } from "@/lib/strings";
 import { OPERATIONS_API_PREFIX } from "./tenant-scope";
 /**
  * Typed parsers for the live agent-run read surfaces:
@@ -183,9 +185,9 @@ export function parseAgentRunList(input: unknown): AgentRunList {
   };
 }
 
-export function agentRunStatusLabel(status: string): string {
+export function agentRunStatusLabel(status: string, copy: ConsoleStrings = strings): string {
   if (!status) {
-    return "Unknown";
+    return copy.labels.unknownStatus;
   }
   const compact = status.replaceAll("_", " ");
   return compact.charAt(0).toUpperCase() + compact.slice(1);
@@ -218,11 +220,6 @@ export type AgentRunRailStage = {
   state: AgentRunRailState;
 };
 
-const railLabels: Record<AgentRunStepType, string> = {
-  context_read: "Context read",
-  model_invocation: "Model call",
-  proposal: "Proposal",
-};
 
 /**
  * Project the persisted step records onto the fixed context_read →
@@ -230,7 +227,11 @@ const railLabels: Record<AgentRunStepType, string> = {
  * a failed / blocked / deferred step marks its stage and everything after it
  * stays pending — no synthetic progress is ever shown.
  */
-export function buildAgentRunRail(run: AgentRunRecord): AgentRunRailStage[] {
+export function buildAgentRunRail(
+  run: AgentRunRecord,
+  copy: ConsoleStrings = strings,
+): AgentRunRailStage[] {
+  const railLabels: Record<AgentRunStepType, string> = copy.labels.agentRunRail;
   let blockedSeen = false;
 
   return agentRunStepOrder.map((stepType) => {
@@ -240,7 +241,7 @@ export function buildAgentRunRail(run: AgentRunRecord): AgentRunRailStage[] {
       return {
         step_type: stepType,
         label: railLabels[stepType],
-        detail: blockedSeen ? "Not reached" : "Not recorded",
+        detail: blockedSeen ? copy.labels.agentRunRail.notReached : copy.identifiers.notRecorded,
         state: "pending" as const,
       };
     }
@@ -249,7 +250,7 @@ export function buildAgentRunRail(run: AgentRunRecord): AgentRunRailStage[] {
       return {
         step_type: stepType,
         label: railLabels[stepType],
-        detail: agentRunStatusLabel(step.status),
+        detail: agentRunStatusLabel(step.status, copy),
         state: "done" as const,
       };
     }
@@ -258,7 +259,7 @@ export function buildAgentRunRail(run: AgentRunRecord): AgentRunRailStage[] {
     return {
       step_type: stepType,
       label: railLabels[stepType],
-      detail: agentRunStatusLabel(step.status),
+      detail: agentRunStatusLabel(step.status, copy),
       state: step.status === "deferred" ? ("current" as const) : ("failed" as const),
     };
   });

@@ -5,7 +5,6 @@ import type { ModelRouteTelemetry } from "@/lib/model-routing-demo";
 import type { SourceState } from "@/lib/source-state";
 import { SourcePill } from "@/components/ui/source-pill";
 import { useStrings } from "@/providers/locale-provider";
-import { formatNumber } from "@/lib/format";
 
 type RouteDependency = Pick<ModelRouteTelemetry, "provider_id" | "provider_name" | "model">;
 export type RoutingFlowSelection = { providerId: string; model?: string };
@@ -34,7 +33,6 @@ export function groupRoutingDependencies(routes: RouteDependency[]): ProviderGro
   })).sort((a, b) => b.count - a.count || a.id.localeCompare(b.id));
 }
 
-const routeCount = (count: number) => `${formatNumber(count)} ${count === 1 ? "route" : "routes"}`;
 
 function buildDependencyLayout(providers: ProviderGroup[]) {
   const palette = ["rgb(var(--signal))", "rgb(var(--positive))", "rgb(var(--warning))", "rgb(var(--muted))"];
@@ -73,6 +71,7 @@ export function ModelRoutingFlow({ routes, sourceState, onInspect }: {
   onInspect?: (selection: RoutingFlowSelection) => void;
 }) {
   const strings = useStrings();
+  const { routeCount, routesFrom } = strings.ui.modelRoutingFlow;
   const [selected, setSelected] = useState<RoutingFlowSelection | null>(null);
   const [preview, setPreview] = useState<RoutingFlowSelection | null>(null);
   const providers = groupRoutingDependencies(routes);
@@ -109,15 +108,15 @@ export function ModelRoutingFlow({ routes, sourceState, onInspect }: {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
           <h2 className="m-0 font-display text-xl text-ink">{strings.ui.modelRoutingFlow.routingDependencies}</h2>
-          <p className="m-0 text-sm text-muted">{formatNumber(routes.length)} configured {routes.length === 1 ? "route" : "routes"} · {providers.length} {providers.length === 1 ? "provider" : "providers"}</p>
+          <p className="m-0 text-sm text-muted">{strings.ui.modelRoutingFlow.configuredSummary(routes.length, providers.length)}</p>
         </div>
-        <SourcePill state={sourceState} subject="model routing" />
+        <SourcePill state={sourceState} subject={strings.sources.subjects.modelRouting} />
       </div>
       <p className="m-0 text-xs leading-relaxed text-muted">{strings.ui.modelRoutingFlow.includesBlockedRoutesWidthConfigured}</p>
       {routes.length > 0 ? (
         <div className="flex min-h-12 flex-wrap items-center justify-between gap-3 rounded-xl bg-ink/4 px-3 py-2 dark:bg-white/5">
           <p className="m-0 min-w-0 break-words text-sm text-ink" role="status">
-            {active ? `${active.provider.name}${active.model ? ` → ${active.model.name}` : ""} · ${routeCount(active.count)} configured` : strings.ui.modelRoutingFlow.selectAProviderOrModel}
+            {active ? strings.ui.modelRoutingFlow.activeSummary(`${active.provider.name}${active.model ? ` → ${active.model.name}` : ""}`, active.count) : strings.ui.modelRoutingFlow.selectAProviderOrModel}
           </p>
           <div className="flex shrink-0 flex-wrap gap-3">
             {pinned && onInspect ? <button type="button" className="min-h-9 text-sm font-medium text-signal underline-offset-4 hover:underline" onClick={() => onInspect(pinned.selection)}>{pinned.model ? strings.ui.modelRoutingFlow.inspectFirstMatchingRoute : strings.ui.modelRoutingFlow.viewProviderRoutes}</button> : null}
@@ -155,7 +154,7 @@ export function ModelRoutingFlow({ routes, sourceState, onInspect }: {
               </svg>
               <div className="relative">
                 {layout.flatMap((provider) => provider.rows.map((row) => (
-                  <button type="button" {...controls({ providerId: provider.id, model: row.name })} aria-label={`${row.name}, ${routeCount(row.count)} from ${provider.name}`} key={JSON.stringify([provider.id, row.name])} className="absolute flex w-full flex-col justify-center gap-1 rounded-lg px-3 text-left text-sm hover:bg-ink/4 aria-pressed:bg-signal/10 dark:hover:bg-white/5" style={{ top: row.targetY - row.height / 2, height: row.height, opacity: emphasized(provider.id, row.name) ? 1 : 0.35 }}>
+                  <button type="button" {...controls({ providerId: provider.id, model: row.name })} aria-label={routesFrom(row.name, row.count, provider.name)} key={JSON.stringify([provider.id, row.name])} className="absolute flex w-full flex-col justify-center gap-1 rounded-lg px-3 text-left text-sm hover:bg-ink/4 aria-pressed:bg-signal/10 dark:hover:bg-white/5" style={{ top: row.targetY - row.height / 2, height: row.height, opacity: emphasized(provider.id, row.name) ? 1 : 0.35 }}>
                     <span className="break-all font-medium leading-[18px] text-ink">{row.name}</span>
                     <span className="tabular-nums text-muted">{routeCount(row.count)}</span>
                   </button>
@@ -170,7 +169,7 @@ export function ModelRoutingFlow({ routes, sourceState, onInspect }: {
               <dt><button type="button" {...controls({ providerId: provider.id })} aria-label={`${provider.name}, ${routeCount(provider.count)}`} className="flex min-h-11 w-full flex-wrap items-center justify-between gap-2 rounded-lg text-left text-sm font-medium text-ink aria-pressed:bg-signal/10"><span className="min-w-0 break-all">{provider.name}</span><span className="tabular-nums">{routeCount(provider.count)}</span></button></dt>
               <dd className="m-0 mt-3 grid gap-2">
                 {provider.models.map((model) => (
-                  <button type="button" {...controls({ providerId: provider.id, model: model.name })} aria-label={`${model.name}, ${routeCount(model.count)} from ${provider.name}`} key={model.name} className="flex min-h-11 items-center justify-between gap-3 rounded-lg text-left text-sm text-muted aria-pressed:bg-signal/10"><span className="min-w-0 break-all">{model.name}</span><span className="shrink-0 tabular-nums">{routeCount(model.count)}</span></button>
+                  <button type="button" {...controls({ providerId: provider.id, model: model.name })} aria-label={routesFrom(model.name, model.count, provider.name)} key={model.name} className="flex min-h-11 items-center justify-between gap-3 rounded-lg text-left text-sm text-muted aria-pressed:bg-signal/10"><span className="min-w-0 break-all">{model.name}</span><span className="shrink-0 tabular-nums">{routeCount(model.count)}</span></button>
                 ))}
               </dd>
             </div>

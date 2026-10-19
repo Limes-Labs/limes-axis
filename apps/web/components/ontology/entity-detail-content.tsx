@@ -274,7 +274,7 @@ export function EntityDetailContent({
               <div className="grid gap-1">
                 <Eyebrow>{strings.ui.ontologyEntityDetailContent.relationships}</Eyebrow>
                 <h2 className="font-display m-0 text-xl text-ink">
-                  {detail.connected_relationships.length} connected
+                  {strings.ui.ontologyEntityDetailContent.connectedCount(detail.connected_relationships.length)}
                 </h2>
               </div>
               <Network className="text-signal" size={18} />

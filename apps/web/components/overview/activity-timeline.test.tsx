@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { ActivityTimeline, aggregateAuditTimeline } from "./activity-timeline";
+import { ActivityTimeline, activityDateInterval, aggregateAuditTimeline } from "./activity-timeline";
 import { auditEventsFixture } from "./overview-fixtures";
 
 describe("UTC audit activity aggregation", () => {
@@ -43,6 +43,58 @@ describe("UTC audit activity aggregation", () => {
       { occurred_at: "2026-09-08T12:00:00Z", severity: "ready" },
     ]);
     expect(result.bins.map((bin) => [bin.date, bin.attentionShare])).toEqual([["2026-09-01", 0], ["2026-09-08", 0]]);
+  });
+});
+
+describe("console time zone audit activity aggregation", () => {
+  it("bins by the calendar date of the given zone, not UTC", () => {
+    // 22:30Z on the 7th is already 00:30 on the 8th in Rome (UTC+2 in September).
+    const events = [
+      { occurred_at: "2026-09-07T22:30:00Z", severity: "ready" },
+      { occurred_at: "2026-09-08T12:00:00Z", severity: "watch" },
+    ];
+    expect(aggregateAuditTimeline(events, "Europe/Rome").bins.map((bin) => [bin.date, bin.count])).toEqual([
+      ["2026-09-08", 2],
+    ]);
+    expect(aggregateAuditTimeline(events, "UTC").bins.map((bin) => [bin.date, bin.count])).toEqual([
+      ["2026-09-07", 1],
+      ["2026-09-08", 1],
+    ]);
+  });
+
+  it("gives a DST day its real length, as the audit heatmap does", () => {
+    // Rome leaves summer time on 25 Oct 2026, so that date spans 25 hours.
+    const events = [
+      { occurred_at: "2026-10-24T22:30:00Z", severity: "ready" }, // 00:30 CEST on the 25th
+      { occurred_at: "2026-10-25T01:30:00Z", severity: "ready" }, // 02:30 CET, the repeated hour
+      { occurred_at: "2026-10-25T22:30:00Z", severity: "ready" }, // 23:30 CET on the 25th
+      { occurred_at: "2026-10-25T23:30:00Z", severity: "ready" }, // 00:30 CET on the 26th
+    ];
+    const { bins } = aggregateAuditTimeline(events, "Europe/Rome");
+    expect(bins.map((bin) => [bin.date, bin.count])).toEqual([["2026-10-25", 3], ["2026-10-26", 1]]);
+
+    const day = activityDateInterval("2026-10-25", "Europe/Rome");
+    expect(day).toEqual({ start: Date.parse("2026-10-24T22:00:00Z"), end: Date.parse("2026-10-25T23:00:00Z") });
+    expect(day.end - day.start).toBe(25 * 3_600_000);
+    expect(events.filter(({ occurred_at }) => {
+      const at = Date.parse(occurred_at);
+      return at >= day.start && at < day.end;
+    })).toHaveLength(bins[0].count);
+  });
+
+  it("labels the zone it bins in", () => {
+    render(<ActivityTimeline
+      events={[
+        { ...auditEventsFixture.events[0], occurred_at: "2026-09-07T22:30:00Z", severity: "watch" as const },
+        { ...auditEventsFixture.events[1], occurred_at: "2026-09-08T13:00:00Z", severity: "ready" as const },
+      ]}
+      timeZone="Europe/Rome"
+    />);
+    expect(screen.getByRole("status")).toHaveTextContent("2 returned events · 1 Europe/Rome date");
+    expect(screen.getByText(/Only one Europe\/Rome date in this window/)).toBeInTheDocument();
+    expect(screen.getByText("2026-09-08 Europe/Rome")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^2026-09-08 Europe\/Rome: 2 events/ })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: /^Choose a Europe\/Rome date/ })).toBeInTheDocument();
   });
 });
 

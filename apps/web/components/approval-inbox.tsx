@@ -88,31 +88,35 @@ function buildDecisionRail(
 ): RailStage[] {
   const decided = Boolean(decision);
   const recorded = decision?.storage === "persisted";
+  const copy = strings.labels.decisionRail;
 
   return [
     {
-      label: "Submitted",
-      detail: `${humanizeIdentifier(approval.requested_by) ?? strings.identifiers.notRecorded} / due ${approval.due}`,
+      label: copy.submitted,
+      detail: copy.submittedDetail(
+        humanizeIdentifier(approval.requested_by) ?? strings.identifiers.notRecorded,
+        approval.due,
+      ),
       state: "done",
     },
     {
-      label: "Required controls",
+      label: copy.requiredControls,
       detail: `${humanizeScope(approval.required_permission) ?? strings.identifiers.notRecorded} / ${humanizeIdentifier(approval.model_policy) ?? strings.identifiers.notRecorded}`,
       state: "required",
     },
     {
-      label: "Approval",
+      label: copy.approval,
       detail: decision
-        ? approvalDecisionLabel(decision.decision)
-        : `${humanizeIdentifier(approval.owner_role) ?? strings.identifiers.notRecorded} decision pending`,
+        ? approvalDecisionLabel(decision.decision, strings)
+        : copy.decisionPending(humanizeIdentifier(approval.owner_role) ?? strings.identifiers.notRecorded),
       state: decided ? "done" : "current",
     },
     {
-      label: "Recorded",
+      label: copy.recorded,
       detail: recorded
         ? (decision?.auditEventId ?? approval.audit_event_preview.event)
         : decided
-          ? "Persisting audit evidence"
+          ? copy.persistingAuditEvidence
           : approval.audit_event_preview.event,
       state: recorded ? "done" : decided ? "current" : "pending",
     },
@@ -136,7 +140,7 @@ function DecisionRail({ approval, decision }: {
           </span>
           <div className="grid min-w-0 flex-1 grid-cols-1 gap-1">
             <p className="m-0 min-w-0 text-xs font-medium text-ink">
-              {stage.label}<span className="sr-only">: {stage.state}</span>
+              {stage.label}<span className="sr-only">: {strings.labels.decisionRail.states[stage.state]}</span>
             </p>
             <p className="m-0 min-w-0 text-xs leading-relaxed wrap-anywhere text-muted">{stage.detail}</p>
           </div>
@@ -221,7 +225,7 @@ function DecisionHistory({
                         <span
                           className={`status-pill ${decision === "approve" ? "signal-ready" : ""}`}
                         >
-                          {approvalDecisionLabel(decision)}
+                          {approvalDecisionLabel(decision, strings)}
                         </span>
                       ) : (
                         <span className="status-pill">{entry.decision}</span>
@@ -298,12 +302,12 @@ function ApprovalDetail({
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted">
           <span className={`status-pill ${approvalRiskClass(approval.risk_level)}`}>
-            {approval.risk_level} risk
+            {strings.ui.common.riskLevel(approval.risk_level)}
           </span>
           <span className="min-w-0 [overflow-wrap:anywhere]" data-approval-cost>
             {strings.approvals.decision.cost}: {approval.estimated_cost}
           </span>
-          <span>Due {approval.due}</span>
+          <span>{strings.ui.common.dueDate(approval.due)}</span>
           <span className="min-w-0 [overflow-wrap:anywhere]">
             {strings.ui.common.owner}:{" "}
             <IdentifiedName
@@ -602,7 +606,7 @@ export function ApprovalInbox() {
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SourcePill
             state={deriveSourceState(source, Boolean(inbox), inbox.provenance)}
-            subject="approval queue"
+            subject={strings.sources.subjects.approvalQueue}
           />
           <span className="font-mono text-xs text-muted">
             {formatTimestamp(inbox.as_of)}

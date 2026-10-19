@@ -65,6 +65,11 @@ release-bound behavior, not the complete commit history.
   against the English catalogue, so a missing or mis-shaped translation fails
   typecheck. Copy returned by API payloads is still English. Console routes
   now render per request because the layout reads the locale cookie.
+  Sentence fragments, source pills, status and quota labels, artifact actions
+  and copy-bearing attributes are catalogued too, and a guard test fails on
+  any new hardcoded English JSX text or attribute copy in `components/` or
+  `app/`. The overview activity chart bins days in the browser time zone,
+  like the audit heatmap and list.
 
 - Versioned Document Studio contract for durable documents and reusable
   templates: section/block schema with stable IDs, typed template parameters

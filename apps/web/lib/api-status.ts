@@ -1,3 +1,6 @@
+import type { ConsoleStrings } from "@/lib/i18n";
+import { strings } from "@/lib/strings";
+
 export type ApiStatusState = "checking" | "online" | "degraded" | "unavailable";
 
 export type ApiStatusSummary = {
@@ -22,26 +25,19 @@ export function isDefaultApiBaseUrl(): boolean {
   return !configured || configured === DEFAULT_API_BASE_URL;
 }
 
+/** Label and detail for an API status, from the active catalogue. */
+export function apiStatusCopy(
+  state: ApiStatusState,
+  copy: ConsoleStrings = strings,
+): { label: string; detail: string } {
+  return copy.labels.apiStatus[state];
+}
+
 export function summarizeApiStatus(probe: ApiProbeResult): ApiStatusSummary {
-  if (probe.healthOk && probe.readyOk) {
-    return {
-      state: "online",
-      label: "Online",
-      detail: "Health and readiness checks are responding.",
-    };
-  }
-
-  if (probe.healthOk) {
-    return {
-      state: "degraded",
-      label: "Degraded",
-      detail: "Health is responding, but readiness is not confirmed.",
-    };
-  }
-
-  return {
-    state: "unavailable",
-    label: "Unavailable",
-    detail: "API is not reachable from the console.",
-  };
+  const state: ApiStatusState = probe.healthOk && probe.readyOk
+    ? "online"
+    : probe.healthOk
+      ? "degraded"
+      : "unavailable";
+  return { state, ...apiStatusCopy(state) };
 }

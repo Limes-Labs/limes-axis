@@ -1,3 +1,5 @@
+import type { ConsoleStrings } from "@/lib/i18n";
+import { strings } from "@/lib/strings";
 import {
   AxisApiError,
   axisFetch,
@@ -39,14 +41,9 @@ export const defaultUsageWindowDays = 7;
 
 // Human labels for the known metric keys; unknown keys fall back to the raw key
 // so a newly metered surface still renders without a console change.
-const metricLabels: Record<string, string> = {
-  api_request: "API requests",
-  connector_sync_rows: "Connector sync rows",
-  session_created: "Sessions created",
-};
-
-export function usageMetricLabel(metricKey: string): string {
-  return metricLabels[metricKey] ?? metricKey;
+export function usageMetricLabel(metricKey: string, copy: ConsoleStrings = strings): string {
+  const labels: Record<string, string> = copy.labels.usageMetric;
+  return Object.hasOwn(labels, metricKey) ? labels[metricKey] : metricKey;
 }
 
 export function buildPlatformTenantUsagePath(
@@ -104,6 +101,7 @@ export type UsageMetricSummaryRow = {
  */
 export function summarizeUsageByMetric(
   summary: TenantUsageSummary | null,
+  copy: ConsoleStrings = strings,
 ): UsageMetricSummaryRow[] {
   if (!summary) {
     return [];
@@ -119,7 +117,7 @@ export function summarizeUsageByMetric(
   return totals
     .map((total) => ({
       metricKey: total.metric_key,
-      label: usageMetricLabel(total.metric_key),
+      label: usageMetricLabel(total.metric_key, copy),
       total: total.quantity,
       periodCount: periodCounts.get(total.metric_key) ?? 0,
     }))

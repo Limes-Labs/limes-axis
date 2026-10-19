@@ -1,3 +1,5 @@
+import type { ConsoleStrings } from "@/lib/i18n";
+import { strings } from "@/lib/strings";
 import { consoleDateTimeFormat } from "@/lib/format";
 export type PlatformStatus = "ready" | "watch" | "action_required";
 export type ManufacturingProvenance = "reference_scenario" | "live" | "empty";
@@ -249,12 +251,13 @@ export type IdentitySessionReadModel = {
 
 export type DemoReadinessCounts = Record<PlatformStatus, number>;
 
-export function platformStatusLabel(status: PlatformStatus): string {
+export function platformStatusLabel(status: PlatformStatus, copy: ConsoleStrings = strings): string {
+  const labels = copy.labels.platformStatus;
   if (status === "action_required") {
-    return "Action Required";
+    return labels.action_required;
   }
 
-  return status === "watch" ? "Watch" : "Ready";
+  return status === "watch" ? labels.watch : labels.ready;
 }
 
 export function platformStatusClass(status: PlatformStatus): string {

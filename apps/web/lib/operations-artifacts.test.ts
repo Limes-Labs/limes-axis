@@ -8,8 +8,11 @@ import {
   buildOperationsArtifactRequest,
   getOperationsArtifactActionState,
   OPERATIONS_ARTIFACT_ACTIONS,
+  operationsArtifactActions,
+  operationsArtifactHeadline,
   OperationsArtifactRequestError,
 } from "./operations-artifacts";
+import { stringsIt } from "./strings.it";
 import { OPERATIONS_API_PREFIX } from "./tenant-scope";
 
 const verifiedSession: IdentitySessionReadModel = {
@@ -146,5 +149,23 @@ describe("operations artifacts", () => {
         snapshot: operationsSnapshot,
       }),
     ).toThrow("Missing required scopes: supply:read");
+  });
+});
+
+describe("operations artifact copy", () => {
+  it("labels actions and blocked reasons from the catalogue it is given", () => {
+    expect(operationsArtifactActions(stringsIt).map((action) => action.label)).toEqual([
+      "Generare il report giornaliero",
+      "Creare lo scenario qualità",
+      "Creare lo scenario manutenzione",
+      "Creare lo scenario fornitori",
+    ]);
+    expect(operationsArtifactActions(stringsIt).map((action) => action.endpoint)).toEqual(
+      OPERATIONS_ARTIFACT_ACTIONS.map((action) => action.endpoint),
+    );
+    expect(getOperationsArtifactActionState("daily_brief", null, stringsIt).reason).toBe(
+      "Serve un attore OIDC verificato dall'API prima che Axis possa persistere gli artefatti.",
+    );
+    expect(operationsArtifactHeadline({ brief_id: "brief_1" } as never, stringsIt)).toBe("brief_1 persistito da Axis.");
   });
 });

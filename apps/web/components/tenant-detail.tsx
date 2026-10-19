@@ -190,11 +190,11 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
               Boolean(tenant),
               PROVENANCE_NOT_APPLICABLE,
             )}
-            subject="tenant"
+            subject={strings.sources.subjects.tenant}
           />
           <span className={`status-pill ${tenantStatusClass(tenant.status)}`}>
             <ShieldCheck size={15} />
-            {tenantStatusLabel(tenant.status)}
+            {tenantStatusLabel(tenant.status, strings)}
           </span>
           <Link className={buttonVariants({ variant: "secondary" })} href="/tenants">
             <ArrowLeft size={17} />
@@ -207,7 +207,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
         <StatCard
           detail={strings.ui.tenantDetail.onlyActiveTenantsCanEstablish}
           label={strings.ui.common.status}
-          value={tenantStatusLabel(tenant.status)}
+          value={tenantStatusLabel(tenant.status, strings)}
         />
         <StatCard
           detail={formatTimestamp(tenant.created_at)}

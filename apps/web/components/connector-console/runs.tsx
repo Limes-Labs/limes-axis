@@ -444,11 +444,11 @@ export function ConnectorRuns({
                   </span>
                 </li>
                 {state.status === "failure" && state.error ? (
-                  <li aria-label={`${stage.title} error`} className="list-none">
+                  <li aria-label={strings.ui.connectorConsoleRuns.stageError(stage.title)} className="list-none">
                     <ErrorPanel
                       detail={state.error.message}
                       reference={state.error.requestId ?? undefined}
-                      title={`${stage.title} failed`}
+                      title={strings.ui.connectorConsoleRuns.stageFailed(stage.title)}
                     />
                   </li>
                 ) : null}

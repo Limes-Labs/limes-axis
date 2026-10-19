@@ -9,6 +9,7 @@ import {
   fetchTenantQuotas,
   platformTenantQuotaScope,
   quotaFormFromQuotaSet,
+  tenantQuotaFieldDescriptors,
   tenantQuotaFields,
   tenantWriteOperatorError,
   updateTenantQuotas,
@@ -18,7 +19,6 @@ import {
   type TenantQuotaSet,
 } from "@/lib/platform-tenants";
 import { toAxisOperatorError, type AxisOperatorError } from "@/lib/axis-api";
-import { pluralize } from "@/lib/format";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 import { Button } from "@/components/ui/button";
@@ -36,18 +36,6 @@ type SaveState =
   | { phase: "saving" }
   | { phase: "done"; changeCount: number }
   | { phase: "failed"; error: AxisOperatorError };
-
-function sourceLabel(source: QuotaSource): string {
-  if (source === "api") {
-    return "API quota set";
-  }
-
-  if (source === "missing") {
-    return "Tenant not found";
-  }
-
-  return source === "loading" ? "Loading quota API" : "Quota API unavailable";
-}
 
 /** True when every field of `a` matches `b` — used to detect unsaved edits. */
 function formsEqual(a: TenantQuotaFormState, b: TenantQuotaFormState): boolean {
@@ -139,7 +127,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
   function requestConfirmation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const errors = validateQuotaForm(form);
+    const errors = validateQuotaForm(form, strings);
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
@@ -228,7 +216,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
 
       {!quotaSet && source !== "api" ? (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
-          {sourceLabel(source)}
+          {strings.ui.tenantQuotaEditor.quotaSource[source]}
         </p>
       ) : (
         <form
@@ -237,7 +225,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
           noValidate
           onSubmit={requestConfirmation}
         >
-          {tenantQuotaFields.map((descriptor) => (
+          {tenantQuotaFieldDescriptors(strings).map((descriptor) => (
             <Field key={descriptor.field} label={descriptor.label}>
               <Input
                 aria-label={descriptor.label}
@@ -291,12 +279,11 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
       )}
 
       {save.phase === "failed" ? (
-        <InlineOperatorError error={save.error} prefix="Quota update failed" />
+        <InlineOperatorError error={save.error} prefix={strings.ui.tenantQuotaEditor.quotaUpdateFailed} />
       ) : null}
       {save.phase === "done" ? (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" role="status">
-          Quota update applied with {pluralize(save.changeCount, "change")}. Unchanged keys write
-          no audit event.
+          {strings.ui.tenantQuotaEditor.quotaApplied(save.changeCount)}
         </p>
       ) : null}
 
@@ -306,7 +293,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
         variant="plain"
       >
         <div className="grid min-w-0 grid-cols-1 gap-2.5 [&>p]:min-w-0 [&>p]:[overflow-wrap:anywhere]">
-          <p className="m-0 leading-snug break-words">Required permission: {platformTenantQuotaScope}.</p>
+          <p className="m-0 leading-snug break-words">{strings.ui.common.requiredPermission(platformTenantQuotaScope)}</p>
           <p className="m-0 break-words font-mono text-[13px]">GET / PUT {buildPlatformTenantQuotasPath(tenantId)}</p>
           {quotaNotes.map((note) => (
             <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>

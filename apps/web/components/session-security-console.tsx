@@ -65,17 +65,18 @@ function revokeOperatorError(caught: unknown, strings: ConsoleStrings): AxisOper
  * This mirrors `SourcePill`'s own wording so the copy stays consistent with
  * consoles that render the full component.
  */
-function sourceStateLabel(state: SourceState, subject: string): string {
+function sourceStateLabel(state: SourceState, subject: string, copy: ConsoleStrings): string {
+  const labels = copy.sources.pageLabels;
   if (state === "live") {
-    return `Live ${subject}`;
+    return labels.live(subject);
   }
   if (state === "stale") {
-    return `Stale ${subject}`;
+    return labels.stale(subject);
   }
   if (state === "unavailable") {
-    return `${subject} unavailable`;
+    return labels.unavailable(subject);
   }
-  return `Loading ${subject}`;
+  return labels.loading(subject);
 }
 
 function SessionRow({
@@ -93,30 +94,34 @@ function SessionRow({
 }) {
   const strings = useStrings();
   const revocable = isRevocableSessionStatus(record.status);
+  const sessionName = showActor
+    ? record.actor_id
+    : strings.ui.sessionSecurityConsole.sessionShort(record.session_ref.slice(0, 8));
 
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-line/60 py-3 first:border-t-0 dark:border-white/10" aria-label={strings.ui.sessionSecurityConsole.browserSession(record.session_ref)}>
       <div>
         <p className="m-0 font-medium text-ink break-words">
-          {showActor ? record.actor_id : strings.ui.sessionSecurityConsole.sessionShort(record.session_ref.slice(0, 8))}
-          {record.current ? " (this browser)" : ""}
+          {record.current ? strings.ui.sessionSecurityConsole.thisBrowser(sessionName) : sessionName}
         </p>
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-          Created {formatSessionInstant(record.created_at)} · Last seen{" "}
-          {formatSessionInstant(record.last_seen_at)} · Expires{" "}
-          {formatSessionInstant(record.expires_at)} · Refreshes{" "}
-          {formatNumber(record.refresh_count)}
+          {strings.ui.sessionSecurityConsole.sessionTimes(
+            formatSessionInstant(record.created_at),
+            formatSessionInstant(record.last_seen_at),
+            formatSessionInstant(record.expires_at),
+            formatNumber(record.refresh_count),
+          )}
         </p>
         {record.revoked_at ? (
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-            Revoked {formatSessionInstant(record.revoked_at)}
+            {strings.ui.sessionSecurityConsole.revokedAt(formatSessionInstant(record.revoked_at))}
             {record.revocation_reason ? ` (${record.revocation_reason.replaceAll("_", " ")})` : ""}
           </p>
         ) : null}
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
         <span className={`status-pill ${sessionStatusClass(record.status)}`}>
-          {record.current ? strings.ui.sessionSecurityConsole.current : sessionStatusLabel(record.status)}
+          {record.current ? strings.ui.sessionSecurityConsole.current : sessionStatusLabel(record.status, strings)}
         </span>
         {revocable ? (
           record.current ? (
@@ -239,7 +244,7 @@ function SessionListPanel({
             </Button>
           ) : null}
           <span className={`status-pill ${list ? "signal-ready" : "signal-watch"}`}>
-            {list ? `${formatNumber(list.sessions.length)} recorded` : strings.ui.sessionSecurityConsole.loadingSessions}
+            {list ? strings.ui.sessionSecurityConsole.recordedCount(list.sessions.length) : strings.ui.sessionSecurityConsole.loadingSessions}
           </span>
         </div>
       </div>
@@ -327,7 +332,8 @@ export function SessionSecurityConsole() {
           Boolean(identitySession),
           PROVENANCE_NOT_APPLICABLE,
         ),
-        "session security",
+        strings.sources.subjects.sessionSecurity,
+        strings,
       )}
       subtitle={strings.ui.sessionSecurityConsole.apiOwnedOidcBrowserSessions}
       title={strings.ui.sessionSecurityConsole.sessionSecurity}

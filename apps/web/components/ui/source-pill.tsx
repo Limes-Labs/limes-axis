@@ -9,7 +9,10 @@ import {
 import type { ComponentType } from "react";
 
 import { cn } from "@/lib/cn";
+import type { ConsoleStrings } from "@/lib/i18n";
+import { strings as englishStrings } from "@/lib/strings";
 import type { SourceState } from "@/lib/source-state";
+import { useStrings } from "@/providers/locale-provider";
 
 const tones: Record<SourceState, string> = {
   loading: "status-checking",
@@ -41,22 +44,17 @@ export interface SourcePillProps {
   compact?: boolean;
 }
 
-const labels: Record<SourceState, (subject: string) => string> = {
-  loading: (subject) => `${subject}: loading`,
-  live: (subject) => `${subject}: live`,
-  reference: (subject) => `${subject}: reference scenario`,
-  empty: (subject) => `${subject}: no records`,
-  stale: (subject) => `${subject}: stale`,
-  unavailable: (subject) => `${subject}: unavailable`,
-};
-
 /**
  * Plain-text provenance for a `title` or tooltip, e.g. "agents: live". Pages
  * that summarise provenance once (the overview banner) keep it per item here
  * instead of repeating a visible pill on every panel.
  */
-export function sourceStateLabel(state: SourceState, subject: string): string {
-  return labels[state](subject);
+export function sourceStateLabel(
+  state: SourceState,
+  subject: string,
+  copy: ConsoleStrings = englishStrings,
+): string {
+  return copy.sources.states[state](subject);
 }
 
 /**
@@ -66,12 +64,14 @@ export function sourceStateLabel(state: SourceState, subject: string): string {
  */
 export function SourcePill({ state, subject, className, compact = false }: SourcePillProps) {
   const Icon = icons[state];
+  const strings = useStrings();
+  const copy = strings.ui.uiSourcePill;
 
   return (
     <span className={cn("status-pill", tones[state], className)} data-source-state={state}>
       <Icon aria-hidden="true" className={cn("size-3.5", state === "loading" && "animate-spin")} />
-      <span className="sr-only">Data source: </span>
-      {compact && state === "reference" ? `${subject}: example` : labels[state](subject)}
+      <span className="sr-only">{copy.dataSource}{" "}</span>
+      {compact && state === "reference" ? copy.example(subject) : sourceStateLabel(state, subject, strings)}
     </span>
   );
 }

@@ -112,7 +112,7 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
               Boolean(detail),
               detail.provenance,
             )}
-            subject="ontology entity"
+            subject={strings.sources.subjects.ontologyEntity}
           />
           <PlatformStatusPill status={detail.node.status} />
           <span className="font-mono text-xs text-muted">

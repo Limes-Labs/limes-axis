@@ -394,7 +394,7 @@ export function ApprovalDecisionCard({
       {decision ? (
         <div className="grid gap-1">
           <p className="font-display m-0 text-lg text-ink">
-            {approvalDecisionLabel(decision.decision)}
+            {approvalDecisionLabel(decision.decision, strings)}
           </p>
           <p className="m-0 text-xs text-muted">
             {decision.label} / {decision.decidedAt} / {decision.actorId}

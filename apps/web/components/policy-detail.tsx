@@ -32,7 +32,7 @@ import {
   type PlatformPolicyDetail,
   type PlatformPolicyRecord,
 } from "@/lib/platform-policies";
-import { formatNumber, formatTimestamp } from "@/lib/format";
+import { formatTimestamp } from "@/lib/format";
 import {
   enumUrlField,
   opaqueStringUrlField,
@@ -108,17 +108,17 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
           <tr key={revision.revision_number}>
             <td>
               <span className="font-mono text-[13px] break-words">
-                r{revision.revision_number} / {revision.policy_version}
+                {strings.ui.common.revisionVersion(revision.revision_number, revision.policy_version)}
               </span>
               {revision.revises_revision_number != null ? (
-                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">Revises r{revision.revises_revision_number}</p>
+                <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{strings.ui.policyDetail.revisesRevision(revision.revises_revision_number)}</p>
               ) : (
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{strings.ui.policyDetail.initialRevision}</p>
               )}
             </td>
             <td>
               <span className={`status-pill ${policyEffectClass(revision.effect)}`}>
-                {policyEffectLabel(revision.effect)}
+                {policyEffectLabel(revision.effect, strings)}
               </span>
             </td>
             <td>
@@ -126,11 +126,11 @@ function RevisionHistoryTable({ revisions }: { revisions: PlatformPolicyRecord[]
             </td>
             <td>
               <span className={`status-pill ${policyStatusClass(revision.status)}`}>
-                {policyStatusLabel(revision.status)}
+                {policyStatusLabel(revision.status, strings)}
               </span>
               {revision.replaced_by_revision_number != null ? (
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
-                  Superseded by r{revision.replaced_by_revision_number}
+                  {strings.ui.policyDetail.supersededBy(revision.replaced_by_revision_number)}
                 </p>
               ) : null}
             </td>
@@ -296,7 +296,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
     <div className="grid min-w-0 gap-4">
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="eyebrow m-0">{policyScopeLabel(current.scope)}</p>
+          <p className="eyebrow m-0">{policyScopeLabel(current.scope, strings)}</p>
           <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">{current.display_name}</h2>
           <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">{current.description}</p>
           <Disclosure className="mt-1 text-xs text-muted" size="sm" title={strings.identifiers.inspectIdentifiers} variant="plain">
@@ -312,11 +312,11 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
               Boolean(detail),
               PROVENANCE_NOT_APPLICABLE,
             )}
-            subject="policy"
+            subject={strings.sources.subjects.policy}
           />
           <span className={`status-pill ${policyEffectClass(current.effect)}`}>
             <ShieldCheck size={15} />
-            {policyEffectLabel(current.effect)}
+            {policyEffectLabel(current.effect, strings)}
           </span>
           <Link className={buttonVariants({ variant: "secondary" })} href="/policies">
             <ArrowLeft size={17} />
@@ -329,13 +329,13 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
         <StatCard
           detail={current.policy_version}
           label={strings.ui.policyDetail.currentRevision}
-          value={<>r{current.revision_number}</>}
+          value={strings.ui.common.revisionNumber(current.revision_number)}
           valueVariant="mono"
         />
         <StatCard
           detail={strings.ui.policyDetail.onlyTheActiveRevisionIs}
           label={strings.ui.common.status}
-          value={policyStatusLabel(current.status)}
+          value={policyStatusLabel(current.status, strings)}
         />
         <StatCard
           detail={formatTimestamp(current.created_at)}
@@ -448,8 +448,11 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
               role="status"
             >
               <p className="m-0 min-w-0 text-sm leading-snug break-words text-ink">
-                Revision recorded: r{urlState.revisedRevisionNumber}. The active revision is
-                r{current.revision_number} / {current.policy_version}.
+                {strings.ui.policyDetail.revisionRecorded(
+                  urlState.revisedRevisionNumber,
+                  current.revision_number,
+                  current.policy_version,
+                )}
               </p>
               <button
                 className="inline-flex min-h-6 cursor-pointer items-center font-mono text-xs text-muted transition-colors hover:text-signal"
@@ -471,7 +474,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
               <div>
                 <p className="eyebrow m-0">{strings.ui.policyDetail.revisionHistory}</p>
                 <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink">
-                  {formatNumber(detail.revisions.length)} append-only revisions
+                  {strings.ui.policyDetail.appendOnlyRevisions(detail.revisions.length)}
                 </h2>
                 <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                   {strings.ui.policyDetail.supersededRevisionsStayReadableBut}
@@ -508,7 +511,7 @@ export function PolicyDetail({ policyId }: { policyId: string }) {
                     <option value="">{strings.ui.policyDetail.selectARevision}</option>
                     {compareCandidates.map((revision) => (
                       <option key={revision.revision_number} value={revision.revision_number}>
-                        r{revision.revision_number} / {revision.policy_version}
+                        {strings.ui.common.revisionVersion(revision.revision_number, revision.policy_version)}
                       </option>
                     ))}
                   </Select>
