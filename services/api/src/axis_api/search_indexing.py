@@ -28,6 +28,7 @@ Fail-closed rules encoded here:
 from __future__ import annotations
 
 from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
 
 from axis_api.audit import AuditEventCreate
 from axis_api.persistence import (
@@ -281,6 +282,7 @@ def _apply_projection(
     supersedes_current: bool,
     audit_event_id,
     event_type: str,
+    retry_on_conflict: bool = True,
 ) -> IndexProjection:
     current = repository.get_search_index_record_for_update(
         document.tenant_id, document.source_object_id
@@ -294,59 +296,87 @@ def _apply_projection(
         incoming_generation=index_generation,
         supersedes_current=supersedes_current,
     )
-    audit = repository.append_audit_event(
-        _audit_event_create(
-            tenant_id=document.tenant_id,
-            event_type=event_type,
-            payload={
-                "adapter": SEARCH_INDEX_ADAPTER,
-                "source_object_id": document.source_object_id,
-                "decision": projection.decision,
-                "reason": projection.reason,
-                "index_generation": projection.next_generation,
-                "text_digest": projection_data.text_digest,
-                "searchable_chars": projection_data.searchable_chars,
-                "language": projection_data.language,
-            },
-        )
-    )
-    if projection.decision == "superseded":
-        return projection
-    if current is None:
-        repository.create_search_index_record(
-            SearchIndexRecordCreate(
+
+    def append_audit():
+        return repository.append_audit_event(
+            _audit_event_create(
                 tenant_id=document.tenant_id,
-                kind=document.kind,
-                source_object_id=document.source_object_id,
-                content_revision=document.content_revision,
-                source_locator=document.source_locator,
-                state="live",
-                searchable_text=projection_data.searchable_text,
-                text_digest=projection_data.text_digest,
-                language=projection_data.language,
-                analyzer_revision=projection_data.analyzer_revision,
-                policy_revision_ref=document.policy_revision_ref,
-                index_generation=projection.next_generation,
-                indexed_event_type=event_type,
-                indexed_audit_event_id=audit.id,
+                event_type=event_type,
+                payload={
+                    "adapter": SEARCH_INDEX_ADAPTER,
+                    "source_object_id": document.source_object_id,
+                    "decision": projection.decision,
+                    "reason": projection.reason,
+                    "index_generation": projection.next_generation,
+                    "text_digest": projection_data.text_digest,
+                    "searchable_chars": projection_data.searchable_chars,
+                    "language": projection_data.language,
+                },
             )
         )
-    else:
-        repository.apply_search_index_projection(
-            current,
-            SearchIndexProjectionUpdate(
-                next_state=projection.next_state,
-                next_content_revision=projection.next_content_revision,
-                next_generation=projection.next_generation,
-                searchable_text=projection_data.searchable_text,
-                text_digest=projection_data.text_digest,
-                language=projection_data.language,
-                analyzer_revision=projection_data.analyzer_revision,
-                policy_revision_ref=document.policy_revision_ref,
-                indexed_event_type=event_type,
-                indexed_audit_event_id=audit.id,
-            ),
-        )
+
+    if current is None:
+        # The row lock above cannot fence an identity that does not exist
+        # yet: concurrent first writers both read nothing. The unique
+        # (tenant_id, source_object_id) constraint is the backstop, and the
+        # audit event and insert share one savepoint so the loser leaves no
+        # applied/new_record evidence behind.
+        try:
+            with repository.session.begin_nested():
+                audit = append_audit()
+                repository.create_search_index_record(
+                    SearchIndexRecordCreate(
+                        tenant_id=document.tenant_id,
+                        kind=document.kind,
+                        source_object_id=document.source_object_id,
+                        content_revision=document.content_revision,
+                        source_locator=document.source_locator,
+                        state="live",
+                        searchable_text=projection_data.searchable_text,
+                        text_digest=projection_data.text_digest,
+                        language=projection_data.language,
+                        analyzer_revision=projection_data.analyzer_revision,
+                        policy_revision_ref=document.policy_revision_ref,
+                        index_generation=projection.next_generation,
+                        indexed_event_type=event_type,
+                        indexed_audit_event_id=audit.id,
+                    )
+                )
+        except IntegrityError:
+            if not retry_on_conflict:
+                raise
+            # A concurrent writer created the identity first: classify
+            # against its (now committed and locked) row instead.
+            return _apply_projection(
+                repository,
+                document=document,
+                projection_data=projection_data,
+                index_generation=index_generation,
+                supersedes_current=supersedes_current,
+                audit_event_id=audit_event_id,
+                event_type=event_type,
+                retry_on_conflict=False,
+            )
+        return projection
+
+    audit = append_audit()
+    if projection.decision == "superseded":
+        return projection
+    repository.apply_search_index_projection(
+        current,
+        SearchIndexProjectionUpdate(
+            next_state=projection.next_state,
+            next_content_revision=projection.next_content_revision,
+            next_generation=projection.next_generation,
+            searchable_text=projection_data.searchable_text,
+            text_digest=projection_data.text_digest,
+            language=projection_data.language,
+            analyzer_revision=projection_data.analyzer_revision,
+            policy_revision_ref=document.policy_revision_ref,
+            indexed_event_type=event_type,
+            indexed_audit_event_id=audit.id,
+        ),
+    )
     return projection
 
 

@@ -49,7 +49,12 @@ store or source artifacts.
 The read-modify-write is serialized per record by
 `get_search_index_record_for_update()` (`SELECT … FOR UPDATE`), the same
 pattern used by terminal state transitions in this repository, so concurrent
-workers produce exactly one winner per record.
+workers produce exactly one winner per record. A row lock cannot fence an
+identity that does not exist yet, so first-time writers insert inside a
+savepoint, with the unique `(tenant_id, source_object_id)` constraint as the
+backstop. A losing writer's audit event is discarded with its insert, and it
+re-classifies against the winner's row instead of failing the caller's
+transaction.
 
 ## Commitment boundary and bounded text
 
