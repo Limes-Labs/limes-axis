@@ -7,6 +7,14 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Versioned Document Studio contract for durable documents and reusable
+  templates: section/block schema with stable IDs, typed template parameters
+  and fixed/editable/required regions, digest-bound template provenance that
+  survives template deletion, published-revision immutability, bounded
+  design tokens, and accessibility outline as contract data. Contract slice
+  only; no storage, editor runtime, rendering or embed resolution
+  ([#829](https://github.com/Limes-Labs/limes-axis/issues/829)).
+
 - Versioned Workbook Studio contract separating workbook structure, source
   bindings and cell provenance: stable identities disjoint from source
   storage IDs, opaque resource-prefix bindings without credentials or rows,
@@ -79,6 +87,18 @@ release-bound behavior, not the complete commit history.
   unsupported scan formats abort generation instead of reusing a privileged
   cached package. No signing, issuance or download delivery
   ([#884](https://github.com/Limes-Labs/limes-axis/issues/884)).
+- Immutable signed assurance pack issuance and bounded offline verification:
+  final approval binds to the exact assembled package and manifest digests
+  after a sign-time preflight and support re-check; frozen issuance records
+  carry the approver, Ed25519 signing profile and the #729 lifecycle facts
+  (capture time, valid-through, supersession by record digest) as separate
+  fields. The verifier reads the manifest and attachments from the package
+  itself under member/size bounds, needs only a separately trusted public
+  key, rejects unknown record fields and unsupported algorithms, and lets
+  stale or missing revocation data or an uncertain clock only qualify the
+  result; the wording states that a signature proves integrity and
+  provenance, not certification
+  ([#885](https://github.com/Limes-Labs/limes-axis/issues/885)).
 
 - A provider-neutral writeback contract that maps an existing typed action onto
   one registered external mutation: adapter capability/readiness and conformance
