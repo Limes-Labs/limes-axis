@@ -38,8 +38,10 @@ The contract makes fabricated success unrepresentable:
 
 * a `restore` decision requires a registered handler **and** a content digest —
   a subsystem without a restore handler cannot be declared restorable, and
-  future subsystems are declared `unsupported`/excluded instead of
+  future subsystems are declared excluded (with a reason) instead of
   empty-success placeholders;
+* `depends_on` names only other inventoried components and must be acyclic;
+  rebinding reference ids are unique;
 * excluded components cannot claim exported objects;
 * every inventoried store needs its watermark in the consistency point; each
   store is inventoried exactly once;
@@ -58,18 +60,20 @@ boundary (`parse_portability_manifest` maps every validation failure to fixed
 safe codes; raw Pydantic errors are never rendered):
 
 * **Same major, same minor** — fully supported.
-* **Same major, later minor** — envelope accepted for forward reading; new
-  field names still fail strict parsing, so additive minors require updating
-  this contract deliberately.
+* **Same major, other minor** — rejected with `incompatible_manifest_version`
+  until this contract deliberately adds that minor to its supported set; there
+  is no forward-reading of unknown minors.
 * **Different major** — rejected with `incompatible_manifest_version`. There is
   no implicit major fallback and no all-version compatibility promise.
 
 ## Secret exclusion
 
-Secret material has no field to occupy: sessions, runtime credentials, signing
+Secret material has no dedicated field to occupy: sessions, runtime credentials, signing
 private keys and tokens cannot be attached to the manifest (extra fields are
 rejected), and appear only as typed rebinding references with fixed
-resolutions. Deployment-specific identifiers stay deployment-specific; logical
+resolutions. The bounded free-text fields (`notes`, `exclusion_reason`,
+`disclosures`) are operator-facing prose; producers must never place secret
+values in them, and the contract cannot detect it if they do. Deployment-specific identifiers stay deployment-specific; logical
 object/ontology identifiers are preserved for the destination to rebind.
 
 ## Handoff to #324
@@ -86,6 +90,6 @@ signing of the bundle and retention stay owned by #324/#329.
 
 Verification: `make test-api
 PYTEST_ARGS='tests/test_portability_manifest.py -q'` from a complete checkout —
-33 tests cover round-trips, digest determinism, major-version rejection,
+the tests cover round-trips, digest determinism, major-version rejection,
 unknown-field rejection, store/consistency coherence, handler honesty, secret
 exclusion, suspension defaults and deterministic review verdicts.
