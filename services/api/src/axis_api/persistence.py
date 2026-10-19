@@ -460,11 +460,18 @@ class DataAssetStewardshipCreate(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
-ObservationSourceKind = Literal["csv_preview", "postgres_discovery", "s3_object_discovery"]
+ObservationSourceKind = Literal[
+    "csv_preview",
+    "postgres_discovery",
+    "s3_object_discovery",
+    "rest_declared_schema",
+]
 """The governed boundary an observation was actually seen through.
 
 Extending this set is deliberate: each new kind is a distinct evidence
-provenance the catalog and audit consumers must understand.
+provenance the catalog and audit consumers must understand. A declared REST
+schema is recorded as ``rest_declared_schema``: the operator declared the
+fingerprint instead of the provider being discovered.
 """
 
 

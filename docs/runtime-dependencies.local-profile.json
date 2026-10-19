@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "id": "local-core-planning",
+  "kind": "inventory-only",
+  "description": "Logical local-only capability plan. This is not a runnable environment, validated configuration, offline bundle, or proof of network isolation.",
+  "bindings": [
+    {
+      "dependency": "control-api",
+      "state": "local",
+      "service": "axis-api",
+      "reason": "Provide the logical service inside the deployment and verify its declared limitations."
+    },
+    {
+      "dependency": "console-origin",
+      "state": "local",
+      "service": "axis-web",
+      "reason": "Provide the logical service inside the deployment and verify its declared limitations."
+    },
+    {
+      "dependency": "operational-database",
+      "state": "local",
+      "service": "postgres",
+      "reason": "Provide the logical service inside the deployment and verify its declared limitations."
+    },
+    {
+      "dependency": "distributed-rate-limit",
+      "state": "local",
+      "service": "valkey",
+      "reason": "Provide the logical service inside the deployment and verify its declared limitations."
+    },
+    {
+      "dependency": "ontology-store",
+      "state": "omitted",
+      "reason": "Disable live TypeDB queries and mutations; the limited reference graph is not equivalent."
+    },
+    {
+      "dependency": "workflow-engine",
+      "state": "local",
+      "service": "temporal",
+      "reason": "Provide the logical service inside the deployment and verify its declared limitations."
+    },
+    {
+      "dependency": "identity-validation",
+      "state": "local",
+      "service": "identity",
+      "reason": "Provide the logical service inside the deployment and verify its declared limitations."
+    },
+    {
+      "dependency": "identity-token-exchange",
+      "state": "local",
+      "service": "identity",
+      "reason": "Provide the logical service inside the deployment and verify its declared limitations."
+    },
+    {
+      "dependency": "identity-browser-navigation",
+      "state": "local",
+      "service": "identity",
+      "reason": "Provide the logical service inside the deployment and verify its declared limitations."
+    },
+    {
+      "dependency": "artifact-object-store",
+      "state": "local",
+      "service": "object-store",
+      "reason": "Provide the logical service inside the deployment and verify its declared limitations."
+    },
+    {
+      "dependency": "s3-input",
+      "state": "omitted",
+      "reason": "Leave the S3 source adapter disabled with no source profiles."
+    },
+    {
+      "dependency": "external-database-source",
+      "state": "omitted",
+      "reason": "Leave external database discovery and live extraction disabled."
+    },
+    {
+      "dependency": "model-inference",
+      "state": "omitted",
+      "reason": "Leave model execution disabled until a compatible local provider is qualified."
+    },
+    {
+      "dependency": "telemetry-export",
+      "state": "omitted",
+      "reason": "Leave telemetry export disabled; adding a collector requires reviewing its downstream destinations."
+    },
+    {
+      "dependency": "static-assets",
+      "state": "bundled",
+      "reason": "Serve packaged assets and fonts from the local web artifact."
+    },
+    {
+      "dependency": "operator-diagnostics",
+      "state": "omitted",
+      "reason": "Do not configure operator links; supply local operating procedures separately."
+    },
+    {
+      "dependency": "dns",
+      "state": "local",
+      "service": "local-dns",
+      "reason": "Provide the logical service inside the deployment and verify its declared limitations."
+    },
+    {
+      "dependency": "clock",
+      "state": "local",
+      "service": "local-time",
+      "reason": "Provide the logical service inside the deployment and verify its declared limitations."
+    },
+    {
+      "dependency": "pki",
+      "state": "local",
+      "service": "local-pki",
+      "reason": "Provide the logical service inside the deployment and verify its declared limitations."
+    },
+    {
+      "dependency": "software-distribution",
+      "state": "preloaded",
+      "reason": "Acquire and verify locked packages and images before disconnecting; bundle production remains separate."
+    },
+    {
+      "dependency": "model-artifacts",
+      "state": "omitted",
+      "reason": "Inference is omitted; this inventory does not supply or download weights."
+    }
+  ]
+}
