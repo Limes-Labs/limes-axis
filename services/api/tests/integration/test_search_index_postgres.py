@@ -342,3 +342,65 @@ def test_generation_rebuild_on_real_postgres_rejects_old_cursors(
                 searcher_ref="actor:rebuild",
             )
         assert error.value.code == SearchQueryError.CURSOR_EXPIRED
+
+
+def test_concurrent_rebuilds_of_one_tenant_serialize(migrated_postgres_engine):
+    """A second rebuild waits for the first and derives a newer generation."""
+
+    from sqlalchemy.exc import OperationalError
+
+    from axis_api.audit import AuditEventCreate
+    from axis_api.search_rebuild import RebuildContext, RebuildItem, RebuildSource
+
+    engine = migrated_postgres_engine
+    tenant_id = "tenant-search-pg-rebuild-lock"
+    factory = _seed_tenant(engine, tenant_id)
+    node = f"{tenant_id}::asset-a"
+    _index_once(factory, tenant_id, node, "rev-1", "Pump alpha calibration", supersedes=False)
+    with session_scope(factory) as session:
+        watermark = AxisPersistenceRepository(session).append_audit_event(
+            AuditEventCreate(
+                tenant_id=tenant_id,
+                actor_id="rebuild-test",
+                event_type="rebuild.source.watermark",
+                payload={"reason": "fixture"},
+            )
+        )
+
+    def source() -> RebuildSource:
+        return RebuildSource(
+            tenant_id=tenant_id,
+            watermark_event_id=watermark.id,
+            items=[
+                RebuildItem(
+                    kind="ontology_asset",
+                    source_object_id=node,
+                    content_revision="rev-1",
+                    source_locator=f"typedb://axis/{node}",
+                    searchable_text="Pump alpha calibration",
+                    policy_revision_ref="policy-rev-1",
+                )
+            ],
+        )
+
+    first_session = factory()
+    try:
+        first = RebuildContext(repository=AxisPersistenceRepository(first_session), source=source())
+        assert first.prepare() == 2
+        with factory() as second_session:
+            second_session.execute(text("SET LOCAL lock_timeout = '200ms'"))
+            blocked = RebuildContext(
+                repository=AxisPersistenceRepository(second_session), source=source()
+            )
+            with pytest.raises(OperationalError):
+                blocked.prepare()
+            second_session.rollback()
+        first.build(source().items[0])
+        first.commit()
+        first_session.commit()
+    finally:
+        first_session.close()
+
+    with session_scope(factory) as session:
+        second = RebuildContext(repository=AxisPersistenceRepository(session), source=source())
+        assert second.prepare() == 3

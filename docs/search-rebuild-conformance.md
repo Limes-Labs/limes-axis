@@ -34,6 +34,11 @@ and is deliberately not pretended here.
   rather than regressing that content or resurrecting a deletion. Retry with
   a fresher snapshot. Rows the rebuild itself already moved to the target
   generation are not fenced.
+- **One rebuild per tenant at a time** — `prepare` takes a per-tenant,
+  transaction-scoped PostgreSQL advisory lock before it derives the fresh
+  generation. A concurrent rebuild waits for the first to commit or roll
+  back and then derives a strictly newer generation, so the fence above also
+  covers the first rebuild's rows: an older snapshot cannot overwrite them.
 - **Atomic, validated switch** — `commit` re-reads the whole tenant index
   inside the switch transaction (`list_search_index_states`, tombstones
   included) and verifies: every rebuild identity live at its declared

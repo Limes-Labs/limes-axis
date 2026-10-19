@@ -21,6 +21,10 @@ Invariants (AC mapping in ``docs/search-rebuild-conformance.md``):
   source change the snapshot cannot contain, so building or tombstoning it
   fails closed (``source_advanced``) instead of regressing newer content or
   resurrecting a deletion. Retry with a fresher snapshot.
+* **One rebuild per tenant at a time**: ``prepare`` takes a per-tenant
+  transaction-scoped advisory lock (PostgreSQL) before deriving the fresh
+  generation, so two rebuilds never share a generation and a staler snapshot
+  cannot slip past the fence over a newer rebuild's rows.
 * **Atomic, validated switch**: ``commit`` re-reads the whole tenant inside
   the switch transaction and verifies every rebuild identity landed live at
   its declared revision and text digest, and that no *other* identity
@@ -159,6 +163,10 @@ class RebuildContext:
 
         if not self.source.items:
             raise SearchRebuildError(SearchRebuildError.EMPTY_SOURCE)
+        # Held until the rebuild transaction ends: a concurrent rebuild of the
+        # tenant waits here and then derives a strictly newer generation, so
+        # the watermark fence also covers the rows this rebuild writes.
+        self.repository.lock_search_rebuild(tenant_id=self.source.tenant_id)
         watermark = self.repository.get_audit_event(
             self.source.tenant_id, self.source.watermark_event_id
         )
