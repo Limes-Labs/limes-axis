@@ -16,7 +16,7 @@ The implementation is
 | Concept | What it means | Where it appears |
 | --- | --- | --- |
 | **Configured** | The operator declared an offline egress profile and its approved local bindings, and configuration validation accepted them. | `offline_readiness.configuration` |
-| **Observed in a rehearsal** | A bounded local rehearsal-artifact reference matches the live profile digest, release identity and freshness window. | `offline_readiness.observed_evidence` |
+| **Observed in a rehearsal** | An isolated rehearsal actually demonstrated local connectivity and external denial. This slice **cannot establish it**: it only checks that an operator-declared rehearsal-artifact reference is consistent with the live profile digest, release identity and freshness window. | `offline_readiness.observed_evidence` (declared reference only) |
 | **Externally accredited** | An independent party has attested to isolation. | **Not established here, ever.** |
 
 Nothing in this section probes the network, mutates firewall or DNS state, or
@@ -34,11 +34,20 @@ deployments are unaffected.
 | `not_declared` | The deployment does not declare an offline egress profile (`AXIS_DEPLOYMENT_NETWORK_EGRESS_MODE` is neither `offline` nor `local_only`). Nothing is evaluated. |
 | `action_required` | The profile is declared but configuration validation found blockers. |
 | `configured_unverified` | The profile is declared and configuration validation passed, but isolation is unverified: evidence is missing, incomplete, malformed, tampered, stale or mismatched. |
-| `verified_in_rehearsal` | Configuration passed and a rehearsal-artifact reference matched. Observed in a rehearsal, never accredited. |
+| `rehearsal_reference_matched` | Configuration passed and an operator-declared rehearsal reference is consistent with the live profile. Isolation is still **not verified or observed by Axis**, and never accredited. |
 
 `observed_evidence.state` is one of `not_run`, `incomplete`, `malformed`,
 `tampered`, `mismatched`, `stale` or `matched`. Only `matched` can produce
-`verified_in_rehearsal`.
+`rehearsal_reference_matched`.
+
+No state reports isolation as verified. The rehearsal reference arrives through
+configuration (`AXIS_OFFLINE_REHEARSAL_EVIDENCE`), and every input needed to
+produce a matching reference is public: the profile digest and release identity
+are in the unauthenticated readiness response and the result digest is an
+unkeyed hash. Anyone who can set the configuration can therefore produce a
+match without running a rehearsal, so a match records a declaration only.
+Authenticated rehearsal evidence is
+[#872](https://github.com/Limes-Labs/limes-axis/issues/872).
 
 ## Configuration
 
@@ -66,7 +75,12 @@ references and reached endpoints never appear in the readiness response.
 
 Every active dependency must be locally bound. A dependency that is not active
 is reported as an omitted capability **with the configuration that disables
-it**, so a weaker fallback is never silently activated:
+it**, so a weaker fallback is never silently activated. A *required* dependency
+that is disabled is also a blocker (`required_dependency_disabled:<id>`), for
+example identity validation with OIDC turned off, because the profile would
+otherwise validate while an unauthenticated fallback is active. The local
+filesystem export adapter is the exception: it is an in-process local
+replacement for `artifact-object-store`, reported as a reasoned omission.
 
 | Requirement | Dependencies |
 | --- | --- |
@@ -75,6 +89,7 @@ it**, so a weaker fallback is never silently activated:
 
 Blockers are machine-readable codes such as
 `required_dependency_not_locally_bound:<id>`,
+`required_dependency_disabled:<id>`,
 `optional_dependency_not_locally_bound:<id>`,
 `dependency_manifest_revision_not_declared`,
 `dependency_manifest_revision_not_a_git_revision`,
@@ -94,11 +109,11 @@ A blocker code never echoes a binding reference, endpoint or secret.
 
    | Field | Content |
    | --- | --- |
-   | `ref` | Opaque rehearsal-artifact reference |
-   | `release` | Tested release identity |
+   | `ref` | Opaque rehearsal-artifact reference (same rules as a binding reference) |
+   | `release` | Tested release identity (bounded label, at most 128 characters) |
    | `profile_digest` | The digest read in step 2 |
    | `captured_at` | Timezone-aware ISO-8601 capture time |
-   | `scope` | Environment and CNI scope the rehearsal covered |
+   | `scope` | Environment and CNI scope the rehearsal covered (bounded label: letters, digits and `._+:/-`, at most 128 characters) |
    | `result_digest` | `sha256` of the canonical JSON of the five fields above |
 
 4. Set `AXIS_OFFLINE_REHEARSAL_EVIDENCE` to that JSON object and redeploy.
@@ -113,7 +128,9 @@ and compare them with the reported values.
 edited, partially copied or inconsistent reference and establishes no provenance
 or accreditation. The freshness window is 90 days
 (`OFFLINE_REHEARSAL_MAX_AGE_SECONDS`), and a capture time more than five minutes
-in the future is rejected as malformed.
+in the future is rejected as malformed. A `ref`, `release` or `scope` that is
+not a bounded opaque value is rejected as malformed without being echoed,
+because the readiness endpoint is unauthenticated.
 
 ## Which checks are static, configuration-based or runtime-observed
 
@@ -128,8 +145,9 @@ in the future is rejected as malformed.
 | CNI enforcement, additive-policy absence, upstream resolver behaviour, node-local DNS support | **Runtime-observed** | **NOT RUN** — deployment prerequisites documented in [zero-egress-local-only-profile.md](zero-egress-local-only-profile.md) |
 | Independent attestation of isolation | **External** | **NOT RUN** — no accreditation is established by this feature |
 
-A green readiness response therefore means *declared and, at most, observed in a
-bounded rehearsal*. It is not evidence that no packet can leave the environment.
+A green readiness response therefore means *declared and, at most, backed by a
+consistent operator-declared rehearsal reference*. It is not evidence that a
+rehearsal ran or that no packet can leave the environment.
 
 ## Reproducible checks
 

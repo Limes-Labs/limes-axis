@@ -8,15 +8,21 @@ conflates them:
 
 - **configured**: the operator declared an offline profile and its approved local
   bindings, and configuration validation accepted them.
-- **observed in a rehearsal**: a bounded local rehearsal-artifact reference
-  matches the live profile digest, release identity and capture window.
+- **observed in a rehearsal**: an isolated rehearsal actually demonstrated local
+  connectivity and external denial. This module cannot establish that: it only
+  checks that an operator-*declared* rehearsal-artifact reference is consistent
+  with the live profile digest, release identity and capture window
+  (``rehearsal_reference_matched``). The reference arrives through configuration
+  and its result digest is a public, unkeyed consistency hash, so a match is a
+  declaration, never verification. Authenticated rehearsal evidence is #872.
 - **externally accredited**: not established here, ever.
 
 Nothing in this module probes the network, mutates firewall state or trusts a
 caller-supplied ``verified`` flag. It reads declared configuration, computes a
 profile digest over public-safe material facts and validates a declared
 rehearsal-artifact reference. Missing, malformed, tampered, stale or mismatched
-evidence is reported as unverified, never as observed. The report never contains
+evidence is reported as unverified, and no state reports isolation as verified
+or observed. The report never contains
 endpoint values, secret material or file contents: endpoint locality is resolved
 through operator-approved local bindings, not through address text.
 """
@@ -77,6 +83,12 @@ _DEPENDENCY_ID = re.compile(r"^[a-z][a-z0-9-]{0,79}$")
 # external-database live-query binding uses the same private-endpoint convention.
 _BINDING_REFERENCE = re.compile(r"^[a-z][a-z0-9+.-]*://[^@?#\s]{1,200}$")
 _FORBIDDEN_BINDING_SCHEMES = ("http://", "https://", "file://", "ftp://")
+# Release identity and environment/CNI scope labels echoed back in the report.
+_EVIDENCE_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+:/-]{0,127}$")
+# A disabled required dependency is a blocker unless its disabled state is itself
+# an in-process local replacement; otherwise, e.g. disabled identity validation,
+# the profile would validate while a weaker unauthenticated fallback is active.
+_LOCAL_REPLACEMENT_DEPENDENCIES = frozenset({"artifact-object-store"})
 
 
 class OfflineOmittedCapability(BaseModel):
@@ -129,7 +141,7 @@ class OfflineReadinessSection(BaseModel):
         "not_declared",
         "action_required",
         "configured_unverified",
-        "verified_in_rehearsal",
+        "rehearsal_reference_matched",
     ]
     declared: bool
     egress_mode: str = Field(min_length=1)
@@ -359,6 +371,11 @@ def _evaluate_configuration(
             omitted.append(
                 OfflineOmittedCapability(dependency_id=dependency_id, reason=disabled_reason)
             )
+            if (
+                requirement == "required"
+                and dependency_id not in _LOCAL_REPLACEMENT_DEPENDENCIES
+            ):
+                blockers.append(f"required_dependency_disabled:{dependency_id}")
             continue
         dependencies.append(
             OfflineDependencyBinding(
@@ -427,6 +444,21 @@ def _evaluate_evidence(
     evidence = {field: str(declared[field]).strip() for field in REHEARSAL_EVIDENCE_FIELDS}
     reference = evidence["ref"]
     scope = evidence["scope"]
+    # The readiness endpoint is unauthenticated: validate the echoed fields before
+    # returning any of them, so a URL, credential or free text never leaks.
+    if (
+        reference.casefold().startswith(_FORBIDDEN_BINDING_SCHEMES)
+        or not _BINDING_REFERENCE.match(reference)
+        or not _EVIDENCE_LABEL.match(scope)
+        or not _EVIDENCE_LABEL.match(evidence["release"])
+    ):
+        return OfflineObservedEvidence(
+            state="malformed",
+            detail=(
+                "The rehearsal reference must be an opaque scheme://path reference, and the "
+                "release and scope must be bounded labels."
+            ),
+        )
 
     captured_at = _parse_timestamp(evidence["captured_at"])
     if captured_at is None:
@@ -499,8 +531,10 @@ def _evaluate_evidence(
     return OfflineObservedEvidence(
         state="matched",
         detail=(
-            "A local rehearsal artifact matches the live profile digest, release identity and "
-            "freshness window. This is observed in a rehearsal, not an external accreditation."
+            "The operator-declared rehearsal reference is consistent with the live profile "
+            "digest, release identity and freshness window. Axis cannot authenticate the "
+            "referenced artifact, so this is a declaration: isolation is not verified or "
+            "observed by Axis, and no accreditation is established."
         ),
         **observed,
     )
@@ -537,6 +571,9 @@ def evaluate_offline_readiness(
         "dependency ids and opaque binding references, never resolved endpoints or secrets.",
         "Configured posture, observed rehearsal evidence and external accreditation are "
         "distinct: this section establishes no accreditation and runs no network probe.",
+        "A rehearsal reference is an operator declaration supplied through configuration; "
+        "Axis checks its consistency but cannot authenticate it, so no state here means "
+        "isolation was verified or observed.",
     ]
 
     if egress_mode not in OFFLINE_EGRESS_MODES:
@@ -579,7 +616,7 @@ def evaluate_offline_readiness(
     if configuration.state == "invalid":
         state = "action_required"
     elif evidence.matched:
-        state = "verified_in_rehearsal"
+        state = "rehearsal_reference_matched"
     else:
         state = "configured_unverified"
     return OfflineReadinessSection(

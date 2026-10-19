@@ -276,17 +276,77 @@ def test_binding_references_must_be_opaque_and_bounded() -> None:
 # --- Acceptance criterion 3: material change invalidates evidence ------------
 
 
-def test_matching_rehearsal_evidence_is_observed_but_not_accredited() -> None:
+def test_matching_rehearsal_reference_is_a_declaration_not_verification() -> None:
     settings = offline_settings()
     base = section_for(settings)
     matched = section_for(
         offline_settings(offline_rehearsal_evidence=declared_evidence(base))
     )
 
-    assert matched.state == "verified_in_rehearsal"
+    assert matched.state == "rehearsal_reference_matched"
     assert matched.observed_evidence.state == "matched"
     assert matched.observed_evidence.age_seconds == 2 * 86400
-    assert "no accreditation" in matched.model_dump_json()
+    rendered = matched.model_dump_json()
+    assert "no accreditation" in rendered
+    assert "cannot authenticate" in matched.observed_evidence.detail
+
+
+def test_configuration_alone_never_reports_verified_isolation() -> None:
+    # Everything needed for a "matching" reference is public: the profile digest
+    # and release identity come from the unauthenticated readiness response and
+    # the result digest is an unkeyed hash. A self-made reference must therefore
+    # never surface as verified or observed isolation.
+    base = section_for(offline_settings())
+    forged = section_for(offline_settings(offline_rehearsal_evidence=declared_evidence(base)))
+
+    assert "verified" not in forged.state
+    assert "observed" not in forged.state
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"ref": "https://user:secret@rehearsal.example/run"},
+        {"ref": "rehearsal-artifact://local/run?token=secret"},
+        {"ref": "free text with spaces"},
+        {"scope": "x" * 300},
+        {"scope": "scope with secret=value spaces"},
+        {"release": "release\nwith-newline"},
+    ],
+)
+def test_unsafe_rehearsal_reference_fields_are_malformed_and_not_echoed(
+    overrides: dict[str, str],
+) -> None:
+    base = section_for(offline_settings())
+    section = section_for(
+        offline_settings(offline_rehearsal_evidence=declared_evidence(base, **overrides))
+    )
+
+    assert section.observed_evidence.state == "malformed"
+    assert section.state == "configured_unverified"
+    rendered = section.model_dump_json()
+    for value in overrides.values():
+        assert value not in rendered
+    assert section.observed_evidence.reference is None
+    assert section.observed_evidence.environment_scope is None
+
+
+def test_disabled_identity_validation_blocks_the_profile() -> None:
+    section = section_for(
+        offline_settings(
+            environment="development",
+            oidc_auth_required=False,
+            oidc_issuer="",
+            deployment_offline_local_bindings=[
+                entry for entry in LOCAL_BINDINGS if not entry.startswith("identity-validation")
+            ],
+        )
+    )
+
+    assert section.state == "action_required"
+    assert "required_dependency_disabled:identity-validation" in (
+        section.configuration.blockers
+    )
 
 
 @pytest.mark.parametrize(
@@ -464,7 +524,7 @@ def test_section_shape_matches_the_committed_contract_fixture() -> None:
             "not_declared",
             "action_required",
             "configured_unverified",
-            "verified_in_rehearsal",
+            "rehearsal_reference_matched",
         }
     )
     assert sorted(contract["observed_evidence_states"]) == sorted(
@@ -529,7 +589,7 @@ def test_documentation_states_which_checks_are_static_configuration_or_runtime()
         "runtime",
         "NOT RUN",
         "configured_unverified",
-        "verified_in_rehearsal",
+        "rehearsal_reference_matched",
         "accredit",
     ):
         assert term in text, f"documentation must explain {term!r}"

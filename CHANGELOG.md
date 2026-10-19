@@ -11,8 +11,9 @@ release-bound behavior, not the complete commit history.
   keeps declared configuration, observed rehearsal evidence and external
   accreditation distinct: an offline profile with no rehearsal is reported as
   configured but unverified, and missing, malformed, tampered, stale or
-  mismatched evidence is never observed. It adds no production-required check and
-  establishes no accreditation
+  mismatched evidence is never observed. A consistent rehearsal reference is
+  reported as an operator declaration, not as verified isolation. It adds no
+  production-required check and establishes no accreditation
   ([#871](https://github.com/Limes-Labs/limes-axis/issues/871)).
 
 - Opt-in `local_only` Helm egress profile with scoped DNS, an explicit local

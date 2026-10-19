@@ -14,7 +14,7 @@
     "not_declared",
     "action_required",
     "configured_unverified",
-    "verified_in_rehearsal"
+    "rehearsal_reference_matched"
   ],
   "observed_evidence_states": [
     "not_run",
