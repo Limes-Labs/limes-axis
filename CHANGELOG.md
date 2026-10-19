@@ -52,6 +52,17 @@ release-bound behavior, not the complete commit history.
   Zero network, admission, credential or destination-write behavior
   ([#877](https://github.com/Limes-Labs/limes-axis/issues/877)).
 
+- Versioned assurance pack manifest contract: audience/engagement-bound
+  selection of exact answer, posture and evidence revisions, structured
+  support states that keep gaps and limitations visible, freshness
+  re-verification against observed facts (expired certificates, wrong
+  release/profile, superseded answers cannot pass as current), preflight
+  gating (required entries without positive support block issuance unless
+  the partial pack lists them), entry disclosure bound to the pack's
+  disclosure class, and a fixed scope note for #871/#879 report citations. Contract
+  slice only; no artifact packaging or signing
+  ([#883](https://github.com/Limes-Labs/limes-axis/issues/883)).
+
 - A provider-neutral writeback contract that maps an existing typed action onto
   one registered external mutation: adapter capability/readiness and conformance
   declarations, a schema-bound REST operation mapping with allowlisted methods,
