@@ -151,3 +151,11 @@ approval inbox and append-only audit ledger boundaries.
   action behavior.
 - Public documentation avoids customer data, personal names, contacts, pricing,
   credentials and deployment secrets.
+
+Typed actions are also the input to governed external mutation. The writeback
+contract that maps a typed action to one registered external target operation —
+and that rechecks tenant, approval payload digest, credential handle and lease,
+resolved egress target and adapter readiness before any I/O — is documented in
+[`writeback-contracts.md`](writeback-contracts.md) ([#510](https://github.com/Limes-Labs/limes-axis/issues/510)).
+Enabling a writeback target still does not authorize an action: the risk,
+approval and permission rules on this page remain the authority.
