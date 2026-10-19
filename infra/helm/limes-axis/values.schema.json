@@ -343,7 +343,8 @@
           "enum": [
             "port_allowlist",
             "restricted",
-            "offline"
+            "offline",
+            "local_only"
           ]
         },
         "allowedEgressPorts": {
@@ -359,6 +360,165 @@
           "items": {
             "type": "string",
             "minLength": 1
+          }
+        },
+        "localOnly": {
+          "type": "object",
+          "properties": {
+            "dns": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "cluster",
+                    "node_local",
+                    "explicit"
+                  ]
+                },
+                "namespace": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "podSelector": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "nodeLocalCidr": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "resolvers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "namespace": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "podSelector": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "ipBlock": {
+                        "type": "object",
+                        "required": [
+                          "cidr"
+                        ],
+                        "properties": {
+                          "cidr": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "except": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "services": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "state"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "local",
+                      "omitted"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "namespace": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "podSelector": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "ipBlock": {
+                    "type": "object",
+                    "required": [
+                      "cidr"
+                    ],
+                    "properties": {
+                      "cidr": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "except": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      }
+                    }
+                  },
+                  "ports": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "port"
+                      ],
+                      "properties": {
+                        "protocol": {
+                          "type": "string",
+                          "enum": [
+                            "TCP",
+                            "UDP"
+                          ]
+                        },
+                        "port": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 65535
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
