@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field
 
 from axis_api.config import Settings
 from axis_api.object_storage import ObjectLockCapability, build_object_store_readiness
+from axis_api.offline_readiness import OfflineReadinessSection, evaluate_offline_readiness
 from axis_api.oidc_code_flow import post_logout_redirect_uri, redirect_uri
 from axis_api.telemetry import observability_posture
 from axis_api.tenant_admission import TENANT_ADMISSION_REGISTERED_ONLY
@@ -89,6 +91,11 @@ class DeploymentReadinessReport(BaseModel):
     production_blockers: list[str]
     checks: list[DeploymentReadinessCheck]
     notes: list[str] = Field(default_factory=list)
+    # Additive offline-readiness section. It reports the declared posture, the
+    # configuration validation result and the freshness/scope of observed
+    # rehearsal evidence separately from the production-required checks above,
+    # so it never turns an unverified zero-egress claim into a passing check.
+    offline_readiness: OfflineReadinessSection
 
 
 def _deployment_profile(environment: str) -> str:
@@ -152,6 +159,7 @@ def build_deployment_readiness_report(
     *,
     oidc_readiness_report: dict[str, object],
     object_lock_capability: ObjectLockCapability | None = None,
+    now: datetime | None = None,
 ) -> DeploymentReadinessReport:
     profile = _deployment_profile(settings.environment)
     live_connector_execution_enabled = any(
@@ -476,4 +484,9 @@ def build_deployment_readiness_report(
                 "production blockers are resolved."
             ),
         ],
+        offline_readiness=evaluate_offline_readiness(
+            settings,
+            egress_mode=network_egress_mode,
+            now=now or datetime.now(UTC),
+        ),
     )
