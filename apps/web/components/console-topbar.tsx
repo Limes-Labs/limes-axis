@@ -124,10 +124,19 @@ export function ConsoleTopbar({
           <span aria-hidden="true" className={`status-dot ${apiStatusClass(apiStatus.state)}`} />
           API {apiStatus.label}
         </span>
-        <DemoBadge
-          enabled={tenantScope.mode === "demo"}
-          tenantId={tenantId ?? DEMO_TENANT_ID}
-        />
+        {/* Below `sm` this row is a one-line horizontal scroller, so the Demo
+            pill used to sit past its clipped edge. There it moves first and
+            sticks to the left edge on an opaque backing (its own tint is
+            translucent); on wider layouts the slot is `display: contents`. */}
+        <span
+          className="contents empty:hidden max-sm:sticky max-sm:left-0 max-sm:z-1 max-sm:order-first max-sm:flex max-sm:shrink-0 max-sm:rounded-full max-sm:bg-surface"
+          data-demo-badge-slot
+        >
+          <DemoBadge
+            enabled={tenantScope.mode === "demo"}
+            tenantId={tenantId ?? DEMO_TENANT_ID}
+          />
+        </span>
         {sourceLabel ? (
           <span className="status-pill status-checking">{sourceLabel}</span>
         ) : null}
