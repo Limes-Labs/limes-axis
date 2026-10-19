@@ -48,7 +48,15 @@ from axis_api.persistence import (
     AuditEventCreate,
     AxisPersistenceRepository,
 )
+from axis_api.rest_source_profile import REST_SOURCE_CONNECTOR_ID
 from axis_api.s3_source_profile import S3_SOURCE_CONNECTOR_ID
+
+# Source connectors that require the live manifest/lease/policy lifecycle
+# before any new I/O. The label also namespaces their public-safe reasons.
+_LIVE_SOURCE_CONNECTOR_LABELS = {
+    S3_SOURCE_CONNECTOR_ID: "S3",
+    REST_SOURCE_CONNECTOR_ID: "REST",
+}
 
 SOURCE_DISCOVERY_SCOPE = "connectors:source:discover"
 VERIFY_AUDIT_EVENT_TYPE = "connector.source.verify"
@@ -639,9 +647,11 @@ def _resolve_operation_evidence(
             "Egress policy must approve a private endpoint boundary.",
             "egress_policy_not_approved",
         )
-    if request.connector_id == S3_SOURCE_CONNECTOR_ID:
-        # New S3 I/O requires the existing live lifecycle and current credential
-        # posture, including revocation/expiry; a historical lease is insufficient.
+    live_source_label = _LIVE_SOURCE_CONNECTOR_LABELS.get(request.connector_id)
+    if live_source_label is not None:
+        # New source I/O requires the existing live lifecycle and current
+        # credential posture, including revocation/expiry; a historical lease
+        # is insufficient.
         manifest = repository.get_connector_manifest(
             request.tenant_id, request.connector_id, for_update=for_update
         )
@@ -653,7 +663,8 @@ def _resolve_operation_evidence(
             or required & set(runtime_policy.get("blocked_operations", []))
         ):
             raise ConnectorSourceOperationError(
-                "S3 source is not enabled for live reads.", "s3_source_inactive"
+                f"{live_source_label} source is not enabled for live reads.",
+                f"{live_source_label.lower()}_source_inactive",
             )
         handle = repository.get_connector_credential_handle(
             request.tenant_id, lease.handle_id, for_update=for_update
@@ -675,11 +686,13 @@ def _resolve_operation_evidence(
             or handle.secret_provider != lease.secret_provider
         ):
             raise ConnectorSourceOperationError(
-                "S3 credential lease is no longer active.", "s3_credential_inactive"
+                f"{live_source_label} credential lease is no longer active.",
+                f"{live_source_label.lower()}_credential_inactive",
             )
         if policy.status != "active":
             raise ConnectorSourceOperationError(
-                "S3 egress policy is no longer active.", "s3_egress_inactive"
+                f"{live_source_label} egress policy is no longer active.",
+                f"{live_source_label.lower()}_egress_inactive",
             )
     egress_evidence = {
         "egress_policy_evidence_status": "validated",
@@ -693,7 +706,7 @@ def _resolve_operation_evidence(
             policy.policy_document.get("approved_endpoint_target_sha256", "")
         ),
     }
-    if request.connector_id == S3_SOURCE_CONNECTOR_ID:
+    if live_source_label is not None:
         egress_evidence["credential_lease_expires_at"] = expiry.isoformat()
     return lease, egress_evidence
 
