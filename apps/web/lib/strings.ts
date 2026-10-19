@@ -1593,7 +1593,8 @@ const onboarding = {
 const settingsPanelUnavailable = "Local fallback settings records are disabled.";
 
 const settings = {
-  pageTitle: "System status",
+  // No page-title override: the h1 is `pages.settings.title`, matching the
+  // "Settings" nav label (#945).
   source: {
     live: "Live system status",
     loading: "Loading system status",
@@ -1721,6 +1722,8 @@ const settings = {
     session_absolute_timeout:
       "Set an absolute session lifetime above zero so sessions always expire.",
     // Deployment readiness checks (/deployment/readiness)
+    registered_tenant_admission:
+      "Switch tenant admission to registered-only, so sign-in requires a tenant registered under Tenants.",
     oidc_enterprise_sso:
       "Resolve the identity checks on the Identity tab to make SSO enterprise-ready.",
     oidc_secure_cookie_session:
@@ -1757,6 +1760,68 @@ const settings = {
       "Configure at least two escalation channel classes for production support.",
   } satisfies Record<string, string>,
   guidanceFallback: "Review the technical detail below and update the platform configuration.",
+  /**
+   * Operator-facing names for readiness check ids, replacing the raw
+   * lowercase ids. Unknown ids fall back to a sentence-cased form of the id.
+   */
+  checkLabels: {
+    // OIDC readiness checks
+    auth_required: "API sign-in required",
+    https_issuer: "HTTPS identity issuer",
+    explicit_jwks_url: "Explicit signing-key (JWKS) URL",
+    asymmetric_algorithms: "Asymmetric token signing",
+    openid_scope: "OpenID scope",
+    tenant_claim: "Tenant claim",
+    actor_claim: "Actor claim",
+    authorization_code_client: "Browser SSO client",
+    authorization_endpoint: "Authorization endpoint",
+    token_endpoint: "Token endpoint",
+    end_session_endpoint: "Sign-out endpoint",
+    post_logout_redirect: "Post-sign-out redirect",
+    session_cookie_signing: "Session cookie signing secret",
+    secure_session_cookie: "Secure session cookies",
+    host_prefixed_session_cookie: "Host-bound session cookies",
+    refresh_credential_encryption: "Refresh credential encryption",
+    session_idle_timeout: "Session idle timeout",
+    session_absolute_timeout: "Session maximum lifetime",
+    // Deployment readiness checks
+    oidc_enterprise_sso: "Enterprise single sign-on",
+    oidc_secure_cookie_session: "Secure browser sessions",
+    registered_tenant_admission: "Registered-tenant admission",
+    external_model_egress_disabled: "External model egress",
+    api_rate_limiting: "API rate limiting",
+    network_egress_restricted: "Network egress restrictions",
+    deployment_tenancy_profile: "Tenancy and isolation profile",
+    live_connector_execution_disabled: "Live connector execution",
+    ontology_graph_mutation_posture: "Ontology graph promotion",
+    audit_ledger_signing_configured: "Audit ledger signing",
+    production_object_store_adapter: "Evidence object storage",
+    observability_instrumentation: "Tracing and metrics",
+    production_dr_procedures: "Disaster recovery runbook",
+    // Support diagnostics checks
+    support_diagnostics_public_safe: "Shareable diagnostics",
+    support_runbook_baseline: "Support runbook baseline",
+    demo_support_ready: "Demo support readiness",
+    deployment_readiness_attached: "Deployment report attached",
+    production_support_model: "Production support model",
+    production_support_commitments: "Support commitments",
+    support_slo_targets: "Support response targets",
+    support_escalation_channels: "Escalation channels",
+  } satisfies Record<string, string>,
+  /** Where an operator can act on a check from inside the console. */
+  checkActions: {
+    identityTab: "Open identity checks",
+    deploymentTab: "Open deployment posture",
+    tenants: "Open tenants",
+    modelRouting: "Open model routing",
+    connectors: "Open connectors",
+    ontology: "Open ontology",
+    audit: "Open audit",
+  },
+  gatesSummary: (count: number) =>
+    count === 1
+      ? "1 gate needs action before production."
+      : `${count} gates need action before production.`,
 } as const;
 
 const ontology = {

@@ -131,3 +131,67 @@ export function settingsCheckGuidance(checkId: string): string {
   const guidance: Record<string, string> = strings.settings.guidance;
   return guidance[checkId] ?? strings.settings.guidanceFallback;
 }
+
+const checkLabelAcronyms = new Set(["api", "dr", "https", "jwks", "oidc", "slo", "sso", "url"]);
+
+/**
+ * Operator-facing name for a readiness check id. Known ids use curated copy;
+ * an id the console has not seen yet is sentence-cased (acronyms upper-cased)
+ * rather than shown as a raw lowercase identifier.
+ */
+export function settingsCheckLabel(checkId: string): string {
+  const labels: Record<string, string> = strings.settings.checkLabels;
+  const known = labels[checkId];
+  if (known) {
+    return known;
+  }
+  const words = checkId
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((word) => (checkLabelAcronyms.has(word) ? word.toUpperCase() : word));
+  const sentence = words.join(" ");
+  return sentence.charAt(0).toUpperCase() + sentence.slice(1);
+}
+
+export type SettingsCheckAction = { href: string; label: string };
+
+const actions = strings.settings.checkActions;
+
+/**
+ * In-console destination for checks an operator can act on from here. Checks
+ * that only change through deployment configuration have none: their guidance
+ * line and technical detail are the actionable part.
+ */
+const checkActionById: Record<string, SettingsCheckAction> = {
+  oidc_enterprise_sso: { href: "/settings?tab=identity", label: actions.identityTab },
+  oidc_secure_cookie_session: { href: "/settings?tab=identity", label: actions.identityTab },
+  demo_support_ready: { href: "/settings?tab=deployment", label: actions.deploymentTab },
+  deployment_readiness_attached: {
+    href: "/settings?tab=deployment",
+    label: actions.deploymentTab,
+  },
+  registered_tenant_admission: { href: "/tenants", label: actions.tenants },
+  external_model_egress_disabled: { href: "/model-routing", label: actions.modelRouting },
+  live_connector_execution_disabled: { href: "/connectors", label: actions.connectors },
+  ontology_graph_mutation_posture: { href: "/ontology", label: actions.ontology },
+  audit_ledger_signing_configured: { href: "/audit", label: actions.audit },
+};
+
+export function settingsCheckAction(checkId: string): SettingsCheckAction | null {
+  return checkActionById[checkId] ?? null;
+}
+
+/**
+ * Failures first, then production-required before optional checks, keeping
+ * the API's order within each group so the list is stable between refreshes.
+ */
+export function sortSettingsChecks<T extends SettingsCheck & { production_required?: boolean }>(
+  checks: readonly T[],
+): T[] {
+  const rank = (check: T) =>
+    (check.status === "action_required" ? 0 : 2) + (check.production_required === false ? 1 : 0);
+  return checks
+    .map((check, index) => ({ check, index }))
+    .sort((left, right) => rank(left.check) - rank(right.check) || left.index - right.index)
+    .map(({ check }) => check);
+}

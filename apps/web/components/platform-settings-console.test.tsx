@@ -26,23 +26,29 @@ vi.mock("@/lib/use-identity-session", () => ({
 
 // The console renders its own ConsolePage (dynamic source label); stub the
 // scaffold so the test focuses on the settings panels rather than the topbar.
-vi.mock("@/components/console-page", () => ({
-  ConsolePage: ({
-    title,
-    sourceLabel,
-    children,
-  }: {
-    title?: string;
-    sourceLabel?: string;
-    children: React.ReactNode;
-  }) => (
-    <div>
-      <h1>{title}</h1>
-      {sourceLabel ? <p>{sourceLabel}</p> : null}
-      {children}
-    </div>
-  ),
-}));
+vi.mock("@/components/console-page", async () => {
+  const { strings: copy } = await import("@/lib/strings");
+  return {
+    // Mirrors ConsolePage's title resolution: explicit title, else pageKey copy.
+    ConsolePage: ({
+      pageKey,
+      title,
+      sourceLabel,
+      children,
+    }: {
+      pageKey?: keyof typeof copy.pages;
+      title?: string;
+      sourceLabel?: string;
+      children: React.ReactNode;
+    }) => (
+      <div>
+        <h1>{title ?? (pageKey ? copy.pages[pageKey].title : "")}</h1>
+        {sourceLabel ? <p>{sourceLabel}</p> : null}
+        {children}
+      </div>
+    ),
+  };
+});
 
 import { PlatformSettingsConsole } from "./platform-settings-console";
 
@@ -227,17 +233,82 @@ beforeEach(() => {
 });
 
 describe("PlatformSettingsConsole", () => {
-  it("renders the System status heading and the four tabs", () => {
+  it("renders an h1 matching the Settings nav label and the four tabs", () => {
     mockQueriesByPath();
     render(<PlatformSettingsConsole />);
 
-    expect(screen.getByRole("heading", { name: "System status" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: strings.pages.settings.title }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Readiness" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Identity" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Deployment" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Support" })).toBeInTheDocument();
     // Readiness content renders by default.
     expect(screen.getByText("Axis API boundary")).toBeInTheDocument();
+  });
+
+  it("labels gates for humans, lists failures first and links to where to act", async () => {
+    const deployment: DeploymentReadinessReport = {
+      ...deploymentFixture,
+      production_blockers: ["registered_tenant_admission", "api_rate_limiting"],
+      checks: [
+        {
+          check_id: "external_model_egress_disabled",
+          status: "ready",
+          production_required: true,
+          detail: "External model egress is disabled by default.",
+        },
+        {
+          check_id: "observability_instrumentation",
+          status: "action_required",
+          production_required: false,
+          detail: "OpenTelemetry instrumentation is disabled (default).",
+        },
+        {
+          check_id: "registered_tenant_admission",
+          status: "action_required",
+          production_required: true,
+          detail: "Tenant admission trusts identity-provider claims.",
+        },
+        {
+          check_id: "api_rate_limiting",
+          status: "action_required",
+          production_required: true,
+          detail: "API rate limiting is not enabled.",
+        },
+      ],
+    };
+    mocks.useAxisQuery.mockImplementation((path: string) => {
+      if (path === "/deployment/readiness") {
+        return queryResult(deployment, "api");
+      }
+      const match = fixtures.find(([prefix]) => path === prefix);
+      return queryResult(match?.[1] ?? null, "api");
+    });
+    const user = userEvent.setup();
+    render(<PlatformSettingsConsole />);
+
+    // Readiness tab: only open production gates, with a count and human labels.
+    expect(screen.getByText(strings.settings.gatesSummary(2))).toBeInTheDocument();
+    const labels = strings.settings.checkLabels;
+    expect(screen.getByText(labels.registered_tenant_admission)).toBeInTheDocument();
+    expect(screen.queryByText("registered tenant admission")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: strings.settings.checkActions.tenants })).toHaveAttribute(
+      "href",
+      "/tenants",
+    );
+
+    // Deployment tab: failing gates before passing ones, API order within each.
+    await user.click(screen.getByRole("tab", { name: "Deployment" }));
+    const order = Array.from(
+      document.querySelectorAll<HTMLElement>("[role='tabpanel'][data-state='active'] [data-check-id]"),
+    ).map((row) => row.dataset.checkId);
+    expect(order).toEqual([
+      "registered_tenant_admission",
+      "api_rate_limiting",
+      "external_model_egress_disabled",
+    ]);
   });
 
   it("renders a not-configured dependency in a neutral tone, not the healthy one", () => {

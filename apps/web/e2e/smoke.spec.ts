@@ -1676,8 +1676,10 @@ test.describe("Axis console smoke", () => {
 
     await page.goto("/settings");
 
-    // The page header is "System status"; the nav label stays Settings.
-    await expect(page.getByRole("heading", { name: "System status", exact: true })).toBeVisible();
+    // The page header matches the "Settings" nav label that leads here.
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Settings", exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Settings API unavailable" })).toHaveCount(0);
 
     // Readiness tab (default): each panel degrades on its own instead of one
