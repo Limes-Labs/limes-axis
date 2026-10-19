@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   countActionRequiredChecks,
+  dependencyStatusClass,
   settingsCheckGuidance,
   settingsStatusClass,
   settingsStatusLabel,
@@ -17,6 +18,14 @@ describe("platform settings helpers", () => {
   it("maps readiness statuses to existing console signal classes", () => {
     expect(settingsStatusClass("ready")).toBe("signal-ready");
     expect(settingsStatusClass("action_required")).toBe("signal-action-required");
+  });
+
+  it("never styles a not-configured dependency as healthy", () => {
+    expect(dependencyStatusClass("ready", true)).toBe("signal-ready");
+    expect(dependencyStatusClass("disabled", false)).toBe("status-checking");
+    expect(dependencyStatusClass("disabled", true)).toBe("signal-watch");
+    expect(dependencyStatusClass("unavailable", true)).toBe("signal-action-required");
+    expect(dependencyStatusClass("timeout", false)).toBe("signal-action-required");
   });
 
   it("counts only checks that need action", () => {

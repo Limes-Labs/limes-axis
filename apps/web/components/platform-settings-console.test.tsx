@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
+import { strings } from "@/lib/strings";
 import type {
   AxisReadyReport,
   DeploymentReadinessReport,
@@ -237,6 +238,18 @@ describe("PlatformSettingsConsole", () => {
     expect(screen.getByRole("tab", { name: "Support" })).toBeInTheDocument();
     // Readiness content renders by default.
     expect(screen.getByText("Axis API boundary")).toBeInTheDocument();
+  });
+
+  it("renders a not-configured dependency in a neutral tone, not the healthy one", () => {
+    mockQueriesByPath();
+    render(<PlatformSettingsConsole />);
+
+    const notConfigured = screen.getByText(strings.settings.ready.dependencyNotConfigured);
+    expect(notConfigured).toHaveClass("status-checking");
+    expect(notConfigured).not.toHaveClass("signal-ready");
+    expect(screen.getByText(strings.settings.ready.dependencyReachable)).toHaveClass(
+      "signal-ready",
+    );
   });
 
   it("keeps healthy panels rendered when one endpoint fails", async () => {

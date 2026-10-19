@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { enumUrlField, useConsoleUrlState } from "@/lib/console-url-state";
 import type { IdentitySessionReadModel } from "@/lib/platform-overview";
 import {
+  dependencyStatusClass,
   settingsCheckGuidance,
   settingsStatusClass,
   settingsStatusLabel,
@@ -206,11 +207,7 @@ function ReadyPanel({ query }: { query: SettingsQuery<AxisReadyReport> }) {
                 <Database size={16} />
                 <strong>{compactId(dependency)}</strong>
                 <small
-                  className={
-                    readiness.status === "ready" || readiness.status === "disabled"
-                      ? "signal-ready"
-                      : "signal-action-required"
-                  }
+                  className={dependencyStatusClass(readiness.status, readiness.required)}
                 >
                   {readiness.status === "ready"
                     ? copy.ready.dependencyReachable

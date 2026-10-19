@@ -101,6 +101,23 @@ export function settingsStatusClass(status: SettingsReadinessStatus): string {
   return status === "ready" ? "signal-ready" : "signal-action-required";
 }
 
+type DependencyStatus = AxisReadyReport["dependencies"][string]["status"];
+
+/**
+ * Tone for a `/ready` dependency. Only a reachable dependency reads as healthy:
+ * `disabled` means the dependency is not configured, which is neutral when it
+ * is optional and needs attention when the API marks it required — never green.
+ */
+export function dependencyStatusClass(status: DependencyStatus, required: boolean): string {
+  if (status === "ready") {
+    return "signal-ready";
+  }
+  if (status === "disabled") {
+    return required ? "signal-watch" : "status-checking";
+  }
+  return "signal-action-required";
+}
+
 export function countActionRequiredChecks(checks: SettingsCheck[]): number {
   return checks.filter((check) => check.status === "action_required").length;
 }
