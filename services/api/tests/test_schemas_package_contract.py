@@ -320,7 +320,7 @@ def test_authorized_search_page_matches_search_result_page_schema() -> None:
                 kind="document",
                 source_object_id="doc-2",
                 source_locator="doc/doc-2",
-                withheld_reason="access_not_evaluable",
+                withheld_reason="not_textually_searchable",
             ),
         ],
         metadata=SearchPageMetadata(returned=1, withheld=1, facets={"document": 2}),

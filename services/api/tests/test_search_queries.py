@@ -202,12 +202,14 @@ def _cursor(
     generation: int = 1,
     issued_at: int = 1_000,
     offset: int = 10,
+    policy: str = CURRENT_REVISION,
 ) -> str:
     return encode_search_cursor(
         tenant_id=TENANT_A,
         searcher_ref=searcher,
         query_digest=request.query_digest(),
         index_generation=generation,
+        policy_revision_ref=policy,
         issued_at=issued_at,
         offset=offset,
     )
@@ -220,6 +222,7 @@ def test_cursor_roundtrip_binds_searcher_query_and_generation() -> None:
         tenant_id=TENANT_A,
         searcher_ref="actor:alice",
         query_digest=request.query_digest(),
+        policy_revision_ref=CURRENT_REVISION,
         now=1_000 + MAX_CURSOR_AGE_SECONDS,
     )
     assert binding.offset == 10
@@ -235,6 +238,7 @@ def test_cursor_rejects_other_searcher_other_query_and_tampering() -> None:
             tenant_id=TENANT_A,
             searcher_ref="actor:mallory",
             query_digest=request.query_digest(),
+            policy_revision_ref=CURRENT_REVISION,
             now=1_001,
         )
     assert wrong_user.value.code == SearchQueryError.INVALID_CURSOR
@@ -245,6 +249,7 @@ def test_cursor_rejects_other_searcher_other_query_and_tampering() -> None:
             tenant_id=TENANT_A,
             searcher_ref="actor:alice",
             query_digest=other_query.query_digest(),
+            policy_revision_ref=CURRENT_REVISION,
             now=1_001,
         )
     blob = json.loads(cursor)
@@ -255,6 +260,7 @@ def test_cursor_rejects_other_searcher_other_query_and_tampering() -> None:
             tenant_id=TENANT_A,
             searcher_ref="actor:alice",
             query_digest=request.query_digest(),
+            policy_revision_ref=CURRENT_REVISION,
             now=1_001,
         )
 
@@ -268,6 +274,7 @@ def test_cursor_expires_and_rejects_generation_changes() -> None:
             tenant_id=TENANT_A,
             searcher_ref="actor:alice",
             query_digest=request.query_digest(),
+            policy_revision_ref=CURRENT_REVISION,
             now=1_000 + MAX_CURSOR_AGE_SECONDS + 1,
         )
     assert expired.value.code == SearchQueryError.CURSOR_EXPIRED
@@ -301,7 +308,10 @@ def test_tenant_mismatch_raises_before_any_representation() -> None:
         )
 
 
-def test_restricted_is_metadata_only_and_denied_is_invisible() -> None:
+def test_restricted_and_denied_records_are_invisible() -> None:
+    """A non-evaluable match must not surface even as metadata: its presence
+    alone would prove the restricted text contains the query terms."""
+
     request = SearchQueryRequest(tenant_id=TENANT_A, query="quality hold", page_size=10)
     authority = _authority(
         OidcPrincipal(actor_id="bob", tenant_id=TENANT_A, scopes=[]),
@@ -325,15 +335,15 @@ def test_restricted_is_metadata_only_and_denied_is_invisible() -> None:
         ),
         searcher_ref="actor:bob",
     )
-    by_id = {hit.source_object_id: hit for hit in page.hits}
-    assert by_id["alpha_visible"].snippet is not None
-    assert by_id["alpha_restricted"].withheld_reason == "access_not_evaluable"
-    assert by_id["alpha_restricted"].snippet is None
-    assert "alpha_denied" not in by_id
+    assert [hit.source_object_id for hit in page.hits] == ["alpha_visible"]
+    assert page.hits[0].snippet is not None
     assert page.metadata.returned == 1
-    assert page.metadata.withheld == 1
+    assert page.metadata.withheld == 0
+    assert page.metadata.facets == {"document": 1}
+    assert page.next_cursor is None
     rendered = json.dumps(page.model_dump(mode="json"))
     assert SENTINEL not in rendered
+    assert "alpha_restricted" not in rendered
     assert "alpha_denied" not in rendered
 
 
@@ -363,7 +373,7 @@ def test_tombstoned_record_is_metadata_only_without_text_resurrection() -> None:
     assert page.hits[0].snippet is None
 
 
-def test_continuation_advances_by_emitted_hits_and_never_skips_rows() -> None:
+def test_continuation_resumes_after_examined_candidates_without_skipping() -> None:
     """A denial inside a window must not silently skip a matching row."""
 
     records = [
@@ -392,11 +402,145 @@ def test_continuation_advances_by_emitted_hits_and_never_skips_rows() -> None:
         fetch_page=fetch,
         searcher_ref="actor:bob",
     )
-    # doc_2 was denied inside window one's fetch and is re-fetched in
-    # window two, where the denial keeps it invisible without skipping
-    # doc_3 — no matching row silently disappears.
+    # doc_2 is denied; page one scanned past it to see doc_3 as its
+    # look-ahead, so the continuation resumes on doc_3 — nothing repeats
+    # and no visible row silently disappears.
     assert [hit.source_object_id for hit in page_two.hits] == ["doc_3"]
     assert page_two.next_cursor is None
+
+
+def _paged(records: list[IndexRecordView], calls: list[tuple[int, int]] | None = None):
+    def fetch(offset: int, limit: int) -> SearchCandidatePage:
+        if calls is not None:
+            calls.append((offset, limit))
+        window = records[offset : offset + limit]
+        return SearchCandidatePage(
+            records=window, index_generation=1, has_more=offset + limit < len(records)
+        )
+
+    return fetch
+
+
+def _walk(request, authority, fetch, searcher="actor:bob") -> list[list[str]]:
+    pages: list[list[str]] = []
+    cursor = None
+    while True:
+        page = run_authorized_search(
+            request.model_copy(update={"cursor": cursor}),
+            authority=authority,
+            fetch_page=fetch,
+            searcher_ref=searcher,
+        )
+        pages.append([hit.source_object_id for hit in page.hits])
+        cursor = page.next_cursor
+        if cursor is None:
+            return pages
+
+
+@pytest.mark.parametrize(
+    "denied",
+    [
+        frozenset({"doc_0"}),
+        frozenset({"doc_1", "doc_2"}),
+        frozenset({"doc_0", "doc_1", "doc_2", "doc_3", "doc_4", "doc_5"}),
+        frozenset({"doc_7", "doc_8", "doc_9"}),
+    ],
+)
+def test_pagination_never_repeats_or_skips_visible_rows(denied: frozenset[str]) -> None:
+    records = [
+        _view_record(f"doc_{index}", f"quality hold item {index}", CURRENT_REVISION)
+        for index in range(10)
+    ]
+    authority = _authority(
+        OidcPrincipal(actor_id="bob", tenant_id=TENANT_A, scopes=[]), denied=denied
+    )
+    request = SearchQueryRequest(tenant_id=TENANT_A, query="quality hold", page_size=2)
+    pages = _walk(request, authority, _paged(records))
+    emitted = [object_id for page in pages for object_id in page]
+    expected = [f"doc_{index}" for index in range(10) if f"doc_{index}" not in denied]
+    assert emitted == expected
+    # Denials never shorten a page while visible rows remain, and the last
+    # page never carries a cursor to an empty continuation.
+    assert all(len(page) == 2 for page in pages[:-1])
+    assert pages[-1]
+
+
+def test_hidden_candidates_are_scanned_within_a_bounded_budget() -> None:
+    from axis_api.search_queries import MAX_CANDIDATE_WINDOWS
+
+    page_size = 2
+    hidden = (page_size + 1) * MAX_CANDIDATE_WINDOWS
+    records = [
+        _view_record(f"doc_{index:03d}", f"quality hold item {index}", CURRENT_REVISION)
+        for index in range(hidden + 1)
+    ]
+    authority = _authority(
+        OidcPrincipal(actor_id="bob", tenant_id=TENANT_A, scopes=[]),
+        denied=frozenset(record.source_object_id for record in records[:hidden]),
+    )
+    calls: list[tuple[int, int]] = []
+    request = SearchQueryRequest(tenant_id=TENANT_A, query="quality hold", page_size=page_size)
+    first = run_authorized_search(
+        request, authority=authority, fetch_page=_paged(records, calls), searcher_ref="actor:bob"
+    )
+    # The budget is spent on invisible rows: an empty partial page whose
+    # continuation resumes after every examined candidate.
+    assert first.hits == []
+    assert len(calls) == MAX_CANDIDATE_WINDOWS
+    assert first.next_cursor is not None
+    second = run_authorized_search(
+        request.model_copy(update={"cursor": first.next_cursor}),
+        authority=authority,
+        fetch_page=_paged(records, calls),
+        searcher_ref="actor:bob",
+    )
+    assert [hit.source_object_id for hit in second.hits] == [records[-1].source_object_id]
+    assert calls[MAX_CANDIDATE_WINDOWS][0] == hidden
+    assert second.next_cursor is None
+
+
+def test_cursor_is_bound_to_the_effective_policy_revision() -> None:
+    records = [
+        _view_record(f"doc_{index}", f"quality hold item {index}", CURRENT_REVISION)
+        for index in range(3)
+    ]
+    principal = OidcPrincipal(actor_id="bob", tenant_id=TENANT_A, scopes=[])
+    request = SearchQueryRequest(tenant_id=TENANT_A, query="quality hold", page_size=1)
+    page = run_authorized_search(
+        request,
+        authority=_authority(principal),
+        fetch_page=_paged(records),
+        searcher_ref="actor:bob",
+    )
+    assert page.next_cursor is not None
+    revised = _authority(principal).model_copy(
+        update={"policy_revision_ref": "search-policy:revised-002"}
+    )
+    with pytest.raises(SearchQueryError) as error:
+        run_authorized_search(
+            request.model_copy(update={"cursor": page.next_cursor}),
+            authority=revised,
+            fetch_page=_paged(records),
+            searcher_ref="actor:bob",
+        )
+    assert error.value.code == SearchQueryError.CURSOR_EXPIRED
+
+
+def test_cursor_offset_is_bounded() -> None:
+    from axis_api.search_queries import MAX_CURSOR_OFFSET
+
+    request = SearchQueryRequest(tenant_id=TENANT_A, query="quality hold")
+    for offset in (MAX_CURSOR_OFFSET + 1, 2**70):
+        with pytest.raises(SearchQueryError) as error:
+            decode_search_cursor(
+                _cursor(request, offset=offset),
+                tenant_id=TENANT_A,
+                searcher_ref="actor:alice",
+                query_digest=request.query_digest(),
+                policy_revision_ref=CURRENT_REVISION,
+                now=1_001,
+            )
+        assert error.value.code == SearchQueryError.INVALID_CURSOR
 
 
 def test_query_digest_change_requires_fresh_cursor() -> None:
@@ -434,7 +578,7 @@ def test_repo_search_withholds_stale_revision_and_explicit_denials(
         )
         by_id = {hit.source_object_id: hit for hit in page.hits}
         assert "alpha_visible" in by_id
-        assert by_id["alpha_restricted"].withheld_reason == "access_not_evaluable"
+        assert "alpha_restricted" not in by_id
         assert "alpha_denied" not in by_id
         assert page.index_generation == 1
         assert page.index_stale is False
@@ -502,16 +646,16 @@ def test_route_serves_authorized_pages_and_facets_over_subset(
     body = response.json()
     assert body["tenant_id"] == TENANT_A
     # Tombstones never leave the repository (state = live only); the
-    # stale-revision record is withheld as metadata-only.
+    # stale-revision record is omitted, so the page fills from the next
+    # authorized candidate and the exhausted result set carries no cursor.
     assert [hit["source_object_id"] for hit in body["hits"]] == [
         "alpha_visible",
-        "alpha_restricted",
+        "alpha_denied",
     ]
     assert body["hits"][0]["snippet"] == "quality hold on batch 42 line two"
-    assert body["hits"][1]["snippet"] is None
-    assert body["hits"][1]["withheld_reason"] == "access_not_evaluable"
-    assert body["metadata"] == {"returned": 1, "withheld": 1, "facets": {"document": 2}}
-    assert body["next_cursor"] is not None
+    assert body["metadata"] == {"returned": 2, "withheld": 0, "facets": {"document": 2}}
+    assert body["next_cursor"] is None
+    assert "alpha_restricted" not in response.text
     assert body["served_under_policy_revision"] == CURRENT_REVISION
     assert body["index_generation"] == 1
     assert body["index_stale"] is False
@@ -522,8 +666,9 @@ def test_route_pagination_continues_for_same_searcher_only(
 ) -> None:
     alice = OidcPrincipal(actor_id="alice", tenant_id=TENANT_A, scopes=["search:read"])
     client = TestClient(_build_app(session_factory, alice))
-    params = {"tenant_id": TENANT_A, "q": "quality hold", "page_size": 2}
+    params = {"tenant_id": TENANT_A, "q": "quality hold", "page_size": 1}
     first = _search(client, alice, params)
+    assert [hit["source_object_id"] for hit in first.json()["hits"]] == ["alpha_visible"]
     cursor = first.json()["next_cursor"]
     second = _search(client, alice, {**params, "cursor": cursor})
     assert second.status_code == 200
@@ -609,6 +754,9 @@ def test_route_never_leaks_sentinel_across_any_surface(
     ]
     for response in responses:
         assert SENTINEL not in response.text
+        # The restricted match is not revealed as an identity either.
+        assert "alpha_restricted" not in response.text
+    assert responses[2].json()["hits"] == []
 
 
 # --- Static safety: the service has no source or network path ----------------

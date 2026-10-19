@@ -4,15 +4,15 @@ One query service in front of ``search_index_records``. The index stores
 *index-time* authorization evidence; this module re-evaluates **current**
 effective access at read time — index-time ACL references are optimization
 and audit evidence, never perpetual read authority. A record indexed under
-a policy revision that is no longer current can only be served as a
-metadata-only hit until it is re-indexed under the current revision.
+a policy revision that is no longer current is omitted until it is
+re-indexed under the current revision.
 
 Core invariants:
 
-* **No leak paths**: a record whose current effective access cannot be
-  evaluated is omitted or served as a metadata-only hit, never as text.
-  Restrictive metadata only ever narrows visibility — it never renders as
-  text, a snippet, a label, a count, a facet or an error detail.
+* **No leak paths**: a record whose current effective access is denied or
+  cannot be evaluated is omitted — no text, snippet, identity, label,
+  count, facet or error detail. (Even a metadata-only hit would prove that
+  the restricted text matched the query.)
 * **Authorization before representation**: tenant binding, resource kinds,
   filters and ACL re-evaluation all run *before* any user-visible
   representation is produced; totals and facets are computed over the
@@ -20,11 +20,12 @@ Core invariants:
   hidden afterwards.
 * **Bounded by construction**: query length, page size and filter widths
   are capped at the request boundary with fixed public-safe codes.
-* **Continuations are re-authorized**: the opaque cursor binds the query
-  and filter digest, the searcher identity, index generation and a bounded
-  expiry. Every continuation re-checks the caller's current authorization;
-  another principal's cursor is not a valid credential, and an index
-  rebuild under the cursor invalidates it instead of shifting results.
+* **Continuations are re-authorized**: the cursor binds the query and
+  filter digest, the searcher identity, the effective policy revision, the
+  index generation and a bounded expiry. Every continuation re-checks the
+  caller's current authorization; another principal's cursor is not a valid
+  credential, and a policy change or index rebuild under the cursor
+  invalidates it instead of shifting results.
 * **Freshness is explicit**: a result page reports the index generation
   and the policy revision it was served under; it never falls back to an
   unrestricted source query when the index is empty or stale.
@@ -64,14 +65,26 @@ MAX_PAGE_SIZE = 25
 #: Continuation cursors expire; a fresh query is always safe.
 MAX_CURSOR_AGE_SECONDS = 15 * 60
 
-#: Cursor HMAC key material is deployment-owned; the in-repo default keeps
-#: the format testable. The security argument is the binding property, not
-#: key secrecy: cursors are never credentials — they are re-authorized
-#: against the presenting principal on every continuation.
+#: Candidate windows (each ``page_size + 1`` rows) scanned per request before
+#: a partial page is returned with a continuation: bounded work when many
+#: candidates are invisible to the searcher.
+MAX_CANDIDATE_WINDOWS = 4
+
+#: Upper bound on a continuation's candidate position; larger values are
+#: rejected as invalid instead of reaching the database as an OFFSET.
+MAX_CURSOR_OFFSET = 1_000_000
+
+#: Cursor MAC key. It is a published constant, not a secret: the MAC detects
+#: accidental corruption only and the cursor is **not** an authority. Every
+#: bound field that matters (tenant, searcher, query digest, policy revision,
+#: generation) is compared against the presenting request on every
+#: continuation, the offset is bounded, and authorization re-runs per
+#: candidate, so a hand-crafted cursor can only choose where an already
+#: authorized scan resumes.
 CURSOR_SECRET = "axis-search-cursor-v1"
 
 #: Deployment default for the *current* search ACL policy revision. Records
-#: indexed under a different revision stay metadata-only until re-indexed.
+#: indexed under a different revision are omitted until re-indexed.
 DEFAULT_SEARCH_POLICY_REVISION = "search-policy:current"
 
 _ALLOWED_KINDS: tuple[str, ...] = ("ontology_asset", "document")
@@ -177,7 +190,7 @@ class SearcherAuthority(ContractModel):
     fragments are applied as case-insensitive containment on the stored
     locator and never rendered back to the searcher. Records whose captured
     ``policy_revision_ref`` differs from ``policy_revision_ref`` cannot be
-    re-evaluated and are only ever served metadata-only.
+    re-evaluated and are omitted.
     """
 
     tenant_id: Identifier
@@ -201,7 +214,7 @@ class IndexRecordView(ContractModel):
     ``acl_permitted`` is the *current* evaluation outcome: ``True`` only
     when the record's captured policy revision is still current, ``False``
     on an explicit current denial, ``None`` when access cannot currently be
-    evaluated. Only ``True`` rows may ever render text.
+    evaluated. Only ``True`` rows produce any representation at all.
     """
 
     kind: SearchIndexKind
@@ -224,14 +237,14 @@ class SearchCandidatePage(ContractModel):
 
 
 class SearchHit(ContractModel):
-    """One user-visible hit; restricted records are metadata-only."""
+    """One user-visible hit; permitted records without text are metadata-only."""
 
     kind: SearchIndexKind
     source_object_id: Identifier
     source_locator: str
     snippet: str | None = None
     text_digest: str | None = None
-    withheld_reason: Literal["access_not_evaluable", "not_textually_searchable"] | None = None
+    withheld_reason: Literal["not_textually_searchable"] | None = None
 
     @property
     def metadata_only(self) -> bool:
@@ -279,6 +292,7 @@ def encode_search_cursor(
     index_generation: int,
     issued_at: int,
     offset: int,
+    policy_revision_ref: str | None = None,
 ) -> str:
     """Opaque, self-verifying continuation token.
 
@@ -291,6 +305,7 @@ def encode_search_cursor(
         "generation": index_generation,
         "issued_at": issued_at,
         "offset": offset,
+        "policy": policy_revision_ref,
         "query": query_digest,
         "searcher": searcher_ref,
         "tenant": tenant_id,
@@ -311,13 +326,14 @@ def decode_search_cursor(
     tenant_id: str,
     searcher_ref: str,
     query_digest: str,
+    policy_revision_ref: str | None = None,
     now: int | None = None,
 ) -> SearchCursorBinding:
     """Return the bound offset and generation or raise a fixed-code error.
 
-    Tenant, presenting searcher and query/filter digest must match exactly;
-    expired cursors are rejected so revocation propagates without unbounded
-    replay windows.
+    Tenant, presenting searcher and query/filter digest must match exactly
+    (``search_cursor_invalid``); a cursor minted under another effective
+    policy revision or past its age is ``search_cursor_expired``.
     """
 
     try:
@@ -325,7 +341,12 @@ def decode_search_cursor(
         payload = blob["payload"]
         mac = blob["mac"]
         offset = payload["offset"]
-        if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
+        if (
+            not isinstance(offset, int)
+            or isinstance(offset, bool)
+            or offset < 0
+            or offset > MAX_CURSOR_OFFSET
+        ):
             raise ValueError("offset")
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise SearchQueryError(SearchQueryError.INVALID_CURSOR) from exc
@@ -337,6 +358,10 @@ def decode_search_cursor(
         or payload.get("query") != query_digest
     ):
         raise SearchQueryError(SearchQueryError.INVALID_CURSOR)
+    if payload.get("policy") != policy_revision_ref:
+        # The effective policy changed since the cursor was minted (for
+        # example a revocation): continue only from a fresh query.
+        raise SearchQueryError(SearchQueryError.CURSOR_EXPIRED)
     issued_at = payload.get("issued_at")
     current = int(time.time()) if now is None else now
     if (
@@ -373,6 +398,44 @@ class SearchAuthorizationDenied(PermissionError):
         super().__init__(code)
 
 
+def _authorized_hit(
+    record: IndexRecordView,
+    *,
+    authority: SearcherAuthority,
+    query: str,
+) -> SearchHit | None:
+    """Current-authority projection of one candidate; ``None`` is invisible.
+
+    Authorization runs before any representation exists. A forbidden kind,
+    identity or locator, an explicit current denial (``acl_permitted`` is
+    ``False``) and a record whose current access cannot be evaluated
+    (``acl_permitted`` is ``None``) all produce no hit, no facet and no
+    count: a metadata-only hit for a text match would itself prove that the
+    restricted text contains the query terms. Only evaluable, permitted
+    records reach representation; a permitted record without text is a
+    metadata-only ``not_textually_searchable`` hit.
+    """
+
+    if authority.forbids(record.kind, record.source_object_id, record.source_locator):
+        return None
+    if record.acl_permitted is not True:
+        return None
+    if record.state == "tombstoned" or record.searchable_text is None:
+        return SearchHit(
+            kind=record.kind,
+            source_object_id=record.source_object_id,
+            source_locator=record.source_locator,
+            withheld_reason="not_textually_searchable",
+        )
+    return SearchHit(
+        kind=record.kind,
+        source_object_id=record.source_object_id,
+        source_locator=record.source_locator,
+        snippet=_snippet_for(record.searchable_text, query),
+        text_digest=record.text_digest,
+    )
+
+
 def run_authorized_search(
     request: SearchQueryRequest,
     *,
@@ -386,18 +449,25 @@ def run_authorized_search(
     ``fetch_page`` is the host-supplied candidate provider
     ``(offset, limit) -> SearchCandidatePage`` — the repository stays the
     storage owner and this service owns authorization, representation and
-    continuation. The service requests ``page_size + 1`` candidates per
-    window, drops every candidate the current authority forbids, and emits
-    at most ``page_size`` hits: metadata over the emitted subset only, and
-    a continuation cursor only when a further candidate window exists.
+    continuation. Candidate positions are authorization-independent (the
+    repository orders and filters by tenant, state and query only), so the
+    cursor records the next unexamined candidate position:
 
-    A live record whose current access cannot be evaluated
-    (``acl_permitted`` not ``True``) is withheld as metadata-only; a record
-    under an explicit current denial is invisible — no label, no facet, no
-    hit. A tombstoned record is metadata-only so recent deletions stay
-    legible without resurrecting text. A continuation cursor bound to an
-    older index generation is expired, not silently shifted. Authorization
-    failures raise before any representation exists.
+    * each examined candidate advances the position exactly once, whether it
+      is emitted or invisible, so a continuation never repeats an emitted
+      hit and never skips an unexamined candidate;
+    * invisible candidates do not shorten a page: further windows of
+      ``page_size + 1`` candidates are scanned, up to
+      ``MAX_CANDIDATE_WINDOWS`` per request;
+    * a cursor is emitted only when one more visible hit was seen after the
+      page filled, or when the scan budget ran out with candidates remaining
+      (a bounded partial page; the continuation resumes after every examined
+      candidate).
+
+    Metadata covers the emitted subset only. A continuation cursor bound to
+    an older index generation or a different policy revision is expired, not
+    silently shifted. Authorization failures raise before any representation
+    exists.
     """
 
     if authority.tenant_id != request.tenant_id:
@@ -409,88 +479,61 @@ def run_authorized_search(
             tenant_id=request.tenant_id,
             searcher_ref=searcher_ref,
             query_digest=request.query_digest(),
+            policy_revision_ref=authority.policy_revision_ref,
             now=now,
         )
-    offset = binding.offset if binding is not None else 0
-    candidates = fetch_page(offset, request.page_size + 1)
-    if binding is not None and binding.index_generation != candidates.index_generation:
-        raise SearchQueryError(SearchQueryError.CURSOR_EXPIRED)
+    position = binding.offset if binding is not None else 0
+    window_size = request.page_size + 1
 
     hits: list[SearchHit] = []
     withheld = 0
     facets: dict[str, int] = {}
+    generation: int | None = None
+    resume_at: int | None = None
+    exhausted = False
 
-    for record in candidates.records:
-        if len(hits) == request.page_size:
+    for _ in range(MAX_CANDIDATE_WINDOWS):
+        candidates = fetch_page(position, window_size)
+        if generation is None:
+            generation = candidates.index_generation
+            if binding is not None and binding.index_generation != generation:
+                raise SearchQueryError(SearchQueryError.CURSOR_EXPIRED)
+        elif candidates.index_generation != generation:
+            # The index switched generation between windows of one request.
+            raise SearchQueryError(SearchQueryError.CURSOR_EXPIRED)
+        for record in candidates.records:
+            hit = _authorized_hit(record, authority=authority, query=request.query)
+            if hit is None:
+                position += 1
+                continue
+            if len(hits) == request.page_size:
+                # Look-ahead: a further visible hit exists; resume on it.
+                resume_at = position
+                break
+            position += 1
+            hits.append(hit)
+            if hit.metadata_only:
+                withheld += 1
+            facets[hit.kind] = facets.get(hit.kind, 0) + 1
+        if resume_at is not None:
             break
-        if authority.forbids(record.kind, record.source_object_id, record.source_locator):
-            continue
-        if record.state == "tombstoned":
-            hits.append(
-                SearchHit(
-                    kind=record.kind,
-                    source_object_id=record.source_object_id,
-                    source_locator=record.source_locator,
-                    withheld_reason="not_textually_searchable",
-                )
-            )
-            withheld += 1
-            facets[record.kind] = facets.get(record.kind, 0) + 1
-            continue
-        if record.acl_permitted is False:
-            # A current denial is invisible: no label, no facet, no hit.
-            continue
-        if record.acl_permitted is not True:
-            # Access cannot currently be evaluated: text is never served,
-            # even when the index happens to hold it.
-            hits.append(
-                SearchHit(
-                    kind=record.kind,
-                    source_object_id=record.source_object_id,
-                    source_locator=record.source_locator,
-                    withheld_reason="access_not_evaluable",
-                )
-            )
-            withheld += 1
-            facets[record.kind] = facets.get(record.kind, 0) + 1
-            continue
-        if record.searchable_text is None:
-            hits.append(
-                SearchHit(
-                    kind=record.kind,
-                    source_object_id=record.source_object_id,
-                    source_locator=record.source_locator,
-                    withheld_reason="not_textually_searchable",
-                )
-            )
-            withheld += 1
-            facets[record.kind] = facets.get(record.kind, 0) + 1
-            continue
-        hits.append(
-            SearchHit(
-                kind=record.kind,
-                source_object_id=record.source_object_id,
-                source_locator=record.source_locator,
-                snippet=_snippet_for(record.searchable_text, request.query),
-                text_digest=record.text_digest,
-            )
-        )
-        facets[record.kind] = facets.get(record.kind, 0) + 1
+        if not candidates.has_more:
+            exhausted = True
+            break
+    if resume_at is None and not exhausted:
+        # Scan budget spent with candidates remaining: bounded partial page.
+        resume_at = position
 
-    page_full = len(hits) == request.page_size
-    more_candidates = candidates.has_more or len(candidates.records) > len(hits)
     next_cursor = None
-    if page_full and more_candidates:
+    if resume_at is not None:
         next_cursor = encode_search_cursor(
             tenant_id=request.tenant_id,
             searcher_ref=searcher_ref,
             query_digest=request.query_digest(),
-            index_generation=candidates.index_generation,
+            index_generation=generation or 0,
+            policy_revision_ref=authority.policy_revision_ref,
             issued_at=int(time.time()) if now is None else now,
-            # Advance by the hits actually emitted: unemitted candidates in
-            # this window are re-fetched next time — a denial consumes its
-            # candidate silently, but no matching row is ever skipped.
-            offset=offset + len(hits),
+            offset=resume_at,
         )
     return SearchResultPage(
         hits=hits,
@@ -499,8 +542,8 @@ def run_authorized_search(
         ),
         next_cursor=next_cursor,
         served_under_policy_revision=authority.policy_revision_ref,
-        index_generation=candidates.index_generation,
-        index_stale=candidates.index_generation == 0,
+        index_generation=generation or 0,
+        index_stale=(generation or 0) == 0,
     )
 
 
@@ -514,7 +557,7 @@ def index_record_view(
     The current-ACL evaluation available from persisted rows alone is the
     revision comparison: a record captured under the still-current policy
     revision is evaluable; any other revision cannot be re-evaluated here
-    and is passed as ``None`` (metadata-only, never text). Explicit current
+    and is passed as ``None`` (omitted, never text). Explicit current
     denials belong to the caller's authority, not to this projection.
     """
 

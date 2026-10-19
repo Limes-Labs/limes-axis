@@ -9304,11 +9304,11 @@ def create_app(
         """Authorized full-text search over the #873 index projection.
 
         Current authorization is re-evaluated for every candidate before any
-        representation exists; records whose access cannot be evaluated are
-        withheld as metadata-only hits; explicit denials are invisible.
-        Totals and facets cover the emitted authorized subset only. The
-        continuation cursor is opaque, binds the presenting principal and
-        query digest, and is re-authorized on every continuation.
+        representation exists; denied records and records whose access
+        cannot be evaluated are omitted. Totals and facets cover the emitted
+        authorized subset only. The continuation cursor binds the presenting
+        principal, query digest, policy revision and index generation, and
+        is re-authorized on every continuation.
         """
         _authorize_search_scope(
             tenant_id=tenant_id,

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.limeslabs.eu/axis/search-result-page.schema.json",
   "title": "Limes Axis Authorized Search Result Page",
-  "description": "A bounded, authorized full-text search result page over the tenant-scoped index projection. Current authorization is re-evaluated for every candidate before any representation is produced: records whose access cannot be evaluated are withheld as metadata-only hits, explicit denials are invisible, and totals and facets cover the emitted authorized subset only. Continuation cursors are opaque and bind the presenting principal, the query/filter digest and the index generation.",
+  "description": "A bounded, authorized full-text search result page over the tenant-scoped index projection. Current authorization is re-evaluated for every candidate before any representation is produced: denied records and records whose access cannot be evaluated are omitted entirely, and totals and facets cover the emitted authorized subset only. Continuation cursors bind the presenting principal, the query/filter digest, the effective policy revision and the index generation.",
   "type": "object",
   "required": [
     "tenant_id",
@@ -21,7 +21,7 @@
     },
     "hits": {
       "type": "array",
-      "description": "Authorized hits for this page in service-determined order. Restricted records appear only as metadata-only hits with a withheld_reason and never carry text.",
+      "description": "Authorized hits for this page in service-determined order. Denied or non-evaluable records never appear; a permitted record without searchable text appears as a metadata-only hit with a withheld_reason.",
       "items": {
         "$ref": "#/$defs/searchHit"
       }
@@ -34,12 +34,12 @@
         "string",
         "null"
       ],
-      "description": "Opaque continuation token bound to the presenting principal, the query/filter digest and the index generation; null when the authorized result set is exhausted. Cursors expire and are re-authorized on every continuation.",
+      "description": "Continuation token bound to the presenting principal, the query/filter digest, the effective policy revision and the index generation; null when the authorized result set is exhausted. Treat it as opaque. Cursors expire and are re-authorized on every continuation.",
       "maxLength": 600
     },
     "served_under_policy_revision": {
       "type": "string",
-      "description": "The current search ACL policy revision the page was evaluated under; hits captured under older revisions are withheld until re-indexed.",
+      "description": "The current search ACL policy revision the page was evaluated under; records captured under older revisions are omitted until re-indexed.",
       "minLength": 1
     },
     "index_generation": {
@@ -101,9 +101,8 @@
             "string",
             "null"
           ],
-          "description": "Present only on metadata-only hits: access_not_evaluable (current authorization could not be evaluated) or not_textually_searchable (tombstoned or textless record).",
+          "description": "Present only on metadata-only hits: not_textually_searchable (a permitted tombstoned or textless record).",
           "enum": [
-            "access_not_evaluable",
             "not_textually_searchable",
             null
           ]
