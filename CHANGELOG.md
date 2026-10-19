@@ -7,6 +7,14 @@ release-bound behavior, not the complete commit history.
 
 ### Added
 
+- Versioned Document Studio contract for durable documents and reusable
+  templates: section/block schema with stable IDs, typed template parameters
+  and fixed/editable/required regions, digest-bound template provenance that
+  survives template deletion, published-revision immutability, bounded
+  design tokens, and accessibility outline as contract data. Contract slice
+  only; no storage, editor runtime, rendering or embed resolution
+  ([#829](https://github.com/Limes-Labs/limes-axis/issues/829)).
+
 - An optional authenticated public institutional context reader (GovCore),
   absent unless `create_app(public_context=...)` opts in, with current
   tenant/scope and separate fixed-origin policy checks before and after the

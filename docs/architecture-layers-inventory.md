@@ -39,6 +39,7 @@ collaborations, not permission to import a vertical into shared core.
 | portability-conformance | deployment | trust | [`services/api/src/axis_api/portability_conformance.py`](../services/api/src/axis_api/portability_conformance.py) |
 | ontology-ports | operational-model | trust, data, experience | [`services/api/src/axis_api/ontology`](../services/api/src/axis_api/ontology) |
 | action-definitions | operational-model | trust, workflow | [`services/api/src/axis_api/actions.py`](../services/api/src/axis_api/actions.py) |
+| document-studio-contracts | experience | trust | [`services/api/src/axis_api/document_studio_contracts.py`](../services/api/src/axis_api/document_studio_contracts.py) |
 | workflow-api-port | workflow | trust, experience | [`services/api/src/axis_api/workflow_runtime.py`](../services/api/src/axis_api/workflow_runtime.py) |
 | approval-decisions | workflow | trust, operational-model, experience | [`services/api/src/axis_api/approval_decisions.py`](../services/api/src/axis_api/approval_decisions.py) |
 | approval-outbox | workflow | trust | [`services/api/src/axis_api/approval_outbox.py`](../services/api/src/axis_api/approval_outbox.py) |
