@@ -35,6 +35,7 @@ import { useAxisQuery } from "@/lib/use-axis-query";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { SourcePill } from "@/components/ui/source-pill";
+import { StatCard } from "@/components/ui/stat-card";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import {
   missingRequiredScopePermission,
@@ -223,27 +224,27 @@ export function PolicyRegistry() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4 [&>*]:min-w-0">
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">{strings.ui.common.policies}</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(registry.policy_count)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.policyRegistry.tenantScopedRulesMatchingThe}</p>
-        </article>
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">{strings.ui.policyRegistry.deny}</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(denyCount)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.policyRegistry.hardBlocksThatRejectMatching}</p>
-        </article>
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">{strings.ui.policyRegistry.requireApproval}</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(requireApprovalCount)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.policyRegistry.rulesThatForceTheHuman}</p>
-        </article>
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">{strings.ui.policyRegistry.allowWithEvidence}</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(evidenceCount)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.policyRegistry.rulesThatRecordDecisionEvidence}</p>
-        </article>
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 [&>*]:min-w-0" role="list">
+        <StatCard
+          detail={strings.ui.policyRegistry.tenantScopedRulesMatchingThe}
+          label={strings.ui.common.policies}
+          value={formatNumber(registry.policy_count)}
+        />
+        <StatCard
+          detail={strings.ui.policyRegistry.hardBlocksThatRejectMatching}
+          label={strings.ui.policyRegistry.deny}
+          value={formatNumber(denyCount)}
+        />
+        <StatCard
+          detail={strings.ui.policyRegistry.rulesThatForceTheHuman}
+          label={strings.ui.policyRegistry.requireApproval}
+          value={formatNumber(requireApprovalCount)}
+        />
+        <StatCard
+          detail={strings.ui.policyRegistry.rulesThatRecordDecisionEvidence}
+          label={strings.ui.policyRegistry.allowWithEvidence}
+          value={formatNumber(evidenceCount)}
+        />
       </div>
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-end justify-between gap-4">

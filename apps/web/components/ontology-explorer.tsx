@@ -23,6 +23,7 @@ import {
   type OntologyNodeType,
 } from "@/lib/ontology-demo";
 import { formatContextPath, formatNumber } from "@/lib/format";
+import { platformStatusLabel } from "@/lib/platform-overview";
 import {
   enumUrlField,
   opaqueStringUrlField,
@@ -249,6 +250,22 @@ export function OntologyExplorer() {
               <span className="inline-flex items-center gap-2">
                 <span aria-hidden="true" className="inline-block h-px w-5 bg-signal/60" />
                 {strings.ontology.legend.relation}
+              </span>
+              {/* The same colours the graph uses for its status dots. */}
+              <span
+                aria-label={strings.ontology.legend.statusGroup}
+                className="inline-flex flex-wrap items-center gap-x-4 gap-y-2"
+                role="group"
+              >
+                <span className="inline-flex items-center gap-2" data-legend-status="watch">
+                  <span aria-hidden="true" className="inline-block size-2 rounded-full bg-warning" />
+                  {platformStatusLabel("watch")}
+                </span>
+                <span className="inline-flex items-center gap-2" data-legend-status="action_required">
+                  <span aria-hidden="true" className="inline-block size-2 rounded-full bg-danger" />
+                  {platformStatusLabel("action_required")}
+                </span>
+                <span className="normal-case">{strings.ontology.legend.readyNoMarker}</span>
               </span>
               {Array.from(nodeTypeCounts.entries()).map(([type, count]) => (
                 <span key={type}>{`${formatNodeType(type)} ×${count}`}</span>

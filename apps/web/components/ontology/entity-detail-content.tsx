@@ -6,6 +6,7 @@ import { ArrowLeftRight, Database, Network, TriangleAlert } from "lucide-react";
 
 import { Reveal } from "@/components/reveal";
 import { Card } from "@/components/ui/card";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { humanizeIdentifier, humanizeScope } from "@/lib/display-names";
 import {
@@ -311,14 +312,16 @@ export function EntityDetailContent({
                         )}
                       </p>
                       {item.relationship.metadata.evidence_refs.length > 0 ? (
-                        <details className="text-xs text-muted">
-                          <summary className="min-h-6 w-fit cursor-pointer">
-                            {strings.ontology.entity.evidenceIds}
-                          </summary>
-                          <p className="mt-1 mb-0 font-mono break-words">
+                        <Disclosure
+                          className="text-xs text-muted"
+                          size="sm"
+                          title={strings.ontology.entity.evidenceIds}
+                          variant="plain"
+                        >
+                          <p className="m-0 font-mono break-words">
                             {item.relationship.metadata.evidence_refs.join(", ")}
                           </p>
-                        </details>
+                        </Disclosure>
                       ) : null}
                     </div>
                     <PeerNodeChip

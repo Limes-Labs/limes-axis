@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Building2, RotateCcw, ShieldCheck } from "lucide-react";
 
 import { useStrings } from "@/providers/locale-provider";
+import { Button } from "@/components/ui/button";
 import { dataTableClassName } from "@/components/ui/data-table";
 import { cn } from "@/lib/cn";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -37,6 +38,7 @@ import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { SourcePill } from "@/components/ui/source-pill";
+import { StatCard } from "@/components/ui/stat-card";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 
 const defaultFilters: TenantRegistryFilters = {
@@ -231,27 +233,27 @@ export function TenantRegistry() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4 [&>*]:min-w-0">
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">{strings.ui.common.tenants}</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(registry.tenant_count)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.tenantRegistry.tenantsMatchingTheCurrentStatus}</p>
-        </article>
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">{strings.ui.tenantRegistry.active}</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(registry.active_tenant_count)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.tenantRegistry.tenantsAbleToEstablishSessions}</p>
-        </article>
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">{strings.ui.tenantRegistry.suspended}</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(suspendedCount)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.tenantRegistry.rejectedFailClosedAtThe}</p>
-        </article>
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">{strings.ui.tenantRegistry.pendingDeletion}</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{formatNumber(pendingDeletionCount)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.tenantRegistry.modeledAndBlockedNoDeletion}</p>
-        </article>
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 [&>*]:min-w-0" role="list">
+        <StatCard
+          detail={strings.ui.tenantRegistry.tenantsMatchingTheCurrentStatus}
+          label={strings.ui.common.tenants}
+          value={formatNumber(registry.tenant_count)}
+        />
+        <StatCard
+          detail={strings.ui.tenantRegistry.tenantsAbleToEstablishSessions}
+          label={strings.ui.tenantRegistry.active}
+          value={formatNumber(registry.active_tenant_count)}
+        />
+        <StatCard
+          detail={strings.ui.tenantRegistry.rejectedFailClosedAtThe}
+          label={strings.ui.tenantRegistry.suspended}
+          value={formatNumber(suspendedCount)}
+        />
+        <StatCard
+          detail={strings.ui.tenantRegistry.modeledAndBlockedNoDeletion}
+          label={strings.ui.tenantRegistry.pendingDeletion}
+          value={formatNumber(pendingDeletionCount)}
+        />
       </div>
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5 flex flex-wrap items-end justify-between gap-4">
@@ -331,15 +333,15 @@ export function TenantRegistry() {
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">
                 {strings.ui.tenantRegistry.showingTenants(formatNumber(tenants.length))}
               </p>
-              <button
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
+              <Button
+                variant="secondary"
                 disabled={loadingMore}
                 onClick={() => void loadMore()}
                 type="button"
               >
                 <Building2 size={16} />
                 {loadingMore ? strings.ui.tenantRegistry.loading : strings.ui.tenantRegistry.loadMoreTenants}
-              </button>
+              </Button>
             </div>
           ) : null}
           {loadMoreError ? (

@@ -420,6 +420,15 @@ summary:focus-visible,
     transform 180ms ease;
 }
 
+/* Touch screens: a 44px target (WCAG 2.5.5); fine pointers keep 34px. */
+@media (pointer: coarse) {
+  .icon-button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+  }
+}
+
 .icon-button:hover,
 .icon-button-active {
   border-color: rgb(var(--line));

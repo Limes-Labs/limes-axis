@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, TriangleAlert, type LucideIcon } from "lucide-react";
+import { TriangleAlert, type LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getApiBaseUrl, isDefaultApiBaseUrl } from "@/lib/api-status";
 import { cn } from "@/lib/cn";
@@ -72,8 +72,6 @@ type ErrorPanelProps = {
 
 export function ErrorPanel({ title, detail, endpoint, reference, onRetry }: ErrorPanelProps) {
   const strings = useStrings();
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const DetailsChevron = detailsOpen ? ChevronDown : ChevronRight;
 
   return (
     <section className="min-w-0 rounded-2xl border border-danger/35 bg-danger/5 p-4 dark:border-danger/40 dark:bg-danger/10">
@@ -93,17 +91,14 @@ export function ErrorPanel({ title, detail, endpoint, reference, onRetry }: Erro
           </Button>
         ) : null}
       </div>
-      <button
-        aria-expanded={detailsOpen}
-        className="mt-3 inline-flex min-h-6 items-center gap-1 text-xs font-medium text-muted transition-colors hover:text-ink"
-        type="button"
-        onClick={() => setDetailsOpen((open) => !open)}
+      <Disclosure
+        className="mt-3"
+        keepMounted={false}
+        size="sm"
+        title={strings.states.technicalDetails}
+        variant="plain"
       >
-        <DetailsChevron aria-hidden="true" size={13} />
-        {strings.states.technicalDetails}
-      </button>
-      {detailsOpen ? (
-        <dl className="mx-0 mt-2 mb-0 flex min-w-0 flex-col gap-1.5 rounded-xl border border-line bg-surface/70 p-3 text-xs dark:border-white/10 dark:bg-white/4">
+        <dl className="m-0 flex min-w-0 flex-col gap-1.5 rounded-xl border border-line bg-surface/70 p-3 text-xs dark:border-white/10 dark:bg-white/4">
           {reference ? (
             <div className="flex min-w-0 flex-wrap gap-x-2">
               <dt className="m-0 font-medium text-muted">{strings.states.reference}</dt>
@@ -126,7 +121,7 @@ export function ErrorPanel({ title, detail, endpoint, reference, onRetry }: Erro
             </p>
           ) : null}
         </dl>
-      ) : null}
+      </Disclosure>
     </section>
   );
 }

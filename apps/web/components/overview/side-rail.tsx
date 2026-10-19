@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SourcePill } from "@/components/ui/source-pill";
+import { SourcePill, sourceStateLabel } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import type { ManufacturingAuditExplorer } from "@/lib/audit-demo";
 import { useStrings } from "@/providers/locale-provider";
@@ -12,6 +12,7 @@ import { deriveSourceState } from "@/lib/source-state";
 import { normalizeLabel, type OverviewQuery } from "./overview-shared";
 import { ActivityTimeline } from "./activity-timeline";
 import { OVERVIEW_AUDIT_WINDOW } from "./evidence-feed";
+import { consoleNumberFormat } from "@/lib/format";
 
 /** Each bar uses the same denominator: the returned audit window, not all activity. */
 export function SideRail({
@@ -45,11 +46,17 @@ export function SideRail({
   const counts = new Map<string, number>();
   for (const event of events) counts.set(event.category, (counts.get(event.category) ?? 0) + 1);
   const categories = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const sourceState = deriveSourceState(auditEvents.source, true, auditEvents.data.provenance);
 
   return (
-    <Card as="section" aria-label={view === "category" ? copy.title : strings.ui.overviewSideRail.activityByDate} className="grid min-w-0 content-start gap-4">
+    <Card
+      as="section"
+      aria-label={view === "category" ? copy.title : strings.ui.overviewSideRail.activityByDate}
+      className="grid min-w-0 content-start gap-4"
+      data-source-state={sourceState}
+    >
       <div className="grid gap-1">
-        <h2 className="m-0 font-display text-lg text-ink">{view === "category" ? copy.title : strings.ui.overviewSideRail.activityByDate}</h2>
+        <h2 className="m-0 font-display text-lg text-ink" title={sourceStateLabel(sourceState, "audit window")}>{view === "category" ? copy.title : strings.ui.overviewSideRail.activityByDate}</h2>
         <p className="m-0 text-xs text-muted">{view === "category" ? copy.window(events.length, windowLimit) : copy.dateWindow(events.length, windowLimit)}</p>
         {hiddenReadCount > 0 ? (
           <p className="m-0 text-xs text-muted">{strings.audit.reads.hidden(hiddenReadCount)}</p>
@@ -67,7 +74,7 @@ export function SideRail({
           // decorative <dd> spanning both columns rather than a sibling <div>.
           <div key={category} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-2 text-sm">
             <dt className="min-w-0 break-words text-ink">{normalizeLabel(category)}</dt>
-            <dd className="m-0 shrink-0 tabular-nums text-muted">{count} · {new Intl.NumberFormat("en", { maximumFractionDigits: 1 }).format(count / events.length * 100)}%</dd>
+            <dd className="m-0 shrink-0 tabular-nums text-muted">{count} · {consoleNumberFormat({ maximumFractionDigits: 1 }).format(count / events.length * 100)}%</dd>
             <dd aria-hidden="true" className="col-span-2 m-0 h-2 overflow-hidden rounded-full bg-signal/10">
               <div className="h-full rounded-full bg-signal" style={{ width: `${count / events.length * 100}%` }} />
             </dd>
@@ -77,7 +84,7 @@ export function SideRail({
         </TabsContent>
         <TabsContent value="date"><ActivityTimeline events={events} /></TabsContent>
       </Tabs>
-      <SourcePill state={deriveSourceState(auditEvents.source, true, auditEvents.data.provenance)} subject="audit window" />
+      {sourceState === "stale" ? <SourcePill state={sourceState} subject="audit window" /> : null}
     </Card>
   );
 }

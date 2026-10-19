@@ -1,3 +1,4 @@
+import { consoleDateTimeFormat } from "@/lib/format";
 export type PlatformStatus = "ready" | "watch" | "action_required";
 export type ManufacturingProvenance = "reference_scenario" | "live" | "empty";
 
@@ -261,7 +262,7 @@ export function platformStatusClass(status: PlatformStatus): string {
 }
 
 export function formatOverviewTimestamp(value: string): string {
-  return new Intl.DateTimeFormat("en", {
+  return consoleDateTimeFormat({
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));

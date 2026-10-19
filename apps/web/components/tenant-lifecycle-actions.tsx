@@ -246,14 +246,13 @@ export function TenantLifecycleActions({ tenant }: { tenant: TenantRecord }) {
               value={reactivateReason}
             />
           </Field>
-          <button
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
+          <Button
             disabled={action.phase === "saving"}
             type="submit"
           >
             <PlayCircle size={15} />
             {action.phase === "saving" ? strings.ui.tenantLifecycleActions.reactivating : strings.ui.tenantLifecycleActions.reactivateTenant}
-          </button>
+          </Button>
         </form>
       ) : (
         <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words">

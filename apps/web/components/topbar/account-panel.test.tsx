@@ -107,12 +107,12 @@ describe("AccountPanel", () => {
       "title",
       "tenant_demo_manufacturing",
     );
-    const scopes = screen.getByText(/2 permissions/).closest("details");
-    expect(scopes).not.toHaveAttribute("open");
+    const trigger = screen.getByRole("button", { name: /2 permissions/ });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText("approvals:supply:decide")).not.toBeVisible();
 
-    await user.click(screen.getByText(/2 permissions/));
-    expect(scopes).toHaveAttribute("open");
-    expect(scopes).toHaveTextContent("Approvals · supply · decide");
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(document.querySelector("[data-account-scopes]")).toHaveTextContent("Approvals · supply · decide");
   });
 });

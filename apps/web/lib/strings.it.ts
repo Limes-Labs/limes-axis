@@ -1296,6 +1296,26 @@ const connectors = {
 } as const;
 
 const overview = {
+  mobileSections: {
+    activity: "Ripartizione delle attività",
+    posture: "Stato della piattaforma",
+    evidence: "Evidenze e artefatti governati",
+  },
+  scenarioBanner: {
+    title: "Scenario di esempio",
+    detail:
+      "Parte di questa panoramica proviene da uno scenario di riferimento, non dai record del Suo tenant.",
+    demoDetail:
+      "Questo tenant esegue lo scenario dimostrativo: i suoi record sono dati di esempio, non le Sue operazioni.",
+    sections: (subjects: string[]) => `Dati di esempio: ${subjects.join(", ")}.`,
+    subjects: {
+      context: "Contesto",
+      operations: "Operazioni",
+      approvals: "Approvazioni",
+      audit: "Registro di audit",
+      models: "Modelli",
+    },
+  },
   hero: {
     fallbackTitle: "Panoramica operativa",
     error: {
@@ -1881,6 +1901,8 @@ const ontology = {
     entity: "Entità",
     selected: "Selezionata",
     relation: "Relazione",
+    statusGroup: "Stato del nodo",
+    readyNoMarker: "Pronto: nessun indicatore",
     hint: "Faccia clic su un nodo o prema Invio per aprirne il dettaglio",
   },
   graph: {
@@ -2112,6 +2134,9 @@ const ui = {
     activityByTime: "Attività per fascia oraria",
     utc6HourBins: "UTC · fasce di 6 ore",
     auditEventsByUtcDate: "Eventi di audit per data UTC e fascia di sei ore",
+    zoneSixHourBins: (zone: string) => `${zone} · fasce di 6 ore`,
+    auditEventsByZonedDate: (zone: string) =>
+      `Eventi di audit per data e fascia di sei ore, ora ${zone}`,
     clearTimeFilter: "Cancellare il filtro temporale",
   },
   auditExplorer: {
@@ -2126,6 +2151,7 @@ const ui = {
     events: "Eventi",
     eventsInTheReturnedWindow: "Eventi nella finestra restituita",
     eventsMarkedForAttention: "Eventi segnalati per attenzione",
+    timesInZone: (zone: string) => `Orari nel fuso ${zone}`,
     auditExplorer: "Esplorazione dell'audit",
     allTenants: "Tutti i tenant",
     allEvents: "Tutti gli eventi",

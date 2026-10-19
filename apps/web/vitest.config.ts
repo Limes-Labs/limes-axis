@@ -1,6 +1,10 @@
 import { defineConfig } from "vitest/config";
 import path from "node:path";
 
+// Dates render in the browser's time zone (`getConsoleTimeZone`); pin it so
+// formatted times and heatmap bins are the same on every machine and in CI.
+process.env.TZ = "UTC";
+
 const alias = {
   "@": path.resolve(import.meta.dirname),
 };

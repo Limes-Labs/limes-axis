@@ -228,6 +228,16 @@ test.describe("Axis console smoke", () => {
     await expect(
       page.getByRole("heading", { name: "Attention items unavailable" }),
     ).toBeVisible();
+    // On a phone the secondary sections start collapsed under the hero and
+    // attention items; open them to check each one degrades on its own.
+    if ((page.viewportSize()?.width ?? 1024) < 768) {
+      for (const title of Object.values(strings.overview.mobileSections)) {
+        const trigger = page.getByRole("button", { name: title, exact: true });
+        await expect(trigger).toHaveAttribute("aria-expanded", "false");
+        await trigger.click();
+        await expect(trigger).toHaveAttribute("aria-expanded", "true");
+      }
+    }
     await expect(
       page.getByRole("heading", { name: "Audit evidence API unavailable" }),
     ).toBeVisible();
@@ -556,8 +566,11 @@ test.describe("Axis console smoke", () => {
       );
 
     expect(utilityRects.length).toBeGreaterThanOrEqual(4);
+    // Touch screens get 44px targets; a mouse keeps the compact 34px controls.
+    const coarsePointer = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+    const side = coarsePointer ? 44 : 34;
     for (const rect of utilityRects) {
-      expect(rect).toEqual({ height: 34, width: 34 });
+      expect(rect).toEqual({ height: side, width: side });
     }
 
     const accountButton = page.getByRole("button", { name: "Open operator account" });
@@ -632,7 +645,7 @@ test.describe("Axis console smoke", () => {
 
     await expect(page.getByRole("heading", { name: "Agents", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Agent API unavailable" })).toBeVisible();
-    await page.locator("summary").filter({ hasText: /^Action catalog:/ }).click();
+    await page.getByRole("button", { name: /^Action catalog:/ }).click();
     await expect(page.getByRole("heading", { name: "Action API unavailable" })).toBeVisible();
     await expect(page.getByText("Local fallback agent records are disabled.")).toBeVisible();
     await expect(page.getByText("Local fallback action records are disabled.")).toBeVisible();
@@ -1023,6 +1036,10 @@ test.describe("Axis console smoke", () => {
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
     await page.goto("/");
+    if ((page.viewportSize()?.width ?? 1024) < 768) {
+      // On a phone the posture cards (and their Policies link) start collapsed.
+      await page.getByRole("button", { name: strings.overview.mobileSections.posture, exact: true }).click();
+    }
     await expect(page.getByRole("link", { name: "Policies" }).first()).toHaveAttribute(
       "href",
       "/policies",
@@ -1135,7 +1152,7 @@ test.describe("Axis console smoke", () => {
 
     await page.goto("/policies");
 
-    await page.locator("summary").filter({ hasText: /^Create policy$/ }).click();
+    await page.getByRole("button", { name: "Create policy", exact: true }).click();
     const createForm = page.getByRole("form", { name: "Platform policy authoring" });
     await expect(createForm).toBeVisible();
 
@@ -1612,7 +1629,7 @@ test.describe("Axis console smoke", () => {
       0,
     );
 
-    await page.locator("summary").filter({ hasText: /^Create organization$/ }).click();
+    await page.getByRole("button", { name: "Create organization", exact: true }).click();
     const provisionForm = page.getByRole("form", { name: "Tenant provisioning" });
     await expect(provisionForm).toBeVisible();
 

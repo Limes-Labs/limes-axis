@@ -39,7 +39,7 @@ import {
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useAxisQuery } from "@/lib/use-axis-query";
 import { buildConnectorSnapshotHref } from "@/lib/connectors-demo";
-import { formatContextPath, formatDateTime, formatNumber } from "@/lib/format";
+import { formatContextPath, formatDateTime, formatNumber, formatTimeZoneLabel } from "@/lib/format";
 import { deriveSourceState } from "@/lib/source-state";
 import {
   formatOverviewTimestamp,
@@ -53,6 +53,7 @@ import { InspectDrawer } from "@/components/ui/inspect-drawer";
 import { ShowReadsToggle } from "@/components/ui/show-reads-toggle";
 import { Select } from "@/components/ui/select";
 import { SourcePill } from "@/components/ui/source-pill";
+import { StatCard } from "@/components/ui/stat-card";
 import {
   AuditActivityHeatmap,
   filterAuditTimeInterval,
@@ -421,20 +422,19 @@ export function AuditExplorer() {
       </div>
 
       <div className="grid min-w-0 items-start gap-3.5 xl:grid-cols-[minmax(0,0.65fr)_minmax(0,1fr)]">
-        <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-1 [&>*]:min-w-0">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-1 [&>*]:min-w-0" role="list">
         {auditData.metrics.filter((metric) => !["Query Source", "Replay"].includes(metric.label)).map((metric) => (
-          <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5" key={metric.label}>
-            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-              <p className="eyebrow m-0">{metric.label === "Persisted Events" ? strings.ui.auditExplorer.events : metric.label}</p>
-              {metric.status !== "ready" ? <span className={`status-pill ${platformStatusClass(metric.status)}`}>
-                {platformStatusLabel(metric.status)}
-              </span> : null}
-            </div>
-            <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{metric.value}</p>
-            <p className="m-0 text-xs leading-relaxed text-muted break-words">{metric.label === "Persisted Events"
+          <StatCard
+            aside={metric.status !== "ready" ? <span className={`status-pill ${platformStatusClass(metric.status)}`}>
+              {platformStatusLabel(metric.status)}
+            </span> : null}
+            detail={metric.label === "Persisted Events"
               ? strings.ui.auditExplorer.eventsInTheReturnedWindow
-              : metric.label === "Action Required" ? strings.ui.auditExplorer.eventsMarkedForAttention : metric.detail}</p>
-          </article>
+              : metric.label === "Action Required" ? strings.ui.auditExplorer.eventsMarkedForAttention : metric.detail}
+            key={metric.label}
+            label={metric.label === "Persisted Events" ? strings.ui.auditExplorer.events : metric.label}
+            value={metric.value}
+          />
         ))}
         </div>
         <AuditActivityHeatmap
@@ -505,10 +505,16 @@ export function AuditExplorer() {
               <p className="eyebrow m-0">{strings.ui.auditExplorer.events}</p>
               <h2 className="font-display mx-0 mt-1 mb-4 text-xl text-ink" aria-live="polite">{formatNumber(visibleEvents.length)} visible</h2>
             </div>
-            <span className="status-pill signal-ready">
-              <Filter size={15} />
-              {formatNumber(auditData.events.length)} returned
-            </span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {/* The heatmap bins in this same zone, so a bin and its rows agree. */}
+              <span className="text-xs text-muted" data-audit-time-zone>
+                {strings.ui.auditExplorer.timesInZone(formatTimeZoneLabel())}
+              </span>
+              <span className="status-pill signal-ready">
+                <Filter size={15} />
+                {formatNumber(auditData.events.length)} returned
+              </span>
+            </div>
           </div>
           {visibleEvents.length === 0 ? (
             <EmptyPanel

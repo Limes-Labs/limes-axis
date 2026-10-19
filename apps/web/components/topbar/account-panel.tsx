@@ -12,11 +12,7 @@ import {
   popoverRowClass,
   tagClass,
 } from "@/components/topbar/panel-chrome";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Disclosure } from "@/components/ui/disclosure";
 import { LocaleSwitch } from "@/components/locale-switch";
 import { SsoSignInLink } from "@/components/sso-sign-in-link";
 import { Input } from "@/components/ui/input";
@@ -178,12 +174,13 @@ export function AccountPanel({
             {visibleScopes.length > 0 ? (
               // Scopes read as plain words; the raw scope strings stay behind
               // the Inspect disclosure.
-              <details className="min-w-0 text-xs text-muted" data-account-scopes>
-                <summary className="min-h-6 w-fit cursor-pointer">
-                  {strings.identifiers.permissions(visibleScopes.length)} ·{" "}
-                  {strings.identifiers.inspect}
-                </summary>
-                <ul className="mx-0 mt-1 mb-0 grid list-none gap-1 p-0">
+              <Disclosure
+                className="text-xs text-muted"
+                size="sm"
+                title={`${strings.identifiers.permissions(visibleScopes.length)} · ${strings.identifiers.inspect}`}
+                variant="plain"
+              >
+                <ul className="m-0 grid list-none gap-1 p-0" data-account-scopes>
                   {visibleScopes.map((scope) => (
                     <li key={scope}>
                       {humanizeScope(scope)}{" "}
@@ -191,7 +188,7 @@ export function AccountPanel({
                     </li>
                   ))}
                 </ul>
-              </details>
+              </Disclosure>
             ) : (
               <span className={tagClass}>
                 {identitySession?.authenticated ? strings.ui.topbarAccountPanel.noScopesInToken : strings.ui.topbarAccountPanel.awaitingApiValidation}
@@ -233,47 +230,47 @@ export function AccountPanel({
             <CircleHelp size={16} />
             {strings.ui.topbarAccountPanel.openSsoSetup}
           </a>
-          <Collapsible onOpenChange={setDeveloperBridgeOpen} open={developerBridgeOpen}>
-            <CollapsibleTrigger
-              className="inline-flex min-h-6 cursor-pointer items-center justify-self-start text-xs text-muted underline underline-offset-2 transition-colors hover:text-ink"
-              type="button"
-            >
-              {strings.ui.topbarAccountPanel.developerAccess}
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="mt-2 grid gap-2">
-                <p className="m-0 text-xs leading-snug text-muted">
-                  {strings.ui.topbarAccountPanel.forLocalDevelopmentAgainstA}
-                </p>
-                {!authenticatedSession ? (
-                  <form className="grid gap-2" onSubmit={connectSession}>
-                    <label className="grid gap-1.5 text-xs font-semibold text-muted">
-                      {strings.ui.topbarAccountPanel.developerBearerBridge}
-                      <Input
-                        aria-invalid={Boolean(error)}
-                        onChange={(event) => {
-                          setAccessToken(event.target.value);
-                          setError(null);
-                        }}
-                        placeholder={strings.ui.topbarAccountPanel.pasteJwtAccessToken}
-                        type="password"
-                        value={accessToken}
-                      />
-                    </label>
-                    {error ? (
-                      <span className="text-xs font-semibold text-danger" role="alert">
-                        {error}
-                      </span>
-                    ) : null}
-                    <button className={commandClass} type="submit">
-                      <KeyRound size={16} />
-                      {strings.ui.topbarAccountPanel.attachBearerBridge}
-                    </button>
-                  </form>
-                ) : null}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
+          <Disclosure
+            className="justify-self-start"
+            keepMounted={false}
+            onOpenChange={setDeveloperBridgeOpen}
+            open={developerBridgeOpen}
+            size="sm"
+            title={strings.ui.topbarAccountPanel.developerAccess}
+            variant="plain"
+          >
+            <div className="grid gap-2">
+              <p className="m-0 text-xs leading-snug text-muted">
+                {strings.ui.topbarAccountPanel.forLocalDevelopmentAgainstA}
+              </p>
+              {!authenticatedSession ? (
+                <form className="grid gap-2" onSubmit={connectSession}>
+                  <label className="grid gap-1.5 text-xs font-semibold text-muted">
+                    {strings.ui.topbarAccountPanel.developerBearerBridge}
+                    <Input
+                      aria-invalid={Boolean(error)}
+                      onChange={(event) => {
+                        setAccessToken(event.target.value);
+                        setError(null);
+                      }}
+                      placeholder={strings.ui.topbarAccountPanel.pasteJwtAccessToken}
+                      type="password"
+                      value={accessToken}
+                    />
+                  </label>
+                  {error ? (
+                    <span className="text-xs font-semibold text-danger" role="alert">
+                      {error}
+                    </span>
+                  ) : null}
+                  <button className={commandClass} type="submit">
+                    <KeyRound size={16} />
+                    {strings.ui.topbarAccountPanel.attachBearerBridge}
+                  </button>
+                </form>
+              ) : null}
+            </div>
+          </Disclosure>
         </div>
       )}
 

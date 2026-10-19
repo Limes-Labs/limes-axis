@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
+import { buttonVariants } from "@/components/ui/button";
 import { EntityDetailContent } from "@/components/ontology/entity-detail-content";
 import { useOntologyEntity } from "@/components/ontology/use-ontology-entity";
 import { PlatformStatusPill } from "@/components/status-pill";
@@ -124,7 +125,7 @@ export function OntologyEntityDetail({ nodeId }: { nodeId: string }) {
         detail={detail}
         summaryAction={
           <Link
-            className="inline-flex items-center gap-2 rounded-full border border-mist bg-surface px-5 py-2.5 text-sm font-medium text-ink transition-colors hover:border-signal/50 hover:text-signal dark:border-white/20"
+            className={buttonVariants({ size: "lg", variant: "secondary" })}
             href="/ontology"
           >
             <ArrowLeft size={16} />

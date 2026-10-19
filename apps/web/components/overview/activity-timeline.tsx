@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { Disclosure } from "@/components/ui/disclosure";
 import type { AuditLedgerEvent } from "@/lib/audit-demo";
 import { useStrings } from "@/providers/locale-provider";
 
@@ -162,9 +163,8 @@ export function ActivityTimeline({ events }: { events: readonly AuditLedgerEvent
         {bins.length === 1 ? strings.ui.overviewActivityTimeline.onlyOneUtcDateIn : bins.length > 1 ? strings.ui.overviewActivityTimeline.selectADateToInspect : strings.ui.overviewActivityTimeline.noDatedActivityInThis}
       </p>
       {invalidTimestamps > 0 ? <p className="m-0 text-xs text-warning">{invalidTimestamps} {invalidTimestamps === 1 ? "event has" : "events have"} an invalid timestamp and cannot be placed by date.</p> : null}
-      {bins.length > 0 ? <details className="text-xs text-muted">
-        <summary className="cursor-pointer font-medium text-ink">{strings.ui.overviewActivityTimeline.dailyValues}</summary>
-        <p className="mb-0 mt-3 leading-relaxed">{strings.ui.overviewActivityTimeline.attentionWatchActionRequiredShare}</p>
+      {bins.length > 0 ? <Disclosure className="text-xs text-muted" size="sm" title={strings.ui.overviewActivityTimeline.dailyValues} variant="plain">
+        <p className="m-0 leading-relaxed">{strings.ui.overviewActivityTimeline.attentionWatchActionRequiredShare}</p>
         <div className="mt-3 grid gap-2" aria-label={strings.ui.overviewActivityTimeline.dailyActivityValues}>
         {bins.map((bin) => <div key={bin.date} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 border-b border-line/60 pb-2 text-xs last:border-0 last:pb-0">
           <time dateTime={bin.date} className="font-medium text-ink">{bin.date} UTC</time>
@@ -172,7 +172,7 @@ export function ActivityTimeline({ events }: { events: readonly AuditLedgerEvent
           <span className="col-span-2 mt-1 text-muted">{bin.attentionShare === null ? `Attention share unavailable · ${bin.unknownSeverity} unknown severity` : `${bin.attention}/${bin.count} attention · ${percent.format(bin.attentionShare)}`}</span>
         </div>)}
         </div>
-      </details> : null}
+      </Disclosure> : null}
     </div>
   );
 }

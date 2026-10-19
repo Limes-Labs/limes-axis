@@ -52,12 +52,12 @@ describe("AuditActivityHeatmap", () => {
     const onSelectInterval = vi.fn();
     const user = userEvent.setup();
     const { rerender } = render(<AuditActivityHeatmap events={events} returnedEvents={events} onSelectInterval={onSelectInterval} controlsId="events" />);
-    const zero = screen.getByRole("button", { name: "2 Sept 2026, 00:00–06:00 UTC: 0 events in returned window" });
+    const zero = screen.getByRole("button", { name: "Sep 2, 2026, 00:00–06:00 UTC: 0 events in returned window" });
     await user.tab();
     expect(zero).toHaveFocus();
     expect(onSelectInterval).not.toHaveBeenCalled();
     await user.keyboard("{Enter}");
-    const interval = { start: Date.parse("2026-09-02T00:00:00Z"), end: Date.parse("2026-09-02T06:00:00Z"), label: "2 Sept 2026, 00:00–06:00 UTC" };
+    const interval = { start: Date.parse("2026-09-02T00:00:00Z"), end: Date.parse("2026-09-02T06:00:00Z"), label: "Sep 2, 2026, 00:00–06:00 UTC" };
     expect(onSelectInterval).toHaveBeenLastCalledWith(interval);
     rerender(<AuditActivityHeatmap events={events} returnedEvents={events} onSelectInterval={onSelectInterval} selectedInterval={interval} controlsId="events" />);
     expect(zero).toHaveAttribute("aria-pressed", "true");
@@ -73,15 +73,15 @@ describe("AuditActivityHeatmap", () => {
     expect(screen.getByRole("heading", { name: "Activity by time" })).toBeInTheDocument();
     expect(screen.getByText("2 events")).toBeInTheDocument();
     expect(screen.queryByText(/2 of 2 filtered events/)).not.toBeInTheDocument();
-    expect(screen.getByRole("table", { name: /UTC date/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "8 Sept 2026, 06:00–12:00 UTC: 2 events in returned window" })).toHaveTextContent("2");
+    expect(screen.getByRole("table", { name: /UTC time/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sep 8, 2026, 06:00–12:00 UTC: 2 events in returned window" })).toHaveTextContent("2");
     expect(screen.getByLabelText("Color scale: zero to 2 events per cell")).toBeInTheDocument();
     expect(screen.getByText("Counts cover the returned window only.")).toBeInTheDocument();
-    const zero = screen.getByRole("button", { name: "2 Sept 2026, 00:00–06:00 UTC: 0 events in returned window" });
+    const zero = screen.getByRole("button", { name: "Sep 2, 2026, 00:00–06:00 UTC: 0 events in returned window" });
     fireEvent.focus(zero);
-    expect(screen.getByRole("status")).toHaveTextContent("0 events · 2 Sept 2026, 00:00–06:00 UTC");
-    await userEvent.click(screen.getByRole("button", { name: "8 Sept 2026, 06:00–12:00 UTC: 2 events in returned window" }));
-    expect(screen.getByRole("status")).toHaveTextContent("2 events · 8 Sept 2026, 06:00–12:00 UTC");
+    expect(screen.getByRole("status")).toHaveTextContent("0 events · Sep 2, 2026, 00:00–06:00 UTC");
+    await userEvent.click(screen.getByRole("button", { name: "Sep 8, 2026, 06:00–12:00 UTC: 2 events in returned window" }));
+    expect(screen.getByRole("status")).toHaveTextContent("2 events · Sep 8, 2026, 06:00–12:00 UTC");
   });
 
   it("reports excluded and invalid timestamps, and updates when filters change", () => {
@@ -91,7 +91,7 @@ describe("AuditActivityHeatmap", () => {
     expect(screen.getByText(/1 outside these seven dates.*1 with invalid/)).toBeInTheDocument();
     rerender(<AuditActivityHeatmap events={[returned[1]]} returnedEvents={returned} />);
     expect(screen.getByText("0 of 1 filtered events")).toBeInTheDocument();
-    expect(screen.getByText(/3 returned.*8 Sept 2026 UTC/)).toBeInTheDocument();
+    expect(screen.getByText(/3 returned.*8, 2026 UTC/)).toBeInTheDocument();
     expect(screen.getByLabelText("Color scale: zero to 0 events per cell")).toBeInTheDocument();
   });
 });

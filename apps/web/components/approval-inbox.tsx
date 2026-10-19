@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { Check, ChevronDown, ChevronRight, Inbox } from "lucide-react";
+import { Check, Inbox } from "lucide-react";
 
 import {
   ApprovalDecisionCard,
@@ -13,8 +12,8 @@ import { ApprovalQueue, filterApprovalQueue } from "@/components/approvals/appro
 import { ApprovalReviewLayout } from "@/components/approvals/approval-review-layout";
 import { ActionFollowThrough } from "@/components/approvals/action-follow-through";
 import { Card } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DetailGrid, KeyValueRow } from "@/components/ui/detail-grid";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { IdentifiedName } from "@/components/ui/identified-name";
 import { InspectDrawer } from "@/components/ui/inspect-drawer";
@@ -156,17 +155,16 @@ function CollapsibleSection({
   defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
-  const Chevron = open ? ChevronDown : ChevronRight;
-
   return (
-    <Collapsible onOpenChange={setOpen} open={open}>
-      <CollapsibleTrigger className="flex min-h-6 cursor-pointer items-center gap-1.5 bg-transparent p-0">
-        <Chevron aria-hidden="true" className="text-muted" size={14} />
-        <span className="eyebrow">{label}</span>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pt-2 pl-5.5">{children}</CollapsibleContent>
-    </Collapsible>
+    <Disclosure
+      contentClassName="pl-5.5"
+      defaultOpen={defaultOpen}
+      keepMounted={false}
+      title={<span className="eyebrow">{label}</span>}
+      variant="plain"
+    >
+      {children}
+    </Disclosure>
   );
 }
 

@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { Activity } from "lucide-react";
 
+import { Disclosure } from "@/components/ui/disclosure";
+import { StatCard } from "@/components/ui/stat-card";
+
 import {
   buildPlatformTenantUsagePath,
   defaultUsageWindowDays,
@@ -15,6 +18,7 @@ import {
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
 import { useStrings } from "@/providers/locale-provider";
+import { formatNumber } from "@/lib/format";
 
 type UsageSource = "loading" | "api" | "unavailable" | "missing";
 
@@ -97,22 +101,24 @@ export function TenantUsagePanel({ tenantId }: { tenantId: string }) {
           {strings.ui.tenantUsagePanel.noMeteredConsumptionInThis}
         </p>
       ) : (
-        <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0" aria-label={strings.ui.tenantUsagePanel.perMetricConsumption}>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 [&>*]:min-w-0" aria-label={strings.ui.tenantUsagePanel.perMetricConsumption} role="list">
           {rows.map((row) => (
-            <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]" key={row.metricKey}>
-              <p className="eyebrow m-0">{row.label}</p>
-              <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{row.total.toLocaleString()}</p>
-              <p className="m-0 text-xs leading-relaxed text-muted break-words">
-                {row.periodCount} {row.periodCount === 1 ? "period" : "periods"} in window
-              </p>
-            </article>
+            <StatCard
+              detail={`${row.periodCount} ${row.periodCount === 1 ? "period" : "periods"} in window`}
+              key={row.metricKey}
+              label={row.label}
+              value={formatNumber(row.total)}
+            />
           ))}
         </div>
       )}
 
-      <details className="mt-4 border-t border-line/60 pt-3 text-sm text-muted dark:border-white/10">
-        <summary className="cursor-pointer font-medium text-ink">{strings.ui.tenantUsagePanel.usageMethodologyAndAccess}</summary>
-        <div className="mt-3 grid min-w-0 grid-cols-1 gap-2.5 [&>p]:min-w-0 [&>p]:[overflow-wrap:anywhere]">
+      <Disclosure
+        className="mt-4 border-t border-line/60 pt-3 text-sm text-muted dark:border-white/10"
+        title={strings.ui.tenantUsagePanel.usageMethodologyAndAccess}
+        variant="plain"
+      >
+        <div className="grid min-w-0 grid-cols-1 gap-2.5 [&>p]:min-w-0 [&>p]:[overflow-wrap:anywhere]">
           <p className="m-0 leading-snug">{strings.ui.tenantUsagePanel.meteringIsCumulativeConsumptionAccounting}</p>
           <p className="m-0 leading-snug break-words">Required permission: {platformTenantUsageScope}.</p>
           <p className="m-0 break-words font-mono text-[13px]">GET {buildPlatformTenantUsagePath(tenantId)}</p>
@@ -122,7 +128,7 @@ export function TenantUsagePanel({ tenantId }: { tenantId: string }) {
             </p>
           ))}
         </div>
-      </details>
+      </Disclosure>
     </section>
   );
 }

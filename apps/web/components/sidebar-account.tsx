@@ -152,7 +152,7 @@ export function SidebarAccount({
           aria-expanded={activePanel === "account"}
           aria-label={strings.shell.accountLabel(operatorInitials(actorId ?? undefined))}
           className={cn(
-            "grid size-[34px] shrink-0 cursor-pointer place-items-center rounded-full border border-line bg-surface font-mono text-[11px] font-bold text-ink/80 transition-colors hover:border-signal/40 hover:bg-signal/10 dark:border-white/20 dark:bg-white/5",
+            "grid size-[34px] shrink-0 cursor-pointer place-items-center rounded-full pointer-coarse:size-11 border border-line bg-surface font-mono text-[11px] font-bold text-ink/80 transition-colors hover:border-signal/40 hover:bg-signal/10 dark:border-white/20 dark:bg-white/5",
             activePanel === "account" && "border-signal/40 bg-signal/10",
           )}
           data-operator-initials

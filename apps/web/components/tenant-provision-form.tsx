@@ -23,6 +23,7 @@ import { safeRandomUuid } from "@/lib/ids";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useIdentitySession } from "@/lib/use-identity-session";
 import { useConsole } from "@/providers/console-provider";
+import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
 import { InlineOperatorError } from "@/components/ui/inline-operator-error";
@@ -289,10 +290,10 @@ export function TenantProvisionForm() {
             {strings.ui.tenantProvisionForm.signInWithSsoTo}
           </p>
         ) : (
-          <button className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none" disabled={submission.phase === "saving"} type="submit">
+          <Button disabled={submission.phase === "saving"} type="submit">
             <Building2 size={15} />
             {submission.phase === "saving" ? strings.ui.tenantProvisionForm.provisioning : strings.ui.tenantProvisionForm.provisionTenant2}
-          </button>
+          </Button>
         )}
       </form>
 

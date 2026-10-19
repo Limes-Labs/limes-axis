@@ -98,6 +98,8 @@ describe("formatExpiry", () => {
     const expected = new Intl.DateTimeFormat("en", {
       dateStyle: "medium",
       timeStyle: "short",
+      hourCycle: "h23",
+      timeZone: "UTC",
     }).format(new Date(pastEpochSeconds * 1000));
 
     expect(formatExpiry(pastEpochSeconds)).toBe(expected);
@@ -108,6 +110,8 @@ describe("formatExpiry", () => {
     const expected = new Intl.DateTimeFormat("en", {
       dateStyle: "medium",
       timeStyle: "short",
+      hourCycle: "h23",
+      timeZone: "UTC",
     }).format(new Date(futureEpochSeconds * 1000));
 
     expect(formatExpiry(futureEpochSeconds)).toBe(expected);

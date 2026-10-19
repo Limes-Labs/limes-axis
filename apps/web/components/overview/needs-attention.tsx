@@ -8,10 +8,11 @@ import {
   ApprovalDecisionCard,
   useApprovalDecisionState,
 } from "@/components/approvals/approval-decision-card";
+import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
-import { SourcePill } from "@/components/ui/source-pill";
+import { SourcePill, sourceStateLabel } from "@/components/ui/source-pill";
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import {
   formatActionLabel,
@@ -132,10 +133,7 @@ function AttentionRow({
 }
 
 function rowLinkClass(): string {
-  return cn(
-    "inline-flex items-center rounded-full border border-line px-3.5 py-1.5 text-xs font-medium",
-    "text-ink transition-colors hover:border-signal/50 hover:text-signal dark:border-white/15",
-  );
+  return buttonVariants({ size: "sm", variant: "secondary" });
 }
 
 function ApprovalAttentionRow({
@@ -219,48 +217,51 @@ function SourceUnavailableNote({ message }: { message: string }) {
   );
 }
 
-function AttentionSources({
-  actionRuns,
-  approvals,
-  overview,
-}: {
+type AttentionSourceQueries = {
   actionRuns: OverviewQuery<ActionRunList>;
   approvals: OverviewQuery<ManufacturingApprovalInbox>;
   overview: OverviewQuery<ManufacturingOverview>;
-}) {
+};
+
+function attentionSources({ actionRuns, approvals, overview }: AttentionSourceQueries) {
+  return [
+    {
+      subject: "Risks",
+      state: deriveSourceState(overview.source, Boolean(overview.data), overview.data?.provenance),
+    },
+    {
+      subject: "Approvals",
+      state: deriveSourceState(approvals.source, Boolean(approvals.data), approvals.data?.provenance),
+    },
+    {
+      subject: "Outcomes",
+      state: deriveSourceState(actionRuns.source, Boolean(actionRuns.data), PROVENANCE_NOT_APPLICABLE),
+    },
+  ];
+}
+
+/** Provenance for the strip's tooltip; the page banner covers example data. */
+function attentionSourceTitle(queries: AttentionSourceQueries): string {
+  return attentionSources(queries)
+    .map((source) => sourceStateLabel(source.state, source.subject))
+    .join(" · ");
+}
+
+/** Only data that is no longer current keeps a visible provenance warning. */
+function AttentionSources(queries: AttentionSourceQueries) {
   const strings = useStrings();
+  const stale = attentionSources(queries).filter((source) => source.state === "stale");
+  if (stale.length === 0) {
+    return null;
+  }
   return (
     <div
       aria-label={strings.ui.overviewNeedsAttention.needsAttentionDataSources}
       className="flex min-w-0 flex-wrap items-center gap-1.5"
     >
-      <SourcePill
-        compact
-        state={deriveSourceState(
-          overview.source,
-          Boolean(overview.data),
-          overview.data?.provenance,
-        )}
-        subject="Risks"
-      />
-      <SourcePill
-        compact
-        state={deriveSourceState(
-          approvals.source,
-          Boolean(approvals.data),
-          approvals.data?.provenance,
-        )}
-        subject="Approvals"
-      />
-      <SourcePill
-        compact
-        state={deriveSourceState(
-          actionRuns.source,
-          Boolean(actionRuns.data),
-          PROVENANCE_NOT_APPLICABLE,
-        )}
-        subject="Outcomes"
-      />
+      {stale.map((source) => (
+        <SourcePill compact key={source.subject} state={source.state} subject={source.subject} />
+      ))}
     </div>
   );
 }
@@ -342,7 +343,10 @@ export function NeedsAttention({
     }
 
     return (
-      <div className="grid gap-3">
+      <div
+        className="grid gap-3"
+        title={attentionSourceTitle({ actionRuns: actionRunsQuery, approvals: approvalsQuery, overview })}
+      >
         <AttentionSources
           actionRuns={actionRunsQuery}
           approvals={approvalsQuery}
@@ -368,6 +372,7 @@ export function NeedsAttention({
           />
         }
         eyebrow={copy.eyebrow}
+        sourceHint={attentionSourceTitle({ actionRuns: actionRunsQuery, approvals: approvalsQuery, overview })}
       />
       {approvalsFailed ? <SourceUnavailableNote message={copy.approvalsUnavailable} /> : null}
       {overviewFailed ? <SourceUnavailableNote message={copy.overviewUnavailable} /> : null}

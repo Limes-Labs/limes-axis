@@ -4,12 +4,15 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft, History, ShieldCheck } from "lucide-react";
 
+import { buttonVariants } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 import { ErrorPanel, LoadingPanel } from "@/components/ui/states";
 import {
   toAxisOperatorError,
   type AxisOperatorError,
 } from "@/lib/axis-api";
 import { SourcePill } from "@/components/ui/source-pill";
+import { StatCard } from "@/components/ui/stat-card";
 import { TenantLifecycleActions } from "@/components/tenant-lifecycle-actions";
 import { TenantQuotaEditor } from "@/components/tenant-quota-editor";
 import { TenantUsagePanel } from "@/components/tenant-usage-panel";
@@ -159,7 +162,7 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
               {strings.ui.tenantDetail.theTenantReadRouteReturned}
             </p>
           </div>
-          <Link className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href="/tenants">
+          <Link className={buttonVariants({ variant: "secondary" })} href="/tenants">
             <ArrowLeft size={17} />
             {strings.ui.common.tenants}
           </Link>
@@ -193,38 +196,40 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
             <ShieldCheck size={15} />
             {tenantStatusLabel(tenant.status)}
           </span>
-          <Link className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60" href="/tenants">
+          <Link className={buttonVariants({ variant: "secondary" })} href="/tenants">
             <ArrowLeft size={17} />
             {strings.ui.common.tenants}
           </Link>
         </div>
       </section>
 
-      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4 [&>*]:min-w-0">
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">{strings.ui.common.status}</p>
-          <p className="font-display mx-0 mt-3 mb-1.5 text-2xl tabular-nums break-words text-ink">{tenantStatusLabel(tenant.status)}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.tenantDetail.onlyActiveTenantsCanEstablish}</p>
-        </article>
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">{strings.ui.tenantDetail.createdBy}</p>
-          <p className="mx-0 mt-3 mb-1.5 font-mono text-sm leading-relaxed break-words text-ink">{tenant.created_by}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">{formatTimestamp(tenant.created_at)}</p>
-        </article>
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">{strings.ui.tenantDetail.bootstrapAdmin}</p>
-          {presentText(tenant.bootstrap_admin_actor_id) ? (
-            <p className="mx-0 mt-2 mb-0 font-mono text-[13px] break-words text-ink">{presentText(tenant.bootstrap_admin_actor_id)}</p>
-          ) : (
-            <p className="mx-0 mt-2 mb-0 text-sm break-words text-ink" data-bootstrap-admin-missing>{strings.identifiers.notRecorded}</p>
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 [&>*]:min-w-0" role="list">
+        <StatCard
+          detail={strings.ui.tenantDetail.onlyActiveTenantsCanEstablish}
+          label={strings.ui.common.status}
+          value={tenantStatusLabel(tenant.status)}
+        />
+        <StatCard
+          detail={formatTimestamp(tenant.created_at)}
+          label={strings.ui.tenantDetail.createdBy}
+          value={tenant.created_by}
+          valueVariant="mono"
+        />
+        <StatCard
+          detail={strings.ui.tenantDetail.optionalActorCreatedAtProvisioning}
+          label={strings.ui.tenantDetail.bootstrapAdmin}
+          value={presentText(tenant.bootstrap_admin_actor_id) ?? (
+            // A missing actor is prose, not an identifier, so it is not set in mono.
+            <span className="font-sans" data-bootstrap-admin-missing>{strings.identifiers.notRecorded}</span>
           )}
-          <p className="m-0 text-xs leading-relaxed text-muted break-words">{strings.ui.tenantDetail.optionalActorCreatedAtProvisioning}</p>
-        </article>
-        <article className="min-w-0 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5 min-h-[120px]">
-          <p className="eyebrow m-0">{strings.ui.tenantDetail.lastAuditEvent}</p>
-          <p className="mx-0 mt-3 mb-1.5 font-mono text-sm leading-relaxed break-words text-ink">{tenant.audit_event_type}</p>
-          <p className="m-0 text-xs leading-relaxed text-muted break-words font-mono text-[13px]">{tenant.audit_event_id ?? strings.ui.tenantDetail.noAuditId}</p>
-        </article>
+          valueVariant="mono"
+        />
+        <StatCard
+          detail={<span className="font-mono">{tenant.audit_event_id ?? strings.ui.tenantDetail.noAuditId}</span>}
+          label={strings.ui.tenantDetail.lastAuditEvent}
+          value={tenant.audit_event_type}
+          valueVariant="mono"
+        />
       </div>
 
       <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
@@ -274,16 +279,15 @@ export function TenantDetail({ tenantId }: { tenantId: string }) {
       <TenantVocabularyEditor tenantId={tenant.tenant_id} />
 
       {notes.length > 0 ? (
-        <details className="min-w-0 rounded-2xl border border-line bg-surface p-5 dark:border-white/10 dark:bg-white/5">
-          <summary className="cursor-pointer text-sm font-medium text-ink">{strings.ui.tenantDetail.tenantNotes}</summary>
-          <div className="mt-3 grid min-w-0 gap-2.5">
+        <Disclosure title={strings.ui.tenantDetail.tenantNotes}>
+          <div className="grid min-w-0 gap-2.5">
             {notes.map((note) => (
               <p className="mx-0 mt-1 mb-0 text-sm leading-snug text-muted break-words" key={note}>
                 {note}
               </p>
             ))}
           </div>
-        </details>
+        </Disclosure>
       ) : null}
     </div>
   );

@@ -1,11 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  ChevronDown,
-  ChevronRight,
   History,
   Route,
   TimerReset,
@@ -14,9 +11,9 @@ import {
 
 import { PlatformStatusPill } from "@/components/status-pill";
 import { Card } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DataTable } from "@/components/ui/data-table";
 import { DetailGrid, KeyValueRow } from "@/components/ui/detail-grid";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { FilterBar, type FilterDef } from "@/components/ui/filter-bar";
 import { Term } from "@/components/ui/glossary";
@@ -237,17 +234,16 @@ function CollapsibleSection({
   label: string;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
-  const Chevron = open ? ChevronDown : ChevronRight;
 
   return (
-    <Collapsible onOpenChange={setOpen} open={open}>
-      <CollapsibleTrigger className="flex min-h-6 cursor-pointer items-center gap-1.5 bg-transparent p-0">
-        <Chevron aria-hidden="true" className="text-muted" size={14} />
-        <span className="eyebrow">{label}</span>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pt-2 pl-5.5">{children}</CollapsibleContent>
-    </Collapsible>
+    <Disclosure
+      contentClassName="pl-5.5"
+      keepMounted={false}
+      title={<span className="eyebrow">{label}</span>}
+      variant="plain"
+    >
+      {children}
+    </Disclosure>
   );
 }
 

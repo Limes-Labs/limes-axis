@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 
 import { AxisMark } from "@/components/axis-mark";
 import { SsoSignInLink } from "@/components/sso-sign-in-link";
+import { buttonVariants } from "@/components/ui/button";
 import { ShieldKeyIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { cn } from "@/lib/cn";
@@ -94,7 +95,7 @@ export function SignInGate({
         </p>
         <div className="mt-5">
           <SsoSignInLink
-            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-signal px-4 text-sm font-semibold text-white transition-transform hover:opacity-90 active:scale-[0.98]"
+            className={buttonVariants({ size: "lg", className: "min-h-[44px] w-full" })}
             gate
             href={signInHref}
           >

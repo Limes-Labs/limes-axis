@@ -21,6 +21,8 @@ import { toAxisOperatorError, type AxisOperatorError } from "@/lib/axis-api";
 import { pluralize } from "@/lib/format";
 import { useOidcConsoleSession } from "@/lib/use-oidc-session";
 import { useConsole } from "@/providers/console-provider";
+import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InlineOperatorError } from "@/components/ui/inline-operator-error";
@@ -262,28 +264,28 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
                 {strings.ui.tenantQuotaEditor.confirmTheQuotaUpdateBlank}
               </p>
               <div className="grid w-full min-w-0 gap-2.5 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:justify-end">
-                <button
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-mist bg-surface px-4 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:border-signal/50 hover:text-signal disabled:cursor-not-allowed disabled:opacity-55 dark:border-white/20 dark:hover:border-signal/60"
+                <Button
+                  variant="secondary"
                   onClick={() => void confirmSave()}
                   type="button"
                 >
                   <Gauge size={15} />
                   {strings.ui.tenantQuotaEditor.confirmQuotaUpdate}
-                </button>
-                <button
-                  className="inline-flex items-center justify-center rounded-full px-3 py-2 text-sm font-medium text-ink transition-all duration-300 select-none hover:text-signal"
+                </Button>
+                <Button
+                  variant="ghost"
                   onClick={() => setSave({ phase: "idle" })}
                   type="button"
                 >
                   {strings.ui.tenantQuotaEditor.cancel}
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
-            <button className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none" disabled={save.phase === "saving"} type="submit">
+            <Button disabled={save.phase === "saving"} type="submit">
               <Gauge size={15} />
               {save.phase === "saving" ? strings.ui.common.saving : strings.ui.tenantQuotaEditor.reviewQuotaUpdate}
-            </button>
+            </Button>
           )}
         </form>
       )}
@@ -298,9 +300,12 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
         </p>
       ) : null}
 
-      <details className="mt-4 border-t border-line/60 pt-3 text-sm text-muted dark:border-white/10">
-        <summary className="cursor-pointer font-medium text-ink">{strings.ui.tenantQuotaEditor.quotaTechnicalDetails}</summary>
-        <div className="mt-3 grid min-w-0 grid-cols-1 gap-2.5 [&>p]:min-w-0 [&>p]:[overflow-wrap:anywhere]">
+      <Disclosure
+        className="mt-4 border-t border-line/60 pt-3 text-sm text-muted dark:border-white/10"
+        title={strings.ui.tenantQuotaEditor.quotaTechnicalDetails}
+        variant="plain"
+      >
+        <div className="grid min-w-0 grid-cols-1 gap-2.5 [&>p]:min-w-0 [&>p]:[overflow-wrap:anywhere]">
           <p className="m-0 leading-snug break-words">Required permission: {platformTenantQuotaScope}.</p>
           <p className="m-0 break-words font-mono text-[13px]">GET / PUT {buildPlatformTenantQuotasPath(tenantId)}</p>
           {quotaNotes.map((note) => (
@@ -309,7 +314,7 @@ export function TenantQuotaEditor({ tenantId }: { tenantId: string }) {
             </p>
           ))}
         </div>
-      </details>
+      </Disclosure>
     </section>
   );
 }

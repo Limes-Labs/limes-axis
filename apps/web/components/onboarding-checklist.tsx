@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, CircleCheckBig, Circle } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Eyebrow } from "@/components/ui/eyebrow";
@@ -190,10 +190,7 @@ function StepRow({ step }: { step: OnboardingStep }) {
         <span className="status-pill signal-ready">{strings.onboarding.stepDone}</span>
       ) : (
         <Link
-          className={cn(
-            "inline-flex items-center rounded-full border border-line px-3.5 py-1.5 text-xs font-medium",
-            "text-ink transition-colors hover:border-signal/50 hover:text-signal dark:border-white/15",
-          )}
+          className={buttonVariants({ size: "sm", variant: "secondary" })}
           href={step.href}
         >
           {step.cta}

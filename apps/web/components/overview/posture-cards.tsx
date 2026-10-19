@@ -1,8 +1,7 @@
 "use client";
 
-import { Eyebrow } from "@/components/ui/eyebrow";
-import { Skeleton } from "@/components/ui/skeleton";
-import { SourcePill } from "@/components/ui/source-pill";
+import { SourcePill, sourceStateLabel } from "@/components/ui/source-pill";
+import { StatCard } from "@/components/ui/stat-card";
 import { isReadAuditEvent } from "@/lib/audit-demo";
 import { formatNumber, pluralize } from "@/lib/format";
 import { countBlockedModelRoutes, type ManufacturingModelRouting } from "@/lib/model-routing-demo";
@@ -196,29 +195,27 @@ export function PostureCards({
       role="list"
     >
       {cards.map((card) => (
-        <article
-          className="grid content-start gap-2 rounded-2xl border border-line bg-surface p-4 dark:border-white/10 dark:bg-white/5"
+        <StatCard
+          aside={card.value === null ? null : <StatusDot status={card.status} />}
           data-kpi-card
+          detail={card.detail}
+          data-source-state={card.sourceState}
           key={card.key}
-          role="listitem"
+          label={card.label}
+          title={sourceStateLabel(card.sourceState, card.label.toLowerCase())}
+          value={card.value}
         >
-          <div className="flex items-start justify-between gap-2">
-            <Eyebrow>{card.label}</Eyebrow>
-            {card.value === null ? null : <StatusDot status={card.status} />}
-          </div>
-          {card.value === null ? (
-            <Skeleton className="h-7 w-2/5" />
-          ) : (
-            <p className="font-display m-0 text-xl break-words text-ink">{card.value}</p>
-          )}
-          <p className="m-0 text-xs text-muted">{card.detail}</p>
-          <SourcePill
-            className="w-fit max-w-full"
-            state={card.sourceState}
-            subject={card.label.toLowerCase()}
-          />
+          {/* Provenance is in the tooltip and the page banner; stale numbers
+              keep a visible warning because they are no longer current. */}
+          {card.sourceState === "stale" ? (
+            <SourcePill
+              className="w-fit max-w-full"
+              state={card.sourceState}
+              subject={card.label.toLowerCase()}
+            />
+          ) : null}
           <PanelLink href={card.href}>{card.linkLabel}</PanelLink>
-        </article>
+        </StatCard>
       ))}
     </div>
   );

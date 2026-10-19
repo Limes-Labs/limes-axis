@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { FlaskConical } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineOperatorError } from "@/components/ui/inline-operator-error";
 import { Input } from "@/components/ui/input";
@@ -254,14 +255,13 @@ export function PolicyEvaluationPanel({
             value={form.requestedAmount}
           />
         </Field>
-        <button
-          className="inline-flex items-center justify-center gap-2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white transition-all duration-300 select-none hover:bg-signal hover:shadow-[0_8px_24px_rgb(47_100_255/0.35)] disabled:cursor-not-allowed disabled:opacity-55 dark:bg-signal dark:hover:bg-white dark:hover:text-navy dark:hover:shadow-none"
+        <Button
           disabled={evaluation.phase === "evaluating"}
           type="submit"
         >
           <FlaskConical size={15} />
           {evaluation.phase === "evaluating" ? strings.ui.policyEvaluationPanel.evaluating : strings.ui.policyEvaluationPanel.runDryRunEvaluation}
-        </button>
+        </Button>
       </form>
 
       {evaluation.phase === "failed" ? (

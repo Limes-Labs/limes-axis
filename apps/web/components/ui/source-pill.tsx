@@ -51,6 +51,15 @@ const labels: Record<SourceState, (subject: string) => string> = {
 };
 
 /**
+ * Plain-text provenance for a `title` or tooltip, e.g. "agents: live". Pages
+ * that summarise provenance once (the overview banner) keep it per item here
+ * instead of repeating a visible pill on every panel.
+ */
+export function sourceStateLabel(state: SourceState, subject: string): string {
+  return labels[state](subject);
+}
+
+/**
  * Data-provenance badge. Previously each console hardcoded the green `ready`
  * tone and computed only the text, so a surface could render a green pill
  * reading "Agent API unavailable". Tone and label are derived together here.

@@ -19,11 +19,17 @@ export type OntologyGraphLayoutNode = {
   tier: number;
   x: number;
   y: number;
+  /** Label baseline point, always one of the node's anchor slots. */
   labelX: number;
   labelY: number;
+  /** SVG `text-anchor` for the slot: beside a node the label reads away from it. */
+  labelAnchor: LabelAnchor;
   displayLabel: string;
+  /** False when every slot is crowded; the label then appears on hover/focus. */
   labelVisible: boolean;
 };
+
+export type LabelAnchor = "start" | "middle" | "end";
 
 export type OntologyGraphLayoutEdge = {
   id: string;
@@ -39,6 +45,12 @@ export type OntologyGraphLayoutEdge = {
 export type OntologyGraphLayout = {
   width: number;
   height: number;
+  /**
+   * The drawn content — nodes, hit targets and every label slot — plus a
+   * margin. The graph opens fitted to this box, so the canvas is not left
+   * with an empty band wherever the radial rings do not reach.
+   */
+  viewBox: GraphViewBox;
   nodes: OntologyGraphLayoutNode[];
   edges: OntologyGraphLayoutEdge[];
   /** Adjacency: node id -> ids of directly connected nodes. */
@@ -119,6 +131,41 @@ export function panViewBox(
   );
 }
 
+type ClientRect = { left: number; top: number; width: number; height: number };
+
+/**
+ * Pixels per user unit for an SVG drawn with the default
+ * `preserveAspectRatio="xMidYMid meet"`: the view is scaled uniformly to fit
+ * and centred, so the smaller axis ratio wins.
+ */
+export function viewBoxScale(rect: ClientRect, view: GraphViewBox): number {
+  if (rect.width <= 0 || rect.height <= 0 || view.width <= 0 || view.height <= 0) {
+    return 0;
+  }
+
+  return Math.min(rect.width / view.width, rect.height / view.height);
+}
+
+/** Map a client (pointer) position to user coordinates, accounting for letterboxing. */
+export function clientPointToViewBox(
+  rect: ClientRect,
+  view: GraphViewBox,
+  clientX: number,
+  clientY: number,
+): { x: number; y: number } | null {
+  const scale = viewBoxScale(rect, view);
+  if (scale === 0) {
+    return null;
+  }
+
+  const offsetX = (rect.width - view.width * scale) / 2;
+  const offsetY = (rect.height - view.height * scale) / 2;
+  return {
+    x: view.x + (clientX - rect.left - offsetX) / scale,
+    y: view.y + (clientY - rect.top - offsetY) / scale,
+  };
+}
+
 /** Tier per node type — lower tiers render closer to the center. */
 export const ONTOLOGY_NODE_TIERS: Record<OntologyNodeType, number> = {
   organization: 0,
@@ -134,6 +181,80 @@ export const ONTOLOGY_NODE_TIERS: Record<OntologyNodeType, number> = {
 };
 
 const TIER_COUNT = 4;
+
+/** Half-diagonal of the diamond marker; the graph draws tier 0 three units larger. */
+export const NODE_HALF = 9;
+/** The watch/action status dot sits this far right of and above the node centre. */
+export const STATUS_DOT_OFFSET = NODE_HALF + 2;
+export const STATUS_DOT_RADIUS = 3;
+/** Radius of a node's invisible pointer target. */
+export const NODE_HIT_RADIUS = NODE_HALF + 12;
+/** Approximate advance of the 13px monospace label face. */
+const LABEL_CHAR_WIDTH = 8;
+/** A label must keep this far from any other node's centre. */
+const NODE_CLEARANCE = 14;
+const VIEW_PADDING = 12;
+/** Smallest opening view, so a sparse graph is not magnified past ~1.2x. */
+export const MIN_VIEW_WIDTH = 560;
+export const MIN_VIEW_HEIGHT = 460;
+
+type Box = { left: number; right: number; top: number; bottom: number };
+
+type LabelSlot = { dx: number; dy: number; anchor: LabelAnchor };
+
+/** Baseline offsets around a node, each touching the marker. */
+const DEFAULT_SLOT: LabelSlot = { dx: 0, dy: 26, anchor: "middle" };
+const LABEL_SLOTS: readonly LabelSlot[] = [
+  DEFAULT_SLOT,
+  { dx: 0, dy: -17, anchor: "middle" },
+  { dx: 17, dy: 5, anchor: "start" },
+  { dx: -17, dy: 5, anchor: "end" },
+  { dx: 12, dy: 24, anchor: "start" },
+  { dx: -12, dy: 24, anchor: "end" },
+  { dx: 12, dy: -13, anchor: "start" },
+  { dx: -12, dy: -13, anchor: "end" },
+];
+
+function labelBox(x: number, y: number, anchor: LabelAnchor, textWidth: number): Box {
+  const left = anchor === "start" ? x : anchor === "end" ? x - textWidth : x - textWidth / 2;
+  return { left: left - 4, right: left + textWidth + 4, top: y - 14, bottom: y + 4 };
+}
+
+/**
+ * One rectangle covering a node's hit circle and its label slot, so the node
+ * and its label are a single, gap-free pointer target.
+ */
+export function nodeTargetBounds(node: OntologyGraphLayoutNode): GraphViewBox {
+  const circle = squareBox(node.x, node.y, NODE_HIT_RADIUS);
+  const label = labelBox(node.labelX, node.labelY, node.labelAnchor, node.displayLabel.length * LABEL_CHAR_WIDTH);
+  const left = Math.min(circle.left, label.left);
+  const top = Math.min(circle.top, label.top);
+  return {
+    x: round(left),
+    y: round(top),
+    width: round(Math.max(circle.right, label.right) - left),
+    height: round(Math.max(circle.bottom, label.bottom) - top),
+  };
+}
+
+function squareBox(x: number, y: number, half: number): Box {
+  return { left: x - half, right: x + half, top: y - half, bottom: y + half };
+}
+
+function overlaps(a: Box, b: Box): boolean {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+/**
+ * Prefer the slot that points away from the centre, so a label reads outward
+ * into free space rather than across the inner rings. Ties keep slot order.
+ */
+function slotPreference(slot: LabelSlot, outward: { x: number; y: number }): number {
+  const direction = slot.anchor === "start" ? 1 : slot.anchor === "end" ? -1 : 0;
+  const vertical = slot.dy > 10 ? 1 : slot.dy < -10 ? -1 : 0;
+  const length = Math.hypot(outward.x, outward.y) || 1;
+  return (direction * outward.x + vertical * outward.y) / length;
+}
 
 function nodeSortKey(node: OntologyNode): string {
   return `${ONTOLOGY_NODE_TIERS[node.node_type]}:${node.node_type}:${node.label}:${node.node_id}`;
@@ -191,52 +312,74 @@ export function buildOntologyGraphLayout(
         x,
         y,
         labelX: x,
-        labelY: y + 25,
+        labelY: y + DEFAULT_SLOT.dy,
+        labelAnchor: DEFAULT_SLOT.anchor,
         displayLabel: node.label.length > 28 ? `${node.label.slice(0, 27)}…` : node.label,
         labelVisible: false,
       });
     });
   }
 
-  // Keep 13px monospace labels clear of other labels and node hit targets.
-  // Prefer the nearest free position; the graph retains its radial nodes.
-  const labelBoxes: { left: number; right: number; top: number; bottom: number }[] = [];
+  // Labels sit in one of a few slots touching their own node — below, above,
+  // beside or diagonal — never in free space elsewhere on the canvas. (The old
+  // search counted a node's own marker as an obstacle, so the slot under the
+  // node always failed and labels drifted off behind leader lines.) A label
+  // with no free slot is shown on hover/focus instead.
+  const labelBoxes: Box[] = [];
   for (const node of layoutNodes) {
-    const halfWidth = node.displayLabel.length * 4;
-    node.labelX = clamp(node.x, halfWidth + 8, width - halfWidth - 8);
-    const candidates: { x: number; y: number; distance: number }[] = [];
-    for (let y = 24; y <= height - 12; y += 20) {
-      for (let x = halfWidth + 8; x <= width - halfWidth - 8; x += 24) {
-        candidates.push({ x, y, distance: (x - node.x) ** 2 + (y - node.y - 25) ** 2 });
-      }
-    }
-    candidates.unshift({ x: node.labelX, y: node.y + 25, distance: 0 });
-    candidates.sort((left, right) => left.distance - right.distance);
-    for (const candidate of candidates) {
-      const box = {
-        left: candidate.x - halfWidth - 4,
-        right: candidate.x + halfWidth + 4,
-        top: candidate.y - 14,
-        bottom: candidate.y + 4,
-      };
-      if (box.top < 8 || box.bottom > height - 8) continue;
-      const overlapsLabel = labelBoxes.some((other) =>
-        box.left < other.right && box.right > other.left &&
-        box.top < other.bottom && box.bottom > other.top,
-      );
+    const textWidth = node.displayLabel.length * LABEL_CHAR_WIDTH;
+    const outward = { x: node.x - cx, y: node.y - cy };
+    const slots = [...LABEL_SLOTS].sort(
+      (left, right) => slotPreference(right, outward) - slotPreference(left, outward),
+    );
+    // Its own marker only has to stay uncovered (tier 0 draws 3 units larger).
+    const ownHalf = node.tier === 0 ? NODE_HALF + 3 : NODE_HALF;
+    for (const slot of slots) {
+      const x = node.x + slot.dx;
+      const y = node.y + slot.dy;
+      const box = labelBox(x, y, slot.anchor, textWidth);
+      const overlapsLabel = labelBoxes.some((other) => overlaps(box, other));
       const overlapsNode = layoutNodes.some((other) =>
-        box.left < other.x + 14 && box.right > other.x - 14 &&
-        box.top < other.y + 14 && box.bottom > other.y - 14,
+        overlaps(box, squareBox(other.x, other.y, other.id === node.id ? ownHalf : NODE_CLEARANCE))
+        // A status dot is part of the marker; a label must not cover it.
+        || (other.status !== "ready"
+          && overlaps(box, squareBox(other.x + STATUS_DOT_OFFSET, other.y - STATUS_DOT_OFFSET, STATUS_DOT_RADIUS))),
       );
       if (!overlapsLabel && !overlapsNode) {
-        node.labelX = round(candidate.x);
-        node.labelY = round(candidate.y);
+        node.labelX = round(x);
+        node.labelY = round(y);
+        node.labelAnchor = slot.anchor;
         node.labelVisible = true;
         labelBoxes.push(box);
         break;
       }
     }
   }
+
+  // Fit the opening view to what is drawn, including the below-node slot a
+  // hidden label uses on focus, so nothing is clipped and no band is empty.
+  const contentBoxes = layoutNodes.flatMap((node) => [
+    squareBox(node.x, node.y, NODE_HIT_RADIUS),
+    labelBox(node.labelX, node.labelY, node.labelAnchor, node.displayLabel.length * LABEL_CHAR_WIDTH),
+  ]);
+  const viewBox: GraphViewBox = contentBoxes.length === 0
+    ? { x: 0, y: 0, width, height }
+    : (() => {
+        const left = Math.min(...contentBoxes.map((box) => box.left)) - VIEW_PADDING;
+        const top = Math.min(...contentBoxes.map((box) => box.top)) - VIEW_PADDING;
+        const right = Math.max(...contentBoxes.map((box) => box.right)) + VIEW_PADDING;
+        const bottom = Math.max(...contentBoxes.map((box) => box.bottom)) + VIEW_PADDING;
+        // A small graph is centred in a minimum-sized view rather than blown
+        // up until a handful of nodes and labels fill the whole card.
+        const viewWidth = Math.max(right - left, MIN_VIEW_WIDTH);
+        const viewHeight = Math.max(bottom - top, MIN_VIEW_HEIGHT);
+        return {
+          x: round((left + right - viewWidth) / 2),
+          y: round((top + bottom - viewHeight) / 2),
+          width: round(viewWidth),
+          height: round(viewHeight),
+        };
+      })();
 
   const neighbors = new Map<string, Set<string>>();
   const addNeighbor = (from: string, to: string) => {
@@ -284,5 +427,5 @@ export function buildOntologyGraphLayout(
     });
   }
 
-  return { width, height, nodes: layoutNodes, edges, neighbors };
+  return { width, height, viewBox, nodes: layoutNodes, edges, neighbors };
 }
