@@ -96,8 +96,15 @@ export function DataAssetDetail({ asset }: { asset: DataAsset }) {
         {asset.schema_fields.length === 0 ? (
           <p className="m-0 text-xs text-muted">{copy.schemaEmpty}</p>
         ) : (
-          <div className="overflow-x-auto">
+          // Keyboard users scroll the overflow with arrow keys once focused.
+          <div
+            aria-label={copy.schemaRegion}
+            className="overflow-x-auto rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+            role="region"
+            tabIndex={0}
+          >
             <table className="w-full border-collapse text-left text-xs">
+              <caption className="sr-only">{copy.schemaTitle}</caption>
               <thead>
                 <tr className="border-b border-line text-muted">
                   <th className="py-1.5 pr-3 font-medium" scope="col">

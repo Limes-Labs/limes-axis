@@ -1923,6 +1923,7 @@ export const strings = {
       manifestRevision: "Manifest revision",
       registryOrigin: "Registry origin",
       schemaTitle: "Declared schema mapping",
+      schemaRegion: "Scrollable declared schema mapping",
       schemaEmpty: "This source has no declared field mapping yet.",
       ontologyTargets: "Ontology targets",
       notes: "Catalog notes",
